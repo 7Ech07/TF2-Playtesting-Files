@@ -12,9 +12,6 @@
 
 #pragma newdecls required
 
-#include <tf_custom_attributes>
-#include <tf_ontakedamage>
-
 
 	// -={ Stock functions -- taken from Valve themselves }=-
 	// https://github.com/ValveSoftware/source-sdk-2013/blob/master/sp/src/public/mathlib/mathlib.h#L648s
@@ -63,9 +60,17 @@ enum struct Player {
 	float fBoosting;		// Stores BFB alt-fire boost duration
 	float fAirtimeTrack;		// Tracks time spent parachuting
 	bool bAudio;		// Tracks whether or not we've played the audio cue yet
+	float parachute_cond_time;
 }
 
 Player players[MAXPLAYERS+1];
+
+
+Handle cvar_ref_tf_parachute_aircontrol;
+
+public void OnPluginStart() {
+	cvar_ref_tf_parachute_aircontrol = FindConVar("tf_parachute_aircontrol");
+}
 
 
 public void OnClientPutInServer(int client) {
@@ -80,26 +85,26 @@ Handle g_DHookPrimaryAttack;
 
 
 public void OnMapStart() {
-	int entity = -1;
+	/*int entity = -1;
 
 	while ((entity = FindEntityByClassname(entity, "*")) != -1) {
 		if (TF2Util_IsEntityWeapon(entity)) {
 			HookWeaponEntity(entity);
 		}
-	}
+	}*/
 	
 	PrecacheSound("weapons/discipline_device_power_up.wav", true);
 }
 
 
-public void OnEntityCreated(int entity, const char[] className) {			// Allows primary fire hook to work
+/*public void OnEntityCreated(int entity, const char[] className) {			// Allows primary fire hook to work
 	if (TF2Util_IsEntityWeapon(entity)) {
 		HookWeaponEntity(entity);
 	}
 }
 
 
-/*static void HookWeaponEntity(int weapon) {
+static void HookWeaponEntity(int weapon) {
 	DHookEntity(g_DHookPrimaryAttack, true, weapon, .callback = OnPrimaryAttackPost);		// Inform us after a primary attack is performed
 }*/
 
@@ -404,7 +409,7 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 				}
 				
 				// Spy
-				case TFClass_Sniper: {
+				case TFClass_Spy: {
 					if (StrEqual(class, "tf_weapon_revolver")) {
 				
 						float vecAttacker[3];
@@ -503,7 +508,7 @@ public Action Event_PlayerDeath(Event event, const char[] cName, bool dontBroadc
 
 public void OnGameFrame() {
 	int iClient;		// Index; lets us run through all the players on the server	
-	//PrintToChatAll("SwingTimer: %f", players[iClient].iSwingTimer);
+	SetConVarString(cvar_ref_tf_parachute_aircontrol, "3.5");
 
 	for (iClient = 1; iClient <= MaxClients; iClient++) {
 		if (IsClientInGame(iClient) && IsPlayerAlive(iClient)) {
@@ -512,6 +517,7 @@ public void OnGameFrame() {
 			{
 				// Scout
 				case TFClass_Scout: {
+					
 					int primary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
 					int primaryIndex = -1;
 					if (primary >= 0) {
@@ -542,22 +548,28 @@ public void OnGameFrame() {
 				}
 				
 				// BASE Jumper
-				case TFClass_Soldier, TFClass_Demoman: {
-					if (TF2_IsPlayerInCondition(idx, TFCond_Parachute)) {		// Are we parachuting?
-						players[idx].fAirtimeTrack += 0.015;		// Add a frame to the airtime counter
-						if ((players[idx].fAirtimeTrack) > 0.35) {
-							if (players[idx].bAudio == false) {		// We only want this to play once
-								EmitSoundToClient(idx, "weapons/discipline_device_power_up.wav");
+				case TFClass_Soldier, TFClass_DemoMan: {
+					
+					if (TF2_IsPlayerInCondition(iClient, TFCond_Parachute)) {		// Are we parachuting?
+						players[iClient].parachute_cond_time = GetGameTime();		// Record the time, so we can set a redeploy cooldown
+						players[iClient].fAirtimeTrack += 0.015;		// Add a frame to the airtime counter
+						if ((players[iClient].fAirtimeTrack) > 0.35) {
+							if (players[iClient].bAudio == false) {		// We only want this to play once
+								EmitSoundToClient(iClient, "weapons/discipline_device_power_up.wav");
 							}
-							players[idx].bAudio = true;
-							TF2Attrib_AddCustomPlayerAttribute(idx, "faster reload rate", 0.75, 0.35);	// If so, buff reload speed (no point in checking for explosive launchers since reload speed on melee weapons doesn't matter)
-							players[idx].fAirtimeTrack = 0.35;
+							players[iClient].bAudio = true;
+							TF2Attrib_AddCustomPlayerAttribute(iClient, "faster reload rate", 0.75, 0.35);	// If so, buff reload speed (no point in checking for explosive launchers since reload speed on melee weapons doesn't matter)
+							players[iClient].fAirtimeTrack = 0.35;
 						}
+					}
+					else if (TF2_IsPlayerInCondition(iClient, TFCond_ParachuteDeployed) && (GetGameTime() - players[iClient].parachute_cond_time) > 0.35) {		// Do we have the parachute lockout debuff but have exceeded the plugin's defined cooldown?
+					players[iClient].parachute_cond_time = GetGameTime();		// Record the time, so we can set a redeploy cooldown
+						TF2_RemoveCondition(iClient, TFCond_ParachuteDeployed);		// Cleanse the debuff
 					}
 					
 					else {		// If we aren't parachuting...
-					players[idx].fAirtimeTrack = 0.0;		// Reset the airtime tracker
-					players[idx].bAudio = false;				
+					players[iClient].fAirtimeTrack = 0.0;		// Reset the airtime tracker
+					players[iClient].bAudio = false;				
 					}
 				}
 				
