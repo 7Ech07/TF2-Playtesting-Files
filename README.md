@@ -9,15 +9,15 @@ All .smx files are contained in a single folder (which can simply be placed in t
 
 ## Abs' stuff
 * Multi-Class
-* * B.A.S.E. Jumper
+  * B.A.S.E. Jumper
 * Scout
-* * Baby Face's Blaster
+  * Baby Face's Blaster
 * Sniper
-* * Sniper Rifles
+  * Sniper Rifles
   * Bazaar Bargain
   * SMG (mostly)
   * Kukri
   * Tribalman's Shiv (partly)
 * Spy
-* * Revolvers
+  * Revolvers
   * Knives
