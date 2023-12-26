@@ -57,9 +57,6 @@ enum struct Player {
 	float fRev;		// Tracks how long we've been revved for the purposes of undoing the L&W nerf
 	float fBoost;		// Natascha Boost
 	float fFlare_Cooldown;		// HLH firing interval (to prevent tapfiring)
-	float fRev;		// This must be a global variable, else it doesn't track properly
-	float fBoost;		// Natascha Boost
-	float fFlare_Cooldown;		// HLH firing interval (to prevent tapfiring)
 }
 
 
@@ -69,7 +66,7 @@ public void OnMapStart()
 {
 	PrecacheSound("weapons/widow_maker_pump_action_back.wav", true);
 	PrecacheSound("weapons/widow_maker_pump_action_forward.wav", true);
-		PrecacheSound("weapons/flare_detonator_explode.wav", true);
+	PrecacheSound("weapons/flare_detonator_explode.wav", true);
 }
 
 
@@ -103,7 +100,7 @@ Player players[MAXPLAYERS+1];
 public void OnClientPutInServer (int iClient)
 {
 	SDKHook(iClient, SDKHook_OnTakeDamageAlive, OnTakeDamage);
-	SDKHook(client, SDKHook_OnTakeDamageAlivePost, OnTakeDamagePost);
+	SDKHook(iClient, SDKHook_OnTakeDamageAlivePost, OnTakeDamagePost);
 }
 
 
@@ -161,6 +158,19 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 }
 
 
+	// -={Resets variables on death }=-
+
+public Action Event_PlayerDeath(Event event, const char[] cName, bool dontBroadcast)
+{
+	int attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
+	int victim = event.GetInt("victim_entindex");
+	int customKill = event.GetInt("customkill");
+
+	players[victim].fBoost = 0;			// Reset Heads to 0 on death
+
+	return 
+}
+
 	// -={ Iterates every frame }=-
 	
 	// Somethhing in here might be broken
@@ -192,32 +202,32 @@ public void OnGameFrame() {
 	SetConVarString(cvar_ref_tf_airblast_cray_reflect_coeff, "1");
 	
 	// Afterburn
-	for (int i = 1; i <= MaxClients; i++) {		// Caps Afterburn at 8 and handles Temperature
-		if (IsClientInGame(i) && IsPlayerAlive(i)) {
-			float fBurn = TF2Util_GetPlayerBurnDuration(i);
+	for (int iClient = 1; iClient <= MaxClients; iClient++) {		// Caps Afterburn at 8 and handles Temperature
+		if (IsClientInGame(iClient) && IsPlayerAlive(iClient)) {
+			float fBurn = TF2Util_GetPlayerBurnDuration(iClient);
 			if (fBurn > 8.0) {
-				TF2Util_SetPlayerBurnDuration(i, 8.0);
-				players[i].iTempLevel = 2;
-				if (players[i].ParticleCD == true) {
-					CreateParticle(i,"dragons_fury_effect", 0.5);
-					players[i].ParticleCD = false;
+				TF2Util_SetPlayerBurnDuration(iClient, 8.0);
+				players[iClient].iTempLevel = 2;
+				if (players[iClient].ParticleCD == true) {
+					CreateParticle(iClient,"dragons_fury_effect", 0.5);
+					players[iClient].ParticleCD = false;
 				}
 			}
 			
 			else if (fBurn > 5.5) {
-				players[i].iTempLevel = 1;
+				players[iClient].iTempLevel = 1;
 			}
 			
 			else {
-				players[i].iTempLevel = 0;
-				players[i].ParticleCD = true;
+				players[iClient].iTempLevel = 0;
+				players[iClient].ParticleCD = true;
 			}
 			
 			// Airblast jump chaining prevention
 			float vecVel[3];
-			GetEntPropVector(i, Prop_Data, "m_vecVelocity", vecVel);		// Retrieve existing velocity
-			if (vecVel[2] == 0 && (GetEntityFlags(i) & FL_ONGROUND)) {		// Are we grounded?
-				players[i].AirblastJumpCD = true;
+			GetEntPropVector(iClient, Prop_Data, "m_vecVelocity", vecVel);		// Retrieve existing velocity
+			if (vecVel[2] == 0 && (GetEntityFlags(iClient) & FL_ONGROUND)) {		// Are we grounded?
+				players[iClient].AirblastJumpCD = true;
 			}
 			else {
 			}
@@ -295,13 +305,17 @@ public void OnGameFrame() {
 public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3], float angles[3], int& weapon, int& subtype, int& cmdnum, int& tickcount, int& seed, int mouse[2]) {
 	if (client >= 1 && client <= MaxClients) {
 		
+		int iPrimary = TF2Util_GetPlayerLoadoutEntity(client, TFWeaponSlot_Primary, true);		// Retrieve the primary weapon
+		int primaryIndex = -1;
+		if(iPrimary >= 0) primaryIndex = GetEntProp(iPrimary, Prop_Send, "m_iItemDefinitionIndex");		// Retrieve the primary weapon index for later
+		int iActive = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");		// Retrieve the active weapon
+		
 		// Pyro
 		if (TF2_GetPlayerClass(client) == TFClass_Pyro) {
 
-			int iPrimary = TF2Util_GetPlayerLoadoutEntity(client, TFWeaponSlot_Primary, true);		// Retrieve the primary weapon
+			
 			char class[64];
 			GetEntityClassname(iPrimary, class, sizeof(class));		// Retrieve the weapon
-			
 			// Airblast jump
 			if (StrEqual(class, "tf_weapon_flamethrower") || StrEqual(class, "tf_weapon_rocketlauncher_fireball")) {		// Are we holding an Airblast-capable weapon?
 				int weaponState = GetEntProp(iPrimary, Prop_Send, "m_iWeaponState");
@@ -322,8 +336,6 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 			// Huntsman passive reload
 			if (iPrimary != -1) {
 				if (iActive == iPrimary) {		// Are we holding our primary?
-					primaryIndex = GetEntProp(iPrimary, Prop_Send, "m_iItemDefinitionIndex");		// Retrieve the primary weapon index for later
-					int iActive = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");		// Retrieve the active weapon
 					if (primaryIndex == 56 || primaryIndex == 1005 || primaryIndex == 1092) {		// Is the primary a bow?
 					
 						int iAmmoTable = FindSendPropInfo("CTFWeaponBase", "m_iClip1");
@@ -346,8 +358,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 		
 			int iSecondary = TF2Util_GetPlayerLoadoutEntity(client, TFWeaponSlot_Secondary, true);		// Retrieve the secondary weapon
 			int secondaryIndex = -1;
-			secondaryIndex = GetEntProp(iSecondary, Prop_Send, "m_iItemDefinitionIndex");		// Retrieve the primary weapon index for later
-			int iActive = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");		// Retrieve the active weapon
+			if(iSecondary >= 0) secondaryIndex = GetEntProp(iSecondary, Prop_Send, "m_iItemDefinitionIndex");		// Retrieve the primary weapon index for later
 		
 			if (iSecondary != -1) {
 				if (iActive != iSecondary) {		// Are we holding our secondary?
@@ -366,11 +377,6 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 			}
 		}
 		else if (TF2_GetPlayerClass(client) == TFClass_Engineer) {
-		
-			int iPrimary = TF2Util_GetPlayerLoadoutEntity(client, TFWeaponSlot_Primary, true);		// Retrieve the primary weapon (for Engineer)
-			int primaryIndex = -1;
-			primaryIndex = GetEntProp(iPrimary, Prop_Send, "m_iItemDefinitionIndex");		// Retrieve the primary weapon index for later
-			int iActive = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");		// Retrieve the active weapon
 			
 			if (iPrimary != -1) {
 				if (iActive != iPrimary) {		// Are we holding our primary?
