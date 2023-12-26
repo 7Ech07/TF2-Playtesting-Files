@@ -614,12 +614,15 @@ Action AutoreloadSecondary(Handle timer, int client) {
 }
 
 
-	// -={ Sets HLH projectiles to fire from a specific spot, and destroys them on a timer }=-
+	// -={ Sets HLH projectiles to fire from a specific spot, and destroys them on a timer; handles Huntsman hitreg }=-
 
 public void OnEntityCreated(int iEnt, const char[] classname) {
 	if(IsValidEdict(iEnt)) {
 		if(StrEqual(classname,"tf_projectile_flare")) {
 			SDKHook(iEnt, SDKHook_SpawnPost, FlareSpawn);
+		}
+		if(StrEqual(classname, "tf_projectile_arrow")) {
+			SDKHook(iEnt, SDKHook_Touch, ArrowHit);
 		}
 	}
 }
@@ -680,6 +683,32 @@ Action KillFlare(Handle timer, int flare) {
 	if(IsValidEdict(flare)) {
 		CreateParticle(flare, "arm_muzzleflash_flare", 0.15, _, _, _, _, _, 10.0);		// Displays particle on natural flare death (0.15 s duration, 10 HU size)
 		AcceptEntityInput(flare,"KillHierarchy");
+	}
+	return Plugin_Continue;
+}
+
+
+	// -={ Huntsman hitreg }=-
+	
+Action ArrowHit(int entity, int other) {
+	int weapon = GetEntPropEnt(entity, Prop_Send, "m_hLauncher");
+	int wepIndex = -1;
+	if (weapon != -1) wepIndex = GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex");
+	if (wepIndex == 56 || wepIndex == 1005 || wepIndex == 1092) {		// Is it a Huntsman arrow?
+		
+		if (other >= 1 && other <= MaxClients) {
+			int owner = GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity");
+			TFTeam team = TF2_GetClientTeam(other);
+			if (other != owner && TF2_GetClientTeam(owner) != team) {		// Did we hit an enemy?
+				float vecArrow[3], vecVictimEyePosition[3];
+				GetEntPropVector(entity, Prop_Data, "m_vecOrigin", vecArrow);
+				GetClientEyePosition(victim, vecVictimEyePosition);
+				
+				if (GetVectorDistance(vecArrow, vecVictimEyePosition) < 8) {		// Find the distance of the projectile from the victim's head
+					PrintToChatAll("Headshot");		// Todo: mark victim to recieve Crit damage from this attacker in this frame in OnTakeDamage
+				}
+			}
+		}
 	}
 	return Plugin_Continue;
 }
