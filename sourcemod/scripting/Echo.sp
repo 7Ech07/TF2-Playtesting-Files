@@ -5,7 +5,7 @@
 #include <sdkhooks>
 #include <tf2>
 #include <tf2_stocks>
-#include <tf2items>
+//#include <tf2items>
 #include <tf2utils>
 #include <tf2attributes>
 
@@ -70,6 +70,148 @@ public void OnMapStart()
 }
 
 
+	// -={ Modifies attributes }=-
+
+public Action Event_PlayerSpawn(Handle hEvent, const char[] cName, bool dontBroadcast) {
+	int iClient = GetClientOfUserId(GetEventInt(hEvent, "userid"));
+	
+	int melee = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Melee, true);
+	int meleeIndex = -1;
+	if(melee >= 0) meleeIndex = GetEntProp(melee, Prop_Send, "m_iItemDefinitionIndex");
+
+	char[] event = new char[64];
+	GetEventName(hEvent,event,64);
+	DataPack pack = new DataPack();
+	pack.Reset();
+	pack.WriteCell(iClient);
+	pack.WriteString(event);
+	float time=0.1;
+	if(IsFakeClient(iClient)) time=0.25;
+	CreateTimer(time,PlayerSpawn,pack);
+
+	SetCommandFlags("r_screenoverlay", GetCommandFlags("r_screenoverlay") & ~FCVAR_CHEAT);
+	ClientCommand(iClient, "r_screenoverlay \"\"");
+	SetCommandFlags("r_screenoverlay", GetCommandFlags("r_screenoverlay") | FCVAR_CHEAT);
+	return Plugin_Changed;
+}
+
+
+public Action PlayerSpawn(Handle timer, DataPack dPack) {
+	dPack.Reset();
+	int iClient = dPack.ReadCell();
+	char[] event = new char[64];
+	dPack.ReadString(event,64);
+
+	if (iClient >= 1 && iClient <= MaxClients) {
+		int primary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
+		int primaryIndex = -1;
+		if(primary >= 0) primaryIndex = GetEntProp(primary, Prop_Send, "m_iItemDefinitionIndex");
+		int secondary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Secondary, true);
+		int secondaryIndex = -1;
+		if(secondary>0) secondaryIndex = GetEntProp(secondary, Prop_Send, "m_iItemDefinitionIndex");
+		int melee = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Melee, true);
+		int meleeIndex = -1;
+		if(melee >= 0) meleeIndex = GetEntProp(melee, Prop_Send, "m_iItemDefinitionIndex");
+		
+		// Panic Attack (it's multiclass and multi-slot, so I'd prefer to handle it here)
+		if (primaryIndex == 1153) {
+			TF2Attrib_SetByDefIndex(primary, 1, 1.0); // damage penalty (removed)
+			TF2Attrib_SetByDefIndex(primary, 3, 0.33); // clip size penalty (66%)
+			TF2Attrib_SetByDefIndex(primary, 6, 0.7); // fire rate bonus (30%)
+			TF2Attrib_SetByDefIndex(primary, 45, 1.0); // bullets per shot bonus (removed)
+			TF2Attrib_SetByDefIndex(primary, 178, 0.75); // deploy time decreased (25%)
+			TF2Attrib_SetByDefIndex(primary, 808, 0.0); // mult_spread_scales_consecutive (removed)
+			TF2Attrib_SetByDefIndex(primary, 809, 0.0); // fixed_shot_pattern (none)
+			int iAmmoTable = FindSendPropInfo("CTFWeaponBase", "m_iClip1");
+			SetEntData(primary, iAmmoTable, 2, _, true);
+		}
+		else if (secondaryIndex == 1153) {
+			TF2Attrib_SetByDefIndex(secondary, 1, 1.0); // damage penalty (removed)
+			TF2Attrib_SetByDefIndex(secondary, 3, 0.33); // clip size penalty (66%)
+			TF2Attrib_SetByDefIndex(secondary, 6, 0.7); // fire rate bonus (30%)
+			TF2Attrib_SetByDefIndex(secondary, 45, 1.0); // bullets per shot bonus (removed)
+			TF2Attrib_SetByDefIndex(secondary, 178, 0.75); // deploy time decreased (25%)
+			TF2Attrib_SetByDefIndex(secondary, 808, 0.0); // mult_spread_scales_consecutive (removed)
+			TF2Attrib_SetByDefIndex(secondary, 809, 0.0); // fixed_shot_pattern (none)
+			int iAmmoTable = FindSendPropInfo("CTFWeaponBase", "m_iClip1");
+			SetEntData(secondary, iAmmoTable, 2, _, true);
+		}
+		
+		switch(TF2_GetPlayerClass(iClient)) {
+			
+			// Pyro
+			case TFClass_Pyro: {
+				switch(primaryIndex) {
+					// Flamethrowers (all)
+					case !1178: {
+						TF2Attrib_SetByDefIndex(primary, 841, 0.0); // flame_gravity (none)
+						TF2Attrib_SetByDefIndex(primary, 843, 0.0); // flame_drag (none)
+						TF2Attrib_SetByDefIndex(primary, 844, 1920.0); // flame_speed (1920 HU/s)
+						TF2Attrib_SetByDefIndex(primary, 862, 0.2); // flame_lifetime (0.2 s)
+						TF2Attrib_SetByDefIndex(primary, 843, 0.0); // flame_drag (none)
+						TF2Attrib_SetByDefIndex(primary, 863, 0.0); // flame_random_lifetime_offset (none)
+					}
+				}
+				
+				switch(meleeIndex) {
+					// Powerjack
+					case 214: {
+						TF2Attrib_SetByDefIndex(melee, 1, 0.731); // damage penalty (-26.9%)
+						TF2Attrib_SetByDefIndex(melee, 6, 0.75); // fire rate bonus (-25%; 0.25 sec)
+					}
+				}
+			}
+			
+			// Heavy
+			case TFClass_Heavy: {
+				switch(primaryIndex) {
+					// Minigun (and reskins)
+					case 15, 202, 298, 654, 793, 802, 850, 882, 891, 900, 909, 967, 15004, 15020, 15026, 14031, 15040, 15055, 15086, 15087, 15088, 15098, 15099, 15123, 15124, 15125, 15147: {
+						TF2Attrib_SetByDefIndex(primary, 86, 1.15); // minigun spinup time increased (15%)		
+					}
+					
+					// Natascha
+					case 41: {
+						TF2Attrib_SetByDefIndex(primary, 1, 0.65); // damage penalty (35%)
+						TF2Attrib_SetByDefIndex(primary, 32, 0.0); // chance to slow target (removed)
+						TF2Attrib_SetByDefIndex(primary, 76, 0.75); // maxammo primary increased (25%)
+						TF2Attrib_SetByDefIndex(primary, 86, 1.15); // minigun spinup time increased (15%)
+						TF2Attrib_SetByDefIndex(primary, 738, 0.0); // spinup_damage_resistance (removed)
+						SetEntProp(iClient, Prop_Data, "m_iAmmo", 150 , _, primaryAmmo);
+					}
+					
+					// Brass Beast
+					case 312: {
+						TF2Attrib_SetByDefIndex(primary, 86, 1.15); // minigun spinup time increased (15%)
+						TF2Attrib_SetByDefIndex(primary, 738, 0.0); // spinup_damage_resistance (removed)
+					}
+					
+					// Tomislav
+					case 424: {
+						TF2Attrib_SetByDefIndex(primary, 1, 0.62); // damage penalty (38%)
+						TF2Attrib_SetByDefIndex(primary, 75, 2.5); // aiming movespeed increased (+250%)
+						TF2Attrib_SetByDefIndex(primary, 106, 1.0); // weapon spread bonus (removed)
+						TF2Attrib_SetByDefIndex(primary, 125, 25); // max health additive penalty
+					}
+					
+					// Huo-Long heater
+					case 811, 832: {
+						TF2Attrib_SetByDefIndex(primary, 2, 7.2222); // damage bonus (65 damage)
+						TF2Attrib_SetByDefIndex(primary, 5, 3.0); // fire rate penalty (300%)
+						TF2Attrib_SetByDefIndex(primary, 76, 0.4); // maxammo primary reduced (60%)
+						TF2Attrib_SetByDefIndex(primary, 86, 1.15); // minigun spinup time increased (15%)
+						TF2Attrib_SetByDefIndex(primary, 137, 1.5); // dmg bonus vs buildings (50%; effectively a 50% damage penalty)
+						TF2Attrib_SetByDefIndex(primary, 280, 6); // override projectile type (to flare)
+						TF2Attrib_SetByDefIndex(primary, 289, 1.0); // centerfire projectile
+					}
+				}
+			}
+		}
+	}
+	return Plugin_Continue;
+}
+
+
 	// -={ Handles Pyro cvars }=-
 
 Handle cvar_ref_tf_flame_dmg_mode_dist;	
@@ -131,44 +273,17 @@ public void OnPluginStart() {
 }
 
 
-	// -={ Modifies attributes without needing to go through another plugin }=-
-
-public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Handle& item) {
-	Handle item1;
-	
-	if (StrEqual(class, "tf_weapon_flamethrower")) {
-		item1 = TF2Items_CreateItem(0);
-		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 7);
-		TF2Items_SetAttribute(item1, 0, 841, 0.0); // flame_gravity (none)
-		TF2Items_SetAttribute(item1, 1, 843, 0.0); // flame_drag (none)
-		TF2Items_SetAttribute(item1, 2, 844, 1920.0); // flame_speed (1920 HU/s)
-		TF2Items_SetAttribute(item1, 3, 862, 0.2); // flame_lifetime (0.2 s)
-		TF2Items_SetAttribute(item1, 4, 865, 0.0); // flame_up_speed (Draf wanted this)
-		TF2Items_SetAttribute(item1, 5, 843, 0.0); // flame_drag (none)
-		TF2Items_SetAttribute(item1, 6, 863, 0.0); // flame_random_lifetime_offset (none)
-	}
-	
-	if (item1 != null) {
-		item = item1;
-		return Plugin_Changed;
-	}
-	
-	return Plugin_Continue;
-}
-
-
-	// -={Resets variables on death }=-
+	// -={ Resets variables on death }=-
 
 public Action Event_PlayerDeath(Event event, const char[] cName, bool dontBroadcast)
 {
-	int attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
+	//int attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
 	int victim = event.GetInt("victim_entindex");
-	int customKill = event.GetInt("customkill");
+	//int customKill = event.GetInt("customkill");
 
 	players[victim].fBoost = 0;			// Reset Heads to 0 on death
 
-	return 
+	return Plugin_Continue;
 }
 
 	// -={ Iterates every frame }=-
@@ -400,6 +515,8 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 }
 
 
+	// -={ Handles Natascha's Boost gain }=-
+
 public void OnTakeDamagePost(int victim, int attacker, int inflictor, float damage, int damagetype, int weapon, const float damageForce[3], const float damagePosition[3], int damagecustom) {
 	char class[64];
 	
@@ -621,9 +738,9 @@ public void OnEntityCreated(int iEnt, const char[] classname) {
 		if(StrEqual(classname,"tf_projectile_flare")) {
 			SDKHook(iEnt, SDKHook_SpawnPost, FlareSpawn);
 		}
-		if(StrEqual(classname, "tf_projectile_arrow")) {
+		/*if(StrEqual(classname, "tf_projectile_arrow")) {
 			SDKHook(iEnt, SDKHook_Touch, ArrowHit);
-		}
+		}*/
 	}
 }
 
@@ -690,7 +807,7 @@ Action KillFlare(Handle timer, int flare) {
 
 	// -={ Huntsman hitreg }=-
 	
-Action ArrowHit(int entity, int other) {
+/*Action ArrowHit(int entity, int other) {
 	int weapon = GetEntPropEnt(entity, Prop_Send, "m_hLauncher");
 	int wepIndex = -1;
 	if (weapon != -1) wepIndex = GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex");
@@ -711,7 +828,7 @@ Action ArrowHit(int entity, int other) {
 		}
 	}
 	return Plugin_Continue;
-}
+}*/
 
 
 	// ==={{ Do not touch anything below this point }}===
