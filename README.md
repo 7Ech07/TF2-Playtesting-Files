@@ -14,12 +14,12 @@ All .smx files are contained in a single folder (which can simply be placed in t
 ## Current contents
 ### My stuff
 * Multi-Class
- * Panic Attack
+  * Panic Attack
 * Pyro
- * Flamethrower rework
+  * Flamethrower rework
 *  Heavy
- * Minigun tweaks
- * All Minigun alternatives
+  * Minigun tweaks
+  * All Minigun alternatives
 
 ### Abs' stuff
 * Multi-Class
