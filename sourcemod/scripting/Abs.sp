@@ -3,7 +3,6 @@
 
 #include <sdktools>
 #include <sdkhooks>
-#include <dhooks>
 #include <tf2>
 #include <tf2_stocks>
 #include <tf2items>
@@ -60,53 +59,23 @@ enum struct Player {
 	float fBoosting;		// Stores BFB alt-fire boost duration
 	float fAirtimeTrack;		// Tracks time spent parachuting
 	bool bAudio;		// Tracks whether or not we've played the audio cue yet
-	float parachute_cond_time;
 }
 
 Player players[MAXPLAYERS+1];
-
-
-Handle cvar_ref_tf_parachute_aircontrol;
-
-public void OnPluginStart() {
-	cvar_ref_tf_parachute_aircontrol = FindConVar("tf_parachute_aircontrol");
-}
 
 
 public void OnClientPutInServer(int client) {
 	SDKHook(client, SDKHook_OnTakeDamage, OnTakeDamage);
 	SDKHook(client, SDKHook_TraceAttack, TraceAttack);
 	
-	players[client].iHeads  = 0;
+	players[client].iHeads = 0;
 }
-
-
-Handle g_DHookPrimaryAttack;
 
 
 public void OnMapStart() {
-	/*int entity = -1;
-
-	while ((entity = FindEntityByClassname(entity, "*")) != -1) {
-		if (TF2Util_IsEntityWeapon(entity)) {
-			HookWeaponEntity(entity);
-		}
-	}*/
 	
 	PrecacheSound("weapons/discipline_device_power_up.wav", true);
 }
-
-
-/*public void OnEntityCreated(int entity, const char[] className) {			// Allows primary fire hook to work
-	if (TF2Util_IsEntityWeapon(entity)) {
-		HookWeaponEntity(entity);
-	}
-}
-
-
-static void HookWeaponEntity(int weapon) {
-	DHookEntity(g_DHookPrimaryAttack, true, weapon, .callback = OnPrimaryAttackPost);		// Inform us after a primary attack is performed
-}*/
 
 
 	// -={ Modifies attributes }=-
@@ -212,27 +181,6 @@ Action TraceAttack(int victim, int& attacker, int& inflictor, float& damage, int
 }
 
 
-	// -={ After a primary attack, checks whether or not we are scoped to set the firing interval of the next shot }=-
-
-/*public MRESReturn OnPrimaryAttackPost(int weapon) {
-
-	char class[64];
-	GetEntityClassname(weapon, class, sizeof(class));		// Retrieve the weapon
-	
-	if (StrEqual(class, "tf_weapon_sniperrifle")) {		// Cutting corners by not testing for item ID (there's too many!)
-		if (GetEntPropFloat(weapon, Prop_Send, "m_flChargedDamage") < 0.001) {		// If we are unscoped, fire every 1.4 seconds
-			SetEntPropFloat(weapon, Prop_Data, "m_flNextPrimaryAttack", GetGameTime() + 1.4);
-		}
-		
-		else {		// If we are (not un)scoped...
-			SetEntPropFloat(weapon, Prop_Data, "m_flNextPrimaryAttack", GetGameTime() + 1.8);		// fire every 1.8 seconds instead
-		}
-	}
-	
-	return MRES_Handled;
-}*/
-
-
 	// -={ Calculates damage }=-
 
 Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, int& damage_type, int& weapon, float damage_force[3], float damage_position[3], int damage_custom) {
@@ -258,13 +206,11 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 						float vecAttacker[3];
 						float vecVictim[3];
 						float fDmgMod;
-						//int iDamage = RoundFloat(damage);
 						GetEntPropVector(attacker, Prop_Send, "m_vecOrigin", vecAttacker);		// Gets attacker position
 						GetEntPropVector(victim, Prop_Send, "m_vecOrigin", vecVictim);		// Gets defender position
 						float fDistance = GetVectorDistance(vecAttacker, vecVictim, false);		// Distance calculation
 						
-						if (weapon == TF2Util_GetPlayerLoadoutEntity(attacker, TFWeaponSlot_Primary, true)) {		// Primary weapon (75% ramp-up; normal fall-off)		
-							//PrintToChatAll("Primary");	
+						if (weapon == TF2Util_GetPlayerLoadoutEntity(attacker, TFWeaponSlot_Primary, true)) {		// Primary weapon (75% ramp-up; normal fall-off)			
 							if (fDistance < 512.0001) {
 								fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.75, 0.25);		// Gives us our distance multiplier
 							}
@@ -273,16 +219,13 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 							}
 						}
 						else if (weapon == TF2Util_GetPlayerLoadoutEntity(attacker, TFWeaponSlot_Secondary, true)) {		// Pistol (normal ramp-up and fall-off)
-							//PrintToChatAll("Pistol");	
 							fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);
 						}
 						else {		// Melees and Flying Guillotine (no distance modifiers)
-							//PrintToChatAll("Melee");
 							fDmgMod = 1.0;
 						}
 						damage *= fDmgMod;		// This is the true amount of damage we do
 						float fHype = GetEntPropFloat(attacker, Prop_Send, "m_flHypeMeter");		// This is our Boost
-						//PrintToChatAll("Damage: %i, Hype: %f", fDmgMod, fHype);
 						
 						if (players[attacker].fBoosting > 0.0) {
 							SetEntPropFloat(attacker, Prop_Send, "m_flHypeMeter", fHype - damage);		// Subtract all of the added Boost
@@ -347,7 +290,7 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 										// https://www.omnicalculator.com/math/line-equation-from-two-points gives us an equation that hits both ([0.7/2.7]*150, 0.25) and (150, 2.75)
 										// y = 0.0225000023x - 0.6250003394
 									iDamage *= fDmgMod;
-									damage = iDamage;					
+									damage = iDamage;	
 								}
 								
 								if (damage_type & DMG_CRIT != 0) {		// Removes headshot Crits when we aren't detected to be scoped in (as a precaution, and to prevent Crits during the 0.1 second interval where we're able to headshot but not charge)
@@ -391,7 +334,40 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 								}
 							}
 						}
-					}						
+						return Plugin_Changed;
+					}
+					
+					/*// Huntsman -- This entire section doesn't work because the Huntsman doesn't have a property that stores its charge %
+					else if (GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") == 56 || GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") == 1005
+					|| GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") == 1092) {		// Are we using the Huntsman?
+						float vecAttacker[3];
+						float vecVictim[3];
+						float fDmgMod;
+						int iDamage;		// This must be an int to prevent insanity later on
+						GetEntPropVector(attacker, Prop_Send, "m_vecOrigin", vecAttacker);		// Gets attacker position
+						GetEntPropVector(victim, Prop_Send, "m_vecOrigin", vecVictim);		// Gets defender position
+						float fDistance = GetVectorDistance(vecAttacker, vecVictim, false);		// Distance calculation
+						
+						iDamage = 50;
+						PrintToChatAll("Damage: %f", iDamage);
+						damage = iDamage;		// This gives a warning, but damage needs to be an int else it gives insane numbers
+						
+						float fCharge;
+						fCharge = GetEntPropFloat(weapon, Prop_Send, "m_flChargeBeginTime");		// Records charge damage
+						PrintToChatAll("Charge: %f", fCharge);
+						if (fDistance < 512.0001) {		// If we're up close
+							fDmgMod = RemapValClamped(fDistance, 0.0, 1024.0, 2.4, -0.4);		// Retrieve the amount of ramp-up to apply depending on closeness (assumung full charge)
+							fDmgMod += -1.0;		// Gives us the amount of *extra* ramp-up damage only (0.0-0.25)
+							fDmgMod = 4 * fDmgMod * (0.008 * fCharge) + 1.0; // Generate the charge multiplier fCharge (0.25-2.75), multiply by 4 times the distance multiplier fDmgMod (0-1), and add 1
+								// We multiply by 4 because it turns fDmgMod into a proportion from 0 to 1 for this range of distances
+								// https://www.omnicalculator.com/math/line-equation-from-two-points gives us an equation that hits both ([0.7/2.7]*150, 0.25) and (150, 2.75)
+								// y = 0.0225000023x - 0.6250003394
+							iDamage *= fDmgMod;
+							PrintToChatAll("Damage: %f", iDamage);
+							damage = iDamage;
+						}
+					}*/
+					
 					// Tribalman's Shiv Bleed interaction
 					else if (GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") == 171) {		// Are we using the Tribalman's Shiv?
 						if (!TF2_IsPlayerInCondition(victim, TFCond_Bleeding)) {		// If the victim isn't bleeding...
@@ -508,7 +484,6 @@ public Action Event_PlayerDeath(Event event, const char[] cName, bool dontBroadc
 
 public void OnGameFrame() {
 	int iClient;		// Index; lets us run through all the players on the server	
-	SetConVarString(cvar_ref_tf_parachute_aircontrol, "3.5");
 
 	for (iClient = 1; iClient <= MaxClients; iClient++) {
 		if (IsClientInGame(iClient) && IsPlayerAlive(iClient)) {
@@ -517,7 +492,6 @@ public void OnGameFrame() {
 			{
 				// Scout
 				case TFClass_Scout: {
-					
 					int primary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
 					int primaryIndex = -1;
 					if (primary >= 0) {
@@ -549,9 +523,7 @@ public void OnGameFrame() {
 				
 				// BASE Jumper
 				case TFClass_Soldier, TFClass_DemoMan: {
-					
 					if (TF2_IsPlayerInCondition(iClient, TFCond_Parachute)) {		// Are we parachuting?
-						players[iClient].parachute_cond_time = GetGameTime();		// Record the time, so we can set a redeploy cooldown
 						players[iClient].fAirtimeTrack += 0.015;		// Add a frame to the airtime counter
 						if ((players[iClient].fAirtimeTrack) > 0.35) {
 							if (players[iClient].bAudio == false) {		// We only want this to play once
@@ -561,10 +533,6 @@ public void OnGameFrame() {
 							TF2Attrib_AddCustomPlayerAttribute(iClient, "faster reload rate", 0.75, 0.35);	// If so, buff reload speed (no point in checking for explosive launchers since reload speed on melee weapons doesn't matter)
 							players[iClient].fAirtimeTrack = 0.35;
 						}
-					}
-					else if (TF2_IsPlayerInCondition(iClient, TFCond_ParachuteDeployed) && (GetGameTime() - players[iClient].parachute_cond_time) > 0.35) {		// Do we have the parachute lockout debuff but have exceeded the plugin's defined cooldown?
-					players[iClient].parachute_cond_time = GetGameTime();		// Record the time, so we can set a redeploy cooldown
-						TF2_RemoveCondition(iClient, TFCond_ParachuteDeployed);		// Cleanse the debuff
 					}
 					
 					else {		// If we aren't parachuting...
@@ -596,14 +564,20 @@ public void OnGameFrame() {
 							TF2Attrib_SetByDefIndex(melee, 26, 10 * players[iClient].iHeads);		// max health additive bonus
 						}
 					}
-					
+
 					// Dynamically adjusts Sniper fire rate depending on scope status (avoids the need for DHooks)
 					int primary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
-					if (GetEntPropFloat(primary, Prop_Send, "m_flChargedDamage") < 0.001) {
-						TF2Attrib_SetByDefIndex(primary, 5, 0.933333);		// fire rate penalty
+					int primaryIndex = -1;
+					if (primary >= 0) {
+						primaryIndex = GetEntProp(primary, Prop_Send, "m_iItemDefinitionIndex");
 					}
-					else {
-						TF2Attrib_SetByDefIndex(primary, 5, 1.2);
+					if (primaryIndex != 56 && primaryIndex != 1005 && primaryIndex != 1092) {		// Avoids the Huntsman
+						if (GetEntPropFloat(primary, Prop_Send, "m_flChargedDamage") < 0.001) {
+							TF2Attrib_SetByDefIndex(primary, 5, 0.933333);		// fire rate penalty
+						}
+						else {
+							TF2Attrib_SetByDefIndex(primary, 5, 1.2);
+						}
 					}
 					
 					// Heads counter display
