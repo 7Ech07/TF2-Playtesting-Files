@@ -51,6 +51,7 @@ float SimpleSplineRemapValClamped(float val, float A, float B, float C, float D)
 
 
 enum struct Player {
+	int headshot_frame;		// checks for headshots later on
 	bool AirblastJumpCD;
 	bool ParticleCD;
 	int iTempLevel;
@@ -160,15 +161,14 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 
 	// -={Resets variables on death }=-
 
-public Action Event_PlayerDeath(Event event, const char[] cName, bool dontBroadcast)
-{
+public Action Event_PlayerDeath(Event event, const char[] cName, bool dontBroadcast) {
 	int attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
 	int victim = event.GetInt("victim_entindex");
 	int customKill = event.GetInt("customkill");
 
 	players[victim].fBoost = 0;			// Reset Heads to 0 on death
 
-	return 
+	return Plugin_Continue;
 }
 
 	// -={ Iterates every frame }=-
@@ -557,6 +557,13 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 					if (fDistance > 1200.0 && damage_type & DMG_CRIT != 0) {		// Removes headshot Crits after 1200 HU
 						damage_type = (damage_type & ~DMG_CRIT);
 					}
+					else if (players[attacker].headshot_frame == GetGameTickCount()) {		// Here we look at headshot status
+						damage_type = (damage_type |= DMG_CRIT);		// Applies a Mini-Crit
+						damage_custom = TF_CUSTOM_HEADSHOT;		// This ensures that no-scope headshots still increment the Head counter
+					}
+					else {
+						damage_type = (damage_type & ~DMG_CRIT);
+					}
 					return Plugin_Changed;
 				}
 			}
@@ -691,27 +698,91 @@ Action KillFlare(Handle timer, int flare) {
 	// -={ Huntsman hitreg }=-
 	
 Action ArrowHit(int entity, int other) {
+	//PrintToChatAll("Function call");
 	int weapon = GetEntPropEnt(entity, Prop_Send, "m_hLauncher");
 	int wepIndex = -1;
 	if (weapon != -1) wepIndex = GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex");
 	if (wepIndex == 56 || wepIndex == 1005 || wepIndex == 1092) {		// Is it a Huntsman arrow?
-		
+		//PrintToChatAll("Huntsman detected");
 		if (other >= 1 && other <= MaxClients) {
 			int owner = GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity");
 			TFTeam team = TF2_GetClientTeam(other);
 			if (other != owner && TF2_GetClientTeam(owner) != team) {		// Did we hit an enemy?
+				//PrintToChatAll("Hit");
 				float vecArrow[3], vecVictimEyePosition[3];
 				GetEntPropVector(entity, Prop_Data, "m_vecOrigin", vecArrow);
-				GetClientEyePosition(victim, vecVictimEyePosition);
+				GetClientEyePosition(other, vecVictimEyePosition);
+				//PrintToChatAll("Dist %f", GetVectorDistance(vecArrow, vecVictimEyePosition));
 				
-				if (GetVectorDistance(vecArrow, vecVictimEyePosition) < 8) {		// Find the distance of the projectile from the victim's head
+				
+				/*float arrBox[8][3];		// Draws headshot hitbox
+				
+				arrBox[0][0] == vecVictimEyePosition[0] - 30;
+				arrBox[0][1] == vecVictimEyePosition[1] - 30;
+				arrBox[0][2] == vecVictimEyePosition[2] - 30;
+				
+				arrBox[1][0] == vecVictimEyePosition[0] + 30;
+				arrBox[1][1] == vecVictimEyePosition[1] - 30;
+				arrBox[1][2] == vecVictimEyePosition[2] - 30;
+				
+				arrBox[2][0] == vecVictimEyePosition[0] - 30;
+				arrBox[2][1] == vecVictimEyePosition[1] + 30;
+				arrBox[2][2] == vecVictimEyePosition[2] - 30;
+				
+				arrBox[3][0] == vecVictimEyePosition[0] - 30;
+				arrBox[3][1] == vecVictimEyePosition[1] - 30;
+				arrBox[3][2] == vecVictimEyePosition[2] + 30;
+				
+				arrBox[4][0] == vecVictimEyePosition[0] - 30;
+				arrBox[4][1] == vecVictimEyePosition[1] + 30;
+				arrBox[4][2] == vecVictimEyePosition[2] + 30;
+
+				arrBox[5][0] == vecVictimEyePosition[0] + 30;
+				arrBox[5][1] == vecVictimEyePosition[1] - 30;
+				arrBox[5][2] == vecVictimEyePosition[2] + 30;
+				
+				arrBox[6][0] == vecVictimEyePosition[0] + 30;
+				arrBox[6][1] == vecVictimEyePosition[1] + 30;
+				arrBox[6][2] == vecVictimEyePosition[2] - 30;
+				
+				arrBox[7][0] == vecVictimEyePosition[0] + 30;
+				arrBox[7][1] == vecVictimEyePosition[1] + 30;
+				arrBox[7][2] == vecVictimEyePosition[2] + 30;
+				
+				for (int i = 0; i <= 7; i++){
+					for (int j = 0; j <= 3; j++){
+						ServerCommand("drawcross %f", arrBox[i][j]);
+					}
+				}*/
+				
+				if (GetVectorDistance(vecArrow, vecVictimEyePosition) < 30) {		// Find the distance of the projectile from the victim's head
 					PrintToChatAll("Headshot");		// Todo: mark victim to recieve Crit damage from this attacker in this frame in OnTakeDamage
+					players[owner].headshot_frame = GetGameTickCount();		// We store headshot status in a variable for the next function to read
 				}
 			}
 		}
 	}
 	return Plugin_Continue;
 }
+
+
+/*DrawZone(client, Float:array[8][3], beamsprite, halosprite, color[4], Float:life)
+{
+    for(new i=0, i2=3; i2>=0; i+=i2--)
+    {
+        for(new j=1; j<=7; j+=(j/2)+1)
+        {
+            if(j != 7-i)
+            {
+                TE_SetupBeamPoints(array[i], array[j], beamsprite, halosprite, 0, 0, life, 5.0, 5.0, 0, 0.0, color, 0);
+                if(0 < client <= MaxClients)
+                    TE_SendToClient(client, 0.0);
+                else
+                    TE_SendToAll(0.0);
+            }
+        }
+    }
+} */
 
 
 	// ==={{ Do not touch anything below this point }}===
