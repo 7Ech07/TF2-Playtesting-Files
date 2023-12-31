@@ -1,6 +1,6 @@
 # TF2-Playtesting-Files
 
-This repository holds the plugin for both my (Echo's) and Abs Eternal's balance changes, as well as their dependencies.
+This repository holds the plugin for both my (Echo's) and Abs Eternal's custom balance changes, which I am currently running on my server, as well as their dependencies.
 All .smx files are contained in a single folder (which can simply be placed in the /sourcemod/plugins folder) for easy installation and uninstallation.
 
 ## Dependencies (already included)
