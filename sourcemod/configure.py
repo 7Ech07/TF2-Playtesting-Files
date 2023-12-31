@@ -2,24 +2,22 @@
 
 # plugin names, relative to `scripting/`
 plugins = [
-	'tf2utils.sp',
+	'tf2attribute_support.sp',
 ]
 
 # files to copy to builddir, relative to root
 # plugin names from previous list will be copied automatically
 copy_files = [
-	'scripting/include/tf2utils.inc',
-	'gamedata/tf2.utils.nosoop.txt',
+	'gamedata/tf2.attribute_support.txt',
 ]
 
-# additional directories for sourcepawn include lookup
-# `scripting/include` is explicitly included
 include_dirs = [
-	'third_party/vendored'
+	'third_party/tf2attributes/scripting/include',
+	'third_party/submodule',
+	'third_party/vendored',
 ]
 
-# required version of spcomp (presumably pinned to SM version)
-spcomp_min_version = (1, 10)
+spcomp_min_version = (1, 11)
 
 ########################
 # build.ninja script generation below.
@@ -37,13 +35,11 @@ parser = argparse.ArgumentParser('Configures the project.')
 parser.add_argument('--spcomp-dir',
 		help = 'Directory with the SourcePawn compiler.  Will check PATH if not specified.')
 
+# we use this because we can't pull down dhooks as a submodule
 args = parser.parse_args()
 
 print("""Checking for SourcePawn compiler...""")
 spcomp = shutil.which('spcomp', path = args.spcomp_dir)
-if 'x86_64' in platform.machine():
-	# Use 64-bit spcomp if architecture supports it
-	spcomp = shutil.which('spcomp64', path = args.spcomp_dir) or spcomp
 if not spcomp:
 	raise FileNotFoundError('Could not find SourcePawn compiler.')
 
@@ -68,7 +64,7 @@ with contextlib.closing(ninja_syntax.Writer(open('build.ninja', 'wt'))) as build
 		'spcflags': [ '-i${root}/scripting/include', '-h', '-v0' ]
 	}
 	
-	vars['spcflags'] += ('-i{}'.format(d) for d in include_dirs)
+	vars['spcflags'] += ('-i{}'.format(include_dir) for include_dir in include_dirs)
 	
 	for key, value in vars.items():
 		build.variable(key, value)

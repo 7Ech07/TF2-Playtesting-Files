@@ -5,7 +5,6 @@
 #include <sdkhooks>
 #include <tf2>
 #include <tf2_stocks>
-//#include <tf2items>
 #include <tf2utils>
 #include <tf2attributes>
 
@@ -69,15 +68,16 @@ Handle cvar_ref_tf_parachute_aircontrol;
 
 public void OnPluginStart() {
 	cvar_ref_tf_parachute_aircontrol = FindConVar("tf_parachute_aircontrol");
-		
+	
 	// This is used for clearing variables on respawn
 	HookEvent("player_spawn", OnGameEvent, EventHookMode_Post);
+	HookEvent("player_spawn", Event_PlayerSpawn);
+	HookEvent("post_inventory_application", Event_PlayerSpawn);
 }
 
 
 public void OnClientPutInServer(int client) {
 	SDKHook(client, SDKHook_OnTakeDamage, OnTakeDamage);
-	SDKHook(client, SDKHook_OnTakeDamageAlivePost, OnTakeDamagePost);
 	SDKHook(client, SDKHook_TraceAttack, TraceAttack);
 	
 	players[client].iHeads  = 0;
@@ -153,6 +153,7 @@ public Action PlayerSpawn(Handle timer, DataPack dPack) {
 						TF2Attrib_SetByDefIndex(primary, 1, 0.8); // damage penalty (80%)
 						TF2Attrib_SetByDefIndex(primary, 75, 1.25); // aiming movespeed increased (+25%)
 						TF2Attrib_SetByDefIndex(primary, 90, 1.09); // SRifle charge rate increased (109%)
+						int primaryAmmo = GetEntProp(primary, Prop_Send, "m_iPrimaryAmmoType");
 						SetEntProp(iClient, Prop_Data, "m_iAmmo", 12 , _, primaryAmmo);
 					}
 					
@@ -162,6 +163,7 @@ public Action PlayerSpawn(Handle timer, DataPack dPack) {
 						TF2Attrib_SetByDefIndex(primary, 75, 2.5); // aiming movespeed increased (+250%)
 						TF2Attrib_SetByDefIndex(primary, 90, 1.935); // SRifle charge rate increased (193.5%)
 						TF2Attrib_SetByDefIndex(primary, 46, 1.667); // sniper zoom penalty (~40% reduced zoom)
+						int primaryAmmo = GetEntProp(primary, Prop_Send, "m_iPrimaryAmmoType");
 						SetEntProp(iClient, Prop_Data, "m_iAmmo", 12 , _, primaryAmmo);
 					}
 				}
@@ -249,7 +251,7 @@ Action OnGameEvent(Event event, const char[] name, bool dontbroadcast) {
 }
 
 
-	// -={ Calculates damage }=-
+	// -={ Calculates damage, handles BFB Boost }=-
 
 Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, int& damage_type, int& weapon, float damage_force[3], float damage_position[3], int damage_custom) {
 
@@ -263,7 +265,7 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 			switch(tfAttackerClass)
 			{
 				// Scout
-				/*case TFClass_Scout: {
+				case TFClass_Scout: {
 					int primary = TF2Util_GetPlayerLoadoutEntity(attacker, TFWeaponSlot_Primary, true);
 					int primaryIndex = -1;
 					if (primary >= 0) {
@@ -274,12 +276,11 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 						float vecAttacker[3];
 						float vecVictim[3];
 						float fDmgMod;
-						//int iDamage = RoundFloat(damage);
 						GetEntPropVector(attacker, Prop_Send, "m_vecOrigin", vecAttacker);		// Gets attacker position
 						GetEntPropVector(victim, Prop_Send, "m_vecOrigin", vecVictim);		// Gets defender position
 						float fDistance = GetVectorDistance(vecAttacker, vecVictim, false);		// Distance calculation
 						
-						if (weapon == TF2Util_GetPlayerLoadoutEntity(attacker, TFWeaponSlot_Primary, true)) {		// Primary weapon (75% ramp-up; normal fall-off)		
+						if (weapon == primary) {		// Primary weapon (75% ramp-up; normal fall-off)		
 							if (fDistance < 512.0001) {
 								fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.75, 0.25);		// Gives us our distance multiplier
 							}
@@ -287,7 +288,7 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 								fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);
 							}
 						}
-						else if (weapon == TF2Util_GetPlayerLoadoutEntity(attacker, TFWeaponSlot_Secondary, true)) {		// Pistol (normal ramp-up and fall-off)
+						else if (weapon == TF2Util_GetPlayerLoadoutEntity(attacker, TFWeaponSlot_Secondary, true) && (weapon != 812 || weapon != 833)) {		// Pistol (normal ramp-up and fall-off)
 							fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);
 						}
 						else {		// Melees and Flying Guillotine (no distance modifiers)
@@ -303,7 +304,7 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 							SetEntPropFloat(attacker, Prop_Send, "m_flHypeMeter", fHype - 0.6 * damage);		// Subtract 60% of the damage (this should be applied at the same time Valve's code is)
 						}
 					}
-				}*/
+				}
 			
 			
 				// Sniper
@@ -345,6 +346,7 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 								if (fDistance < 512) {		// Only do damage fall-off(?) up close
 									iDamage *= fDmgMod;
 									damage = iDamage;
+									return Plugin_Changed;
 								}
 								
 								else {		// If we're not up close...
@@ -359,7 +361,8 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 										// https://www.omnicalculator.com/math/line-equation-from-two-points gives us an equation that hits both ([0.7/2.7]*150, 0.25) and (150, 2.75)
 										// y = 0.0225000023x - 0.6250003394
 									iDamage *= fDmgMod;
-									damage = iDamage;					
+									damage = iDamage;
+									return Plugin_Changed;									
 								}
 								
 								if (damage_type & DMG_CRIT != 0) {		// Removes headshot Crits when we aren't detected to be scoped in (as a precaution, and to prevent Crits during the 0.1 second interval where we're able to headshot but not charge)
@@ -386,7 +389,8 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 										// y = 0.0022500002x - 0.3375000328
 										// y = -0.003125x + 0.46875
 									iDamage *= fDmgMod;
-									damage = iDamage;	
+									damage = iDamage;
+									return Plugin_Changed;
 								}
 								
 								else {		// If we're not up close...
@@ -395,7 +399,8 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 										// https://www.omnicalculator.com/math/line-equation-from-two-points gives us an equation that hits both ([0.7/1.5]*150, 0.25) and (150, 1.5)
 										// y = 0.015625x - 0.84375
 									iDamage *= fDmgMod;
-									damage = iDamage;					
+									damage = iDamage;
+									return Plugin_Changed;									
 								}
 								
 								if (damage_type & DMG_CRIT != 0) {		// Removes headshot Crits when we aren't detected to be scoped in (as a precaution, and to prevent Crits during the 0.1 second interval where we're able to headshot but not charge)
@@ -426,7 +431,7 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 				
 						float vecAttacker[3];
 						float vecVictim[3];
-						float fDmgMod;
+						float fDmgMod = 1.0;
 						GetEntPropVector(attacker, Prop_Send, "m_vecOrigin", vecAttacker);		// Gets attacker position
 						GetEntPropVector(victim, Prop_Send, "m_vecOrigin", vecVictim);		// Gets defender position
 						float fDistance = GetVectorDistance(vecAttacker, vecVictim, false);		// Distance calculation
@@ -459,31 +464,6 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 	}
 	
 	return Plugin_Continue;
-}
-
-
-	// -={ Handles BFB Boost gain }=-
-
-public void OnTakeDamagePost(int victim, int attacker, int inflictor, float damage, int damagetype, int weapon, const float damageForce[3], const float damagePosition[3], int damagecustom) {
-	char class[64];
-	
-	if (victim >= 1 && victim <= MaxClients && attacker >= 1 && attacker <= MaxClients) {		// Ensures we only go through damage dealt by other players
-		if (weapon > 0) {		// Prevents us attempting to process data from e.g. Sentry Guns and causing errors
-			GetEntityClassname(weapon, class, sizeof(class));		// Retrieve the weapon
-			
-			// Baby Face's Blaster
-			if (GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") == 772) {		// Do we have the BFB equipped?
-
-				float fHype = GetEntPropFloat(attacker, Prop_Send, "m_flHypeMeter");		// This is our Boost
-				if (players[attacker].fBoosting > 0.0) {
-					SetEntPropFloat(attacker, Prop_Send, "m_flHypeMeter", fHype - damage);		// Subtract all of the added Boost
-				}
-				else {
-					SetEntPropFloat(attacker, Prop_Send, "m_flHypeMeter", fHype - 0.6 * damage);		// Subtract 60% of the damage (this should be applied at the same time Valve's code is)
-				}
-			}
-		}
-	}
 }
 
 

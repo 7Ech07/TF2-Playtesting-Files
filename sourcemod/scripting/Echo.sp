@@ -5,7 +5,6 @@
 #include <sdkhooks>
 #include <tf2>
 #include <tf2_stocks>
-//#include <tf2items>
 #include <tf2utils>
 #include <tf2attributes>
 
@@ -177,6 +176,7 @@ public Action PlayerSpawn(Handle timer, DataPack dPack) {
 						TF2Attrib_SetByDefIndex(primary, 76, 0.75); // maxammo primary increased (25%)
 						TF2Attrib_SetByDefIndex(primary, 86, 1.15); // minigun spinup time increased (15%)
 						TF2Attrib_SetByDefIndex(primary, 738, 0.0); // spinup_damage_resistance (removed)
+						int primaryAmmo = GetEntProp(primary, Prop_Send, "m_iPrimaryAmmoType");
 						SetEntProp(iClient, Prop_Data, "m_iAmmo", 150 , _, primaryAmmo);
 					}
 					
@@ -270,6 +270,9 @@ public void OnPluginStart() {
 	
 	cvar_ref_tf_airblast_cray_power = FindConVar("tf_airblast_cray_power");
 	cvar_ref_tf_airblast_cray_reflect_coeff = FindConVar("tf_airblast_cray_reflect_coeff");
+	
+	HookEvent("player_spawn", Event_PlayerSpawn);
+	HookEvent("post_inventory_application", Event_PlayerSpawn);
 }
 
 
