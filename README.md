@@ -13,25 +13,25 @@ All .smx files are contained in a single folder (which can simply be placed in t
 
 ## Current contents
 ### My stuff
-* Multi-Class
-  * Panic Attack
-* Pyro
-  * Flamethrower rework
-*  Heavy
-  * Minigun tweaks
-  * All Minigun alternatives
+- Multi-Class
+  - Panic Attack
+- Pyro
+  - Flamethrower rework
+- Heavy
+  - Minigun tweaks
+  - All Minigun alternatives
 
 ### Abs' stuff
-* Multi-Class
-  * B.A.S.E. Jumper
-* Scout
-  * Baby Face's Blaster
-* Sniper
-  * Sniper Rifles
-  * Bazaar Bargain
-  * SMG (mostly)
-  * Kukri
-  * Tribalman's Shiv (a bit; it's half-finished and rather buggy)
-* Spy
-  * Revolvers
-  * Knives
+- Multi-Class
+  - B.A.S.E. Jumper
+- Scout
+  - Baby Face's Blaster
+- Sniper
+  - Sniper Rifles
+  - Bazaar Bargain
+  - SMG (mostly)
+  - Kukri
+  - Tribalman's Shiv (a bit; it's half-finished and rather buggy)
+- Spy
+  - Revolvers
+  - Knives
