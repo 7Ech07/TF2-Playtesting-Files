@@ -3,7 +3,7 @@
 This repository holds the plugin for both my (Echo's) and Abs Eternal's balance changes, as well as their dependencies.
 All .smx files are contained in a single folder (which can simply be placed in the /sourcemod/plugins folder) for easy installation and uninstallation.
 
-# Dependencies (already included)
+## Dependencies (already included)
 
 * TF2Attributes (https://github.com/FlaminSarge/tf2attributes)
 * TF2Items (https://forums.alliedmods.net/showthread.php?p=1050170)
@@ -21,7 +21,7 @@ All .smx files are contained in a single folder (which can simply be placed in t
  * Minigun tweaks
  * All Minigun alternatives
 
-## Abs' stuff
+### Abs' stuff
 * Multi-Class
   * B.A.S.E. Jumper
 * Scout
