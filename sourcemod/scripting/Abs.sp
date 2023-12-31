@@ -514,9 +514,8 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 							TF2_AddCondition(victim, TFCond_Bleeding);
 							damage += 8 * players[victim].fBleed_Timer;		// Otherwise, consume the Bleed to deal extra damage
 							players[victim].fBleed_Timer = 0.0;
-							
-							return Plugin_Changed;
 						}
+						return Plugin_Changed;
 					}
 				}
 				
