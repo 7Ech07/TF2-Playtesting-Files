@@ -103,11 +103,11 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 		TF2Items_SetAttribute(item1, 6, 863, 0.0); // flame_random_lifetime_offset (none)
 	}
 	
-	if (index == 214) {	// All Flamethrowers
+	if (index == 214) {	// Powerjack
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
 		TF2Items_SetNumAttributes(item1, 3);
-		TF2Items_SetAttribute(item1, 0, 125, -25); // max health additive penalty
+		TF2Items_SetAttribute(item1, 0, 125, -25.0); // max health additive penalty
 		TF2Items_SetAttribute(item1, 1, 128, 0.0); // provide on active (removed)
 		TF2Items_SetAttribute(item1, 2, 180, 75.0); // heal on kill
 	}
@@ -144,7 +144,7 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 		TF2Items_SetAttribute(item1, 0, 1, 0.62); // damage penalty (38%)
 		TF2Items_SetAttribute(item1, 1, 87, 0.287); // minigun spinup time decreased (-75% of Minigun's new speed)
 		TF2Items_SetAttribute(item1, 2, 106, 1.0); // weapon spread bonus (removed)
-		TF2Items_SetAttribute(item1, 3, 125, -50); // max health additive penalty
+		TF2Items_SetAttribute(item1, 3, 125, -50.0); // max health additive penalty
 	}
 	
 	if (index == 811 || index == 832) {	// Huo-Long Heater
@@ -160,6 +160,16 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 		TF2Items_SetAttribute(item1, 6, 289, 1.0); // centerfire projectile
 		TF2Items_SetAttribute(item1, 7, 430, 0.0); // ring of fire while aiming (removed)
 		TF2Items_SetAttribute(item1, 8, 431, 0.0); // uses ammo while aiming (removed)
+	}
+	
+	// Spy
+	if (index == 460) {	// Enforcer
+		item1 = TF2Items_CreateItem(0);
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 3);
+		TF2Items_SetAttribute(item1, 0, 5, 1.3); // fire rate penalty (30%)
+		TF2Items_SetAttribute(item1, 1, 410, 0.0); // damage bonus while disguised (removed)
+		TF2Items_SetAttribute(item1, 2, 797, 0.0); // dmg pierces resists absorbs (removed)
 	}
 
 	if (item1 != null) {
@@ -515,7 +525,7 @@ public void OnGameFrame() {
 }
 
 
-	// -={ Preps Airblast jump }=-
+	// -={ Preps Airblast jump and backpack reloads }=-
 
 public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3], float angles[3], int& weapon, int& subtype, int& cmdnum, int& tickcount, int& seed, int mouse[2]) {
 	if (client >= 1 && client <= MaxClients) {
@@ -630,6 +640,25 @@ public void OnTakeDamagePost(int victim, int attacker, int inflictor, float dama
 				players[attacker].fBoost += damage;		// Increases Boost by the amount of damage we do
 				if (players[attacker].fBoost > 300.0) {		// Cap at 300 damage
 					players[attacker].fBoost = 300.0;
+				}
+			}
+			
+			// Enforcer
+			if (GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") == 460) {		// Do we have the Enforcer equipped?
+				
+				float vecAttackerAng[3], vecVictimAng[3];		// Stores the shooter and victim's facing
+				GetClientEyeAngles(attacker, vecAttackerAng);
+				GetClientEyeAngles(victim, vecVictimAng);
+				NormalizeVector(vecAttackerAng, vecAttackerAng);
+				NormalizeVector(vecVictimAng, vecVictimAng);
+				
+				if (GetVectorDotProduct(vecAttackerAng, vecVictimAng) > 0.0 && TF2_IsPlayerInCondition(attacker, TFCond_Disguised)) {		// Are we undisguised and behind the victim?
+					float vecAttackerPos[3], vecVictimPos[3];
+					GetClientEyePosition(attacker, vecAttackerPos);
+					GetClientEyePosition(victim, vecVictimPos);
+					if (GetVectorDotProduct(vecAttackerPos, vecVictimPos) < 512.0001) {		// Are we close?
+						TF2_AddCondition(victim, TFCond_MarkedForDeath, 5.0);
+					}
 				}
 			}
 		}
