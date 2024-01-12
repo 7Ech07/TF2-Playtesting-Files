@@ -7,6 +7,7 @@
 #include <tf2_stocks>
 #include <tf2utils>
 #include <tf2items>
+//#include <tf2condhooks>
 #include <tf2attributes>
 
 #pragma newdecls required
@@ -140,6 +141,15 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 		TF2Items_SetAttribute(item1, 2, 397, 1.0); // projectile penetration heavy
 	}
 	
+	if (index == 231) {		// Darwin's Danger Shield
+		item1 = TF2Items_CreateItem(0);
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 3);
+		TF2Items_SetAttribute(item1, 0, 26, 15.0); // max health additive bonus (15)
+		TF2Items_SetAttribute(item1, 1, 60, 1.0); // dmg taken from fire reduced (removed)
+		TF2Items_SetAttribute(item1, 2, 527, 0.0); // afterburn immunity (removed)
+	}
+	
 	if (index == 171) {		// The Tribalman's Shiv specifically
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
@@ -149,7 +159,7 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 		TF2Items_SetAttribute(item1, 2, 149, 0.0); // bleeding duration (removed, because we're rebuilding this behaviour elsewhere)
 	}
 	
-	if (index == 401) {		// The Shahanshah specifically
+	/*if (index == 401) {		// The Shahanshah specifically
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
 		TF2Items_SetNumAttributes(item1, 4);
@@ -157,7 +167,7 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 		TF2Items_SetAttribute(item1, 1, 6, 1.0); // fire rate bonus (removed)
 		TF2Items_SetAttribute(item1, 2, 224, 1.5); // damage bonus when half dead (the upside; increased to 50%)
 		TF2Items_SetAttribute(item1, 3, 225, 1.0); // damage penalty when half alive (the downside; removed)
-	}
+	}*/
 	
 	// Spy
 	if (StrEqual(class, "tf_weapon_revolver")) {
@@ -167,7 +177,6 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 		TF2Items_SetAttribute(item1, 0, 51, 1.0); // revolver use hit locations
 		TF2Items_SetAttribute(item1, 1, 97, 0.8826); // reload time decreased (+33.3%)
 		TF2Items_SetAttribute(item1, 2, 107, 1.0654); // faster move speed on wearer (+33.3%)
-		TF2Items_SetAttribute(item1, 3, 26, 25.0); // max health additive bonus (to be removed later)
 	}
 
 	if (StrEqual(class, "tf_weapon_knife")) {
@@ -346,6 +355,27 @@ Action OnGameEvent(Event event, const char[] name, bool dontbroadcast) {
 	}
 	return Plugin_Continue;
 }
+
+
+	// -={ Shortens debuff duration with the DDS equipped }=-
+
+/*public Action TF2_OnAddCond(int iClient,TFCond &condition,float &time, int &provider) {
+	// Sniper
+	if (TF2_GetPlayerClass(iClient) == TFClass_Sniper) {
+		int secondary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Secondary, true);
+		int secondaryIndex = -1;
+		if(secondary>0) secondaryIndex = GetEntProp(secondary, Prop_Send, "m_iItemDefinitionIndex");
+		
+		if (secondaryIndex == 231) {		// Darwin's Danger Shield
+			switch(condition) {
+				case TFCond_Jarated, TFCond_Bleeding, TFCond_Milked, TFCond_MarkedForDeath, TFCond_MarkedForDeathSilent, TFCond_Gas:	// Are we debuffed?
+				{
+					time *= 0.667;		// Shortens debuff durations by 33% (Afterburn has to be handled separately)
+				}
+			}
+		}
+	}
+}*/
 
 
 	// -={ Calculates damage }=-
@@ -686,7 +716,13 @@ public void OnGameFrame() {
 				
 				// Sniper
 				case TFClass_Sniper: {
-				
+					
+					int secondary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Secondary, true);
+					int secondaryIndex = -1;
+					if (secondary >= 0) {
+						secondaryIndex = GetEntProp(secondary, Prop_Send, "m_iItemDefinitionIndex");
+					}
+					
 					int melee = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Melee, true);
 					int meleeIndex = -1;
 					if (melee >= 0) {
@@ -702,10 +738,13 @@ public void OnGameFrame() {
 						case 171: {		// Tribalman's Shiv
 							TF2Attrib_SetByDefIndex(melee, 205, 1.0 - 0.5 * players[iClient].iHeads);		// dmg from ranged reduced
 							TF2Attrib_SetByDefIndex(melee, 206, 1.0 - 0.5 * players[iClient].iHeads);		// dmg from melee reduced
+							if (GetClientHealth(iClient) < 38.0) {		// Disable holster at low health
+								TF2_AddCondition(iClient, TFCond_RestrictToMelee, 0.02, 0);		// Buffalo Steak strip to melee debuff
+							}
 						}
-						case 401: {		// Shahanshah
+						/*case 401: {		// Shahanshah
 							TF2Attrib_SetByDefIndex(melee, 26, 10 * players[iClient].iHeads);		// max health additive bonus
-						}
+						}*/
 					}
 					
 					// Dynamically adjusts Sniper fire rate depending on scope status (avoids the need for DHooks)
@@ -722,6 +761,13 @@ public void OnGameFrame() {
 					GetEntPropEnt(iClient, Prop_Send, "m_hActiveWeapon") == TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Melee, true)) {		// Display Heads if we're holding a primary or melee
 						SetHudTextParams(-0.1, -0.13, 0.0, 255, 255, 255, 255);
 						ShowHudText(iClient, 1, "Heads: %i", players[iClient].iHeads);
+					}
+					
+					// DDS Afterburn reduction
+					if (secondaryIndex == 231) {
+						float fAfterburn = TF2Util_GetPlayerBurnDuration(iClient);
+						fAfterburn -= 0.0105;
+						TF2Util_SetPlayerBurnDuration(iClient, fAfterburn);
 					}
 				}
 			}
@@ -748,17 +794,23 @@ public void OnGameFrame() {
 	// -={ Lets us expend BFB Boost for an AoE speed buff }=-
 
 public Action OnPlayerRunCmd(int iClient, int &buttons, int &impulse, float vel[3], float angles[3], int &weapon, int &subtype, int &cmdnum, int &tickcount, int &seed, int mouse[2]) {
-	if((IsClientInGame(iClient) && IsPlayerAlive(iClient))) {	
+	if((IsClientInGame(iClient) && IsPlayerAlive(iClient))) {
 		TFClassType tfClientClass = TF2_GetPlayerClass(iClient);
-		int curr = GetEntPropEnt(iClient, Prop_Send, "m_hActiveWeapon");
+		int iActive = GetEntPropEnt(iClient, Prop_Send, "m_hActiveWeapon");
 		float position[3];
 		GetEntPropVector(iClient, Prop_Send, "m_vecOrigin", position);
+		
 		int primary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
 		int primaryIndex = -1;
 		if(primary != -1) primaryIndex = GetEntProp(primary, Prop_Send, "m_iItemDefinitionIndex");
 		
+		int melee = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Melee, true);
+		int meleeIndex = -1;
+		if(melee >= 0) meleeIndex = GetEntProp(melee, Prop_Send, "m_iItemDefinitionIndex");
+		
+		// Scout
 		if (tfClientClass == TFClass_Scout) {
-			if(primaryIndex == 772 && curr == primary) {		// Are we holding the BFB?
+			if(primaryIndex == 772 && iActive == primary) {		// Are we holding the BFB?
 				if(buttons & IN_ATTACK2 && players[iClient].fBoosting == 0.0) {		// Are we using the alt-fire?
 					float fHype = GetEntPropFloat(iClient, Prop_Send, "m_flHypeMeter");
 
