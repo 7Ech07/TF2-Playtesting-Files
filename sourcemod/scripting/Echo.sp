@@ -391,7 +391,7 @@ public Action Event_PlayerDeath(Event event, const char[] cName, bool dontBroadc
 	int victim = event.GetInt("victim_entindex");
 	//int customKill = event.GetInt("customkill");
 
-	players[victim].fBoost = 0;			// Reset Heads to 0 on death
+	players[victim].fBoost = 0.0;			// Reset Heads to 0 on death
 
 	return Plugin_Continue;
 }
@@ -512,7 +512,7 @@ public void OnGameFrame() {
 				// Natascha
 				else if (weaponState == 0 && sequence == 23 && players[iClient].fBoost > 0.0) {		// If we're unrevved with at least some Boost...
 					TF2_AddCondition(iClient, TFCond_SpeedBuffAlly, RemapValClamped(players[iClient].fBoost, 0.0, 300.0, 0.0, 3.0));		// Apply speed to us depending on the amount of Boost we have
-					players[iClient].fBoost = 0;
+					players[iClient].fBoost = 0.0;
 				}
 				
 				if (players[iClient].fBoost > 0.0){		// Draw Boost on the HUD
@@ -753,8 +753,6 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 				float fDistance = GetVectorDistance(vecAttacker, vecVictim, false);		// Distance calculation
 				
 				float fDmgMod;
-				int iDamage;		// This must be an int to prevent insanity later on
-				iDamage = RoundFloat(damage);
 
 				if (TF2Util_GetPlayerBurnDuration(victim) > 0 && !(TF2_IsPlayerInCondition(attacker, TFCond_Kritzkrieged) || TF2_IsPlayerInCondition(attacker, TFCond_CritOnFirstBlood) 
 					|| TF2_IsPlayerInCondition(attacker, TFCond_CritOnWin) || TF2_IsPlayerInCondition(attacker, TFCond_CritOnFlagCapture) || TF2_IsPlayerInCondition(attacker, TFCond_CritOnKill) 
@@ -774,8 +772,7 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 						fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);
 					}
 				}
-				iDamage *= 3 * fDmgMod;
-				damage = iDamage;		// This gives a warning, but damage needs to be an int else it gives insane numbers
+				damage *= 3.0 * fDmgMod;
 				damage_type = (damage_type & ~DMG_IGNITE);
 				return Plugin_Changed;
 			}
@@ -792,16 +789,14 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 				
 				if (fDistance > 1000.0) {
 					float fDmgMod;
-					int iDamage;		// This must be an int to prevent insanity later on
-					iDamage = RoundFloat(damage);
 
 					fDmgMod = SimpleSplineRemapValClamped(fDistance, 1000.0, 1200.0, 1.0, 0.5);		// Generates a proportion from 0.5 to 1.0 depending on distance (from 1024 to 1536 HU)
 
-					iDamage *= fDmgMod;
-					damage = iDamage;		// This gives a warning, but damage needs to be an int else it gives insane numbers
+					damage *= fDmgMod;
 					// The following code removes headshot Crits after a certain distance
 					if (fDistance > 1200.0 && damage_type & DMG_CRIT != 0) {		// Removes headshot Crits after 1200 HU
 						damage_type = (damage_type & ~DMG_CRIT);
+						damage /= 3;
 					}
 					return Plugin_Changed;
 				}
