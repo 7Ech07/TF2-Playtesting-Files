@@ -156,7 +156,7 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 		TF2Items_SetNumAttributes(item1, 3);
 		TF2Items_SetAttribute(item1, 0, 6, 0.875); // fire rate bonus (-12.5%; half of stock)
 		TF2Items_SetAttribute(item1, 1, 772, 1.3); // single wep holster time increased (30%)
-		TF2Items_SetAttribute(item1, 2, 149, 0.0); // bleeding duration (removed, because we're rebuilding this behaviour elsewhere)
+		TF2Items_SetAttribute(item1, 2, 149, 4.0); // bleeding duration (4 seconds)
 	}
 	
 	/*if (index == 401) {		// The Shahanshah specifically
@@ -342,8 +342,8 @@ Action OnGameEvent(Event event, const char[] name, bool dontbroadcast) {
 		if (IsPlayerAlive(client)) {
 			
 			players[client].iHeads = 0;
-			players[client].fBleed_Timer = 0;
-			players[client].fBoosting = 0;
+			players[client].fBleed_Timer = 0.0;
+			players[client].fBoosting = 0.0;
 			
 			if (TF2_GetPlayerClass(client) == TFClass_Spy) {		// Shrink Spy's colision hull
 				// Normal collision hull dimensions are 49, 49 83
@@ -403,7 +403,6 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 						float vecAttacker[3];
 						float vecVictim[3];
 						float fDmgMod;
-						//int iDamage = RoundFloat(damage);
 						GetEntPropVector(attacker, Prop_Send, "m_vecOrigin", vecAttacker);		// Gets attacker position
 						GetEntPropVector(victim, Prop_Send, "m_vecOrigin", vecVictim);		// Gets defender position
 						float fDistance = GetVectorDistance(vecAttacker, vecVictim, false);		// Distance calculation
@@ -442,16 +441,13 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 						float vecAttacker[3];
 						float vecVictim[3];
 						float fDmgMod;
-						int iDamage;		// This must be an int to prevent insanity later on
 						GetEntPropVector(attacker, Prop_Send, "m_vecOrigin", vecAttacker);		// Gets attacker position
 						GetEntPropVector(victim, Prop_Send, "m_vecOrigin", vecVictim);		// Gets defender position
 						float fDistance = GetVectorDistance(vecAttacker, vecVictim, false);		// Distance calculation
 						
 						if (GetEntPropFloat(weapon, Prop_Send, "m_flChargedDamage") < 0.001) {		// Detects if we have no charge (because we're unscoped)
-							iDamage = RoundFloat(damage);
 							fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);		// Gives us our distance multiplier
-							iDamage *= fDmgMod;
-							damage = iDamage;		// This gives a warning, but damage needs to be an int else it gives insane numbers
+							damage *= fDmgMod;
 							
 							if (damage_type & DMG_CRIT != 0) {		// Removes headshot Crits when we aren't detected to be scoped in (as a precaution, and to prevent Crits during the 0.1 second interval where we're able to headshot but not charge)
 								damage_type = (damage_type & ~DMG_CRIT);
@@ -469,11 +465,10 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 						else {		// If we're scoped...
 							if (StrEqual(class, "tf_weapon_sniperrifle")) {		// Stock Rifle
 							
-								iDamage = 40;
+								damage = 40.0;
 								fDmgMod = RemapValClamped(fDistance, 0.0, 1024.0, 0.75, 1.25);		// We've swapped to a linear equation for now
 								if (fDistance < 512) {		// Only do damage fall-off(?) up close
-									iDamage *= fDmgMod;
-									damage = iDamage;
+									damage *= fDmgMod;
 								}
 								
 								else {		// If we're not up close...
@@ -487,8 +482,7 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 										// We multiply by 4 because it turns fDmgMod into a proportion from 0 to 1 for this range of distances
 										// https://www.omnicalculator.com/math/line-equation-from-two-points gives us an equation that hits both ([0.7/2.7]*150, 0.25) and (150, 2.75)
 										// y = 0.0225000023x - 0.6250003394
-									iDamage *= fDmgMod;
-									damage = iDamage;					
+									damage *= fDmgMod;									
 								}
 								
 								if (damage_type & DMG_CRIT != 0) {		// Removes headshot Crits when we aren't detected to be scoped in (as a precaution, and to prevent Crits during the 0.1 second interval where we're able to headshot but not charge)
@@ -498,7 +492,7 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 						
 							else if (StrEqual(class, "tf_weapon_sniperrifle_decap")) {		// Bazaar Bargain
 							
-								iDamage = 40;
+								damage = 40.0;
 								fDmgMod = RemapValClamped(fDistance, 0.0, 1024.0, 0.75, 1.25);		// We've swapped to a linear equation for now
 								
 								// We actually want the ramp-up/fall-off curve to vary with charge regardless of distance on this weapon, so we handle all of this stuff earlier this time
@@ -514,8 +508,7 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 										// https://www.omnicalculator.com/math/line-equation-from-two-points gives us an equation that hits both ([0.7/1.5]*150, -0.25) and (150, 0)
 										// y = 0.0022500002x - 0.3375000328
 										// y = -0.003125x + 0.46875
-									iDamage *= fDmgMod;
-									damage = iDamage;	
+									damage *= fDmgMod;
 								}
 								
 								else {		// If we're not up close...
@@ -523,8 +516,7 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 									fDmgMod = 4 * fDmgMod * (0.015625 * fCharge - 0.84375) + 1.0; // Generate the charge multiplier fCharge (0.25-2.75), multiply by 4 times the distance multiplier fDmgMod (0-1), and add 1
 										// https://www.omnicalculator.com/math/line-equation-from-two-points gives us an equation that hits both ([0.7/1.5]*150, 0.25) and (150, 1.5)
 										// y = 0.015625x - 0.84375
-									iDamage *= fDmgMod;
-									damage = iDamage;					
+									damage *= fDmgMod;
 								}
 								
 								if (damage_type & DMG_CRIT != 0) {		// Removes headshot Crits when we aren't detected to be scoped in (as a precaution, and to prevent Crits during the 0.1 second interval where we're able to headshot but not charge)
@@ -535,17 +527,23 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 						return Plugin_Changed;
 					}						
 					// Tribalman's Shiv Bleed interaction
-					else if (GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") == 171 && damage_type & DMG_CLUB) {		// Are we using the Tribalman's Shiv?
-						if (players[victim].fBleed_Timer == 0.0) {		// If the victim isn't bleeding...
-							TF2_AddCondition(victim, TFCond_Bleeding, 4.0, attacker);		// ...apply Bleed and track it
-							players[victim].fBleed_Timer = 4.0;
+					if (GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") == 171 && damage_type & DMG_CLUB) {		// Are we using the Tribalman's Shiv?
+						if (!(damage_type & DMG_SHOCK)) {		// Use DMG_SHOCK to prevent recursive callbacks
+							if (players[victim].fBleed_Timer == 0.0) {		// If the victim isn't bleeding...
+								TF2Attrib_SetByDefIndex(weapon, 149, 4.0);
+								TF2_AddCondition(victim, TFCond_Bleeding, 4.0, attacker);		// ...apply Bleed and track it
+								players[victim].fBleed_Timer = 4.0;
+							}
+							else {
+								TF2Attrib_SetByDefIndex(weapon, 149, 0.0);
+								TF2_RemoveCondition(victim, TFCond_Bleeding);
+								float fDamage, target_pos[3];
+								fDamage = 8 * players[victim].fBleed_Timer;		// Otherwise, consume the Bleed to deal extra damage
+								GetEntPropVector(victim, Prop_Send, "m_vecOrigin", target_pos);
+								SDKHooks_TakeDamage(victim, weapon, attacker, fDamage, DMG_CLUB | DMG_SHOCK, weapon, NULL_VECTOR, target_pos, false);
+								players[victim].fBleed_Timer = 0.0;
+							}
 						}
-						else {
-							TF2_AddCondition(victim, TFCond_Bleeding);
-							damage += 8 * players[victim].fBleed_Timer;		// Otherwise, consume the Bleed to deal extra damage
-							players[victim].fBleed_Timer = 0.0;
-						}
-						return Plugin_Changed;
 					}
 				}
 				
@@ -575,8 +573,8 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 							}
 						}
 						
-						if (fDistance < 510.0001) {
-							fDmgMod = RemapValClamped(fDistance, 0.0, 512.0, 0.9333333, 1.0);		// Scale the ramp-up down to 140%
+						if (fDistance < 510.0001 && secondaryIndex != 61 && secondaryIndex != 1006) {
+							fDmgMod = RemapValClamped(fDistance, 0.0, 512.0, 0.9333333, 1.0);		// Scale the ramp-up down to 140% (don't forget to ignore Crits)
 						}
 						
 						damage *= fDmgMod;
@@ -653,17 +651,28 @@ public void OnGameFrame() {
 
 	for (iClient = 1; iClient <= MaxClients; iClient++) {
 		if (IsClientInGame(iClient) && IsPlayerAlive(iClient)) {
+			int primary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
+			int primaryIndex = -1;
+			if (primary >= 0) {
+				primaryIndex = GetEntProp(primary, Prop_Send, "m_iItemDefinitionIndex");
+			}
+			
+			int secondary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Secondary, true);
+			int secondaryIndex = -1;
+			if (secondary >= 0) {
+				secondaryIndex = GetEntProp(secondary, Prop_Send, "m_iItemDefinitionIndex");
+			}
+			
+			int melee = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Melee, true);
+			int meleeIndex = -1;
+			if (melee >= 0) {
+				meleeIndex = GetEntProp(melee, Prop_Send, "m_iItemDefinitionIndex");
+			}
 			TFClassType tfAttackerClass = TF2_GetPlayerClass(iClient);
 			switch(tfAttackerClass)
 			{
 				// Scout
 				case TFClass_Scout: {
-					
-					int primary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
-					int primaryIndex = -1;
-					if (primary >= 0) {
-						primaryIndex = GetEntProp(primary, Prop_Send, "m_iItemDefinitionIndex");
-					}
 					
 					// Baby Face's Blaster
 					if (primaryIndex == 772) {
@@ -677,8 +686,8 @@ public void OnGameFrame() {
 							TF2Attrib_SetByDefIndex(primary, 326, 1.0);		// Reset jump height to normal while grounded
 						}
 						if (players[iClient].fBoosting > 0.0) {
-							SetHudTextParams(-0.1, -0.16, 0.5, 255, 255, 255, 255);
-							ShowHudText(iClient, 1, "Boosting!: %.00f", players[iClient].fBoosting);
+							SetHudTextParams(-0.1, -0.16, 0.1, 255, 255, 255, 255);
+							ShowHudText(iClient, 1, "Boosting!: %.00f", players[iClient].fBoosting + 1);
 							
 							players[iClient].fBoosting -= 0.015;		// Decrease by 1 second every ~66.6 server ticks
 						}
@@ -717,18 +726,6 @@ public void OnGameFrame() {
 				// Sniper
 				case TFClass_Sniper: {
 					
-					int secondary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Secondary, true);
-					int secondaryIndex = -1;
-					if (secondary >= 0) {
-						secondaryIndex = GetEntProp(secondary, Prop_Send, "m_iItemDefinitionIndex");
-					}
-					
-					int melee = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Melee, true);
-					int meleeIndex = -1;
-					if (melee >= 0) {
-						meleeIndex = GetEntProp(melee, Prop_Send, "m_iItemDefinitionIndex");
-					}
-					
 					// Melees
 					// Dynamically adjusts melee stats depending on Heads
 					switch(meleeIndex) {		// Kukri
@@ -747,19 +744,20 @@ public void OnGameFrame() {
 						}*/
 					}
 					
-					// Dynamically adjusts Sniper fire rate depending on scope status (avoids the need for DHooks)
-					int primary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
-					if (GetEntPropFloat(primary, Prop_Send, "m_flChargedDamage") < 0.001) {
-						TF2Attrib_SetByDefIndex(primary, 5, 0.933333);		// fire rate penalty
-					}
-					else {
-						TF2Attrib_SetByDefIndex(primary, 5, 1.2);
+					// Dynamically adjusts Sniper fire rate depending on scope status
+					if (primaryIndex != 56 && primaryIndex != 1005 && primaryIndex != 1092) {
+						if (GetEntPropFloat(primary, Prop_Send, "m_flChargedDamage") < 0.001) {
+							TF2Attrib_SetByDefIndex(primary, 5, 0.933333);		// fire rate penalty
+						}
+						else {
+							TF2Attrib_SetByDefIndex(primary, 5, 1.2);
+						}
 					}
 					
 					// Heads counter display
 					if (GetEntPropEnt(iClient, Prop_Send, "m_hActiveWeapon") == TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true) ||
 					GetEntPropEnt(iClient, Prop_Send, "m_hActiveWeapon") == TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Melee, true)) {		// Display Heads if we're holding a primary or melee
-						SetHudTextParams(-0.1, -0.13, 0.0, 255, 255, 255, 255);
+						SetHudTextParams(-0.1, -0.13, 0.1, 255, 255, 255, 255);
 						ShowHudText(iClient, 1, "Heads: %i", players[iClient].iHeads);
 					}
 					
@@ -778,9 +776,7 @@ public void OnGameFrame() {
 			}
 			
 			// Tracks Bleed on Tribalman's Shiv victims
-			if (players[iClient].fBleed_Timer > 0.0) {
-				SetHudTextParams(-0.1, -0.16, 0.5, 255, 255, 255, 255);
-				
+			if (players[iClient].fBleed_Timer > 0.0) {	
 				players[iClient].fBleed_Timer -= 0.015;		// Decrease by 1 second every ~66.6 server ticks
 			}
 			if (players[iClient].fBleed_Timer < 0.0) {
@@ -804,20 +800,17 @@ public Action OnPlayerRunCmd(int iClient, int &buttons, int &impulse, float vel[
 		int primaryIndex = -1;
 		if(primary != -1) primaryIndex = GetEntProp(primary, Prop_Send, "m_iItemDefinitionIndex");
 		
-		int melee = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Melee, true);
-		int meleeIndex = -1;
-		if(melee >= 0) meleeIndex = GetEntProp(melee, Prop_Send, "m_iItemDefinitionIndex");
-		
 		// Scout
 		if (tfClientClass == TFClass_Scout) {
-			if(primaryIndex == 772 && iActive == primary) {		// Are we holding the BFB?
+			// Baby-Face's Blaster
+			if(primaryIndex == 772 && iActive == primary) {
 				if(buttons & IN_ATTACK2 && players[iClient].fBoosting == 0.0) {		// Are we using the alt-fire?
 					float fHype = GetEntPropFloat(iClient, Prop_Send, "m_flHypeMeter");
 
 					SetEntPropFloat(iClient, Prop_Send, "m_flHypeMeter", 0.0);
-					TF2_AddCondition(iClient, TFCond_SpeedBuffAlly, RemapValClamped(fHype, 0.0, 99.0, 0.0, 5.0));		// Apply speed to us depending on the amount of Boost we have
+					TF2_AddCondition(iClient, TFCond_SpeedBuffAlly, RemapValClamped(fHype, 0.0, 99.0, 0.0, 4.0));		// Apply speed to us depending on the amount of Boost we have
 					
-					players[iClient].fBoosting = RemapValClamped(fHype, 0.0, 99.0, 0.0, 5.0);		// Tracks whether or not the alt-fire is active and for how long
+					players[iClient].fBoosting = RemapValClamped(fHype, 0.0, 99.0, 0.0, 4.0);		// Tracks whether or not the alt-fire is active and for how long
 					
 					for (int i = 1; i <= MaxClients; i++) {
 							if (IsClientInGame(i) && IsPlayerAlive(i)) {
@@ -828,7 +821,7 @@ public Action OnPlayerRunCmd(int iClient, int &buttons, int &impulse, float vel[
 							GetEntPropVector(iClient, Prop_Send, "m_vecOrigin", vecUs);
 							distance = GetVectorDistance(vecUs, vecTeammate);
 							if (distance < 300 && GetClientTeam(i) == GetClientTeam(iClient)) {		// Identify players on the same team within 300 HU of us
-								TF2_AddCondition(i, TFCond_SpeedBuffAlly, RemapValClamped(fHype, 0.0, 99.0, 0.0, 5.0));		// Apply speed to teammates
+								TF2_AddCondition(i, TFCond_SpeedBuffAlly, RemapValClamped(fHype, 0.0, 99.0, 0.0, 4.0));		// Apply speed to teammates
 							}
 						}
 					}
