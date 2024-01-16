@@ -59,7 +59,7 @@ enum struct Player {
 	float fBleed_Timer;		// Counts how much Bleed is left on us from the Shiv
 	float fBoosting;		// Stores BFB alt-fire boost duration
 	float fAirtimeTrack;		// Tracks time spent parachuting
-	bool bAudio;		// Tracks whether or not we've played the audio cue yet
+	bool bAudio;		// Tracks whether or not we've played the BASE Jumper buff audio cue yet
 	float parachute_cond_time;
 }
 
@@ -70,7 +70,7 @@ Handle cvar_ref_tf_parachute_aircontrol;
 
 public void OnPluginStart() {
 	cvar_ref_tf_parachute_aircontrol = FindConVar("tf_parachute_aircontrol");
-		
+
 	// This is used for clearing variables on respawn
 	HookEvent("player_spawn", OnGameEvent, EventHookMode_Post);
 }
@@ -124,14 +124,6 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 		TF2Items_SetAttribute(item1, 3, 46, 1.667); // sniper zoom penalty (~40% reduced zoom)
 	}
 	
-	if (StrEqual(class, "tf_weapon_club")) {		// All of Sniper's melees
-		item1 = TF2Items_CreateItem(0);
-		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 2);
-		TF2Items_SetAttribute(item1, 0, 1, 0.731); // damage penalty (-26.9%)
-		TF2Items_SetAttribute(item1, 1, 6, 0.75); // fire rate bonus (-25%; 0.25 sec)
-	}
-	
 	if (StrEqual(class, "tf_weapon_smg")) {		// SMG (the Carbine is a different archetype)
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
@@ -148,6 +140,14 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 		TF2Items_SetAttribute(item1, 0, 26, 15.0); // max health additive bonus (15)
 		TF2Items_SetAttribute(item1, 1, 60, 1.0); // dmg taken from fire reduced (removed)
 		TF2Items_SetAttribute(item1, 2, 527, 0.0); // afterburn immunity (removed)
+	}
+	
+	if (StrEqual(class, "tf_weapon_club")) {		// All of Sniper's melees
+		item1 = TF2Items_CreateItem(0);
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 2);
+		TF2Items_SetAttribute(item1, 0, 1, 0.731); // damage penalty (-26.9%)
+		TF2Items_SetAttribute(item1, 1, 6, 0.75); // fire rate bonus (-25%; 0.25 sec)
 	}
 	
 	if (index == 171) {		// The Tribalman's Shiv specifically
@@ -173,10 +173,10 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 	if (StrEqual(class, "tf_weapon_revolver")) {
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 4);
+		TF2Items_SetNumAttributes(item1, 3);
 		TF2Items_SetAttribute(item1, 0, 51, 1.0); // revolver use hit locations
 		TF2Items_SetAttribute(item1, 1, 97, 0.8826); // reload time decreased (+33.3%)
-		TF2Items_SetAttribute(item1, 2, 107, 1.0654); // faster move speed on wearer (+33.3%)
+		TF2Items_SetAttribute(item1, 2, 107, 1.0654); // faster move speed on wearer (+6.5%)
 	}
 
 	if (StrEqual(class, "tf_weapon_knife")) {
@@ -351,6 +351,10 @@ Action OnGameEvent(Event event, const char[] name, bool dontbroadcast) {
 				SetEntPropVector(client, Prop_Send, "m_vecSpecifiedSurroundingMins", {-18.375, -18.375, 0.0});
 				SetEntPropVector(client, Prop_Send, "m_vecSpecifiedSurroundingMaxs", {18.375, 18.375, 83.0});
 			}
+			else {
+				SetEntPropVector(client, Prop_Send, "m_vecSpecifiedSurroundingMins", {-24.5, -24.5, 0.0});
+				SetEntPropVector(client, Prop_Send, "m_vecSpecifiedSurroundingMaxs", {24.5, 24.5, 83.0});
+			}
 		}
 	}
 	return Plugin_Continue;
@@ -456,7 +460,7 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 							if (fDistance < 512.0001) {
 								if (players[attacker].headshot_frame == GetGameTickCount()) {		// Here we look at headshot status
 									TF2_AddCondition(victim, TFCond_MarkedForDeathSilent, 0.001, 0);		// Applies a Mini-Crit
-									damage_custom = TF_CUSTOM_HEADSHOT;		// This ensures that no-scope headshots still increment the Head counter
+									damage_custom = TF_CUSTOM_HEADSHOT;		// No idea if this does anything, honestly
 									SMG_Autoreload(attacker);
 								}
 							}
@@ -574,7 +578,7 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 						}
 						
 						if (fDistance < 510.0001 && secondaryIndex != 61 && secondaryIndex != 1006) {
-							fDmgMod = RemapValClamped(fDistance, 0.0, 512.0, 0.9333333, 1.0);		// Scale the ramp-up down to 140% (don't forget to ignore Crits)
+							fDmgMod = RemapValClamped(fDistance, 0.0, 512.0, 0.9333333, 1.0);		// Scale the ramp-up down to 140% (ignore the Amby so it still gets its 102's)
 						}
 						
 						damage *= fDmgMod;
@@ -606,7 +610,7 @@ void SMG_Autoreload(int client) {
 		int secondaryAmmo = GetEntProp(iSecondary, Prop_Send, "m_iPrimaryAmmoType");
 		int ammoCount = GetEntProp(client, Prop_Data, "m_iAmmo", _, secondaryAmmo);		// Retrieve the reserve secondary ammo
 		
-		if (clip < 25 && ammoCount > 0) {		// weapon is the weapon we swap to; check if we're swapping to something other than the bow
+		if (clip < 25 && ammoCount > 0) {
 			if (ammoCount < 25) {		// Don't take away more ammo than we actually have
 				ammoSubtract = ammoCount;
 			}

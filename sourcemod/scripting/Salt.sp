@@ -25,7 +25,6 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 		TF2Items_SetAttribute(item1, 0, 107, 1.1); // move speed bonus (10%; same as existing one)
 		TF2Items_SetAttribute(item1, 1, 788, 1.0); // move speed bonus shield required (removed)
 		TF2Items_SetAttribute(item1, 2, 252, 0.25); // damage force reduction (25%)
-		TF2Items_SetAttribute(item1, 3, 676, 0.0); // lose demo charge on damage when charging (Hoping this re-adds Crits to the Tide)
 	}
 	
 	if (StrEqual(class, "tf_wearable_demoshield")) {	// All Shields
@@ -43,20 +42,22 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 	if (index == 406) {	// Splendid Screen
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 4);
+		TF2Items_SetNumAttributes(item1, 5);
 		TF2Items_SetAttribute(item1, 1, 249, 1.0); // charge recharge rate increased (removed)
 		TF2Items_SetAttribute(item1, 2, 205, 0.85); // dmg from ranged reduced (15% reduction)
 		TF2Items_SetAttribute(item1, 3, 206, 0.85); // dmg from melee increased (15% reduction)
 		TF2Items_SetAttribute(item1, 4, 252, 0.85); // damage force reduction (15%)
+		TF2Items_SetAttribute(item1, 3, 676, 1.0); // lose demo charge on damage when charging (Hoping this re-adds Crits to the Tide)
 	}
 	
 	if (index == 1099) {	// Tide Turner
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 3);
+		TF2Items_SetNumAttributes(item1, 4);
 		TF2Items_SetAttribute(item1, 1, 205, 0.80); // dmg from ranged reduced (10% reduction)
 		TF2Items_SetAttribute(item1, 2, 206, 0.80); // dmg from melee increased (10% reduction)
 		TF2Items_SetAttribute(item1, 3, 252, 0.80); // damage force reduction (10%)
+		TF2Items_SetAttribute(item1, 3, 676, 1.0); // lose demo charge on damage when charging (Hoping this re-adds Crits to the Tide)
 	}
 }
 
@@ -189,7 +190,7 @@ public Action Event_PlayerDeath(Event event, const char[] cName, bool dontBroadc
 
 	// -={ Re-adds Tide Turner Crits on full Demoknight }=-
 
-public Action OnPlayerRunCmd(int iClient, int& buttons, int& impulse, float vel[3], float angles[3], int& weapon, int& subtype, int& cmdnum, int& tickcount, int& seed, int mouse[2]) {
+/*public Action OnPlayerRunCmd(int iClient, int& buttons, int& impulse, float vel[3], float angles[3], int& weapon, int& subtype, int& cmdnum, int& tickcount, int& seed, int mouse[2]) {
 	if (iClient >= 1 && iClient <= MaxClients) {
 		
 		int iPrimary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);		// Retrieve the primary weapon
@@ -231,4 +232,4 @@ public Action OnPlayerRunCmd(int iClient, int& buttons, int& impulse, float vel[
 		}
 	}
 	return Plugin_Continue;
-}
+}*/
