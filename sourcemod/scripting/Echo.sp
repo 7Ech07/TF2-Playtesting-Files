@@ -94,17 +94,18 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 	if (StrEqual(class, "tf_weapon_flamethrower")) {	// All Flamethrowers
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 10);
-		TF2Items_SetAttribute(item1, 0, 841, 0.0); // flame_gravity (none)
-		TF2Items_SetAttribute(item1, 1, 843, 0.0); // flame_drag (none)
-		TF2Items_SetAttribute(item1, 2, 844, 1920.0); // flame_speed (1920 HU/s)
-		TF2Items_SetAttribute(item1, 3, 862, 0.2); // flame_lifetime (0.2 s)
-		TF2Items_SetAttribute(item1, 4, 865, 0.0); // flame_up_speed (removed)
-		TF2Items_SetAttribute(item1, 5, 843, 0.0); // flame_drag (none)
-		TF2Items_SetAttribute(item1, 6, 863, 0.0); // flame_random_lifetime_offset (none)
-		TF2Items_SetAttribute(item1, 7, 838, 1.0); // flame_reflect_on_collision (flames riccochet off surfaces)
-		TF2Items_SetAttribute(item1, 8, 828, -7.4); // weapon burn time reduced (this value reduces burn time to 1 tick)
-		TF2Items_SetAttribute(item1, 9, 174, 1.33); // flame_ammopersec_increased (33%)
+		TF2Items_SetNumAttributes(item1, 11);
+		TF2Items_SetAttribute(item1, 0, 839, 0.0); // flame_spread_degree (none)
+		TF2Items_SetAttribute(item1, 1, 841, 0.0); // flame_gravity (none)
+		TF2Items_SetAttribute(item1, 2, 843, 0.0); // flame_drag (none)
+		TF2Items_SetAttribute(item1, 3, 844, 1920.0); // flame_speed (1920 HU/s)
+		TF2Items_SetAttribute(item1, 4, 862, 0.2); // flame_lifetime (0.2 s)
+		TF2Items_SetAttribute(item1, 5, 865, 0.0); // flame_up_speed (removed)
+		TF2Items_SetAttribute(item1, 6, 843, 0.0); // flame_drag (none)
+		TF2Items_SetAttribute(item1, 7, 863, 0.0); // flame_random_lifetime_offset (none)
+		TF2Items_SetAttribute(item1, 8, 838, 1.0); // flame_reflect_on_collision (flames riccochet off surfaces)
+		TF2Items_SetAttribute(item1, 9, 828, -7.4); // weapon burn time reduced (this value reduces burn time to 1 tick)
+		TF2Items_SetAttribute(item1, 10, 174, 1.33); // flame_ammopersec_increased (33%)
 	}
 	
 	if (index == 214) {	// Powerjack
@@ -435,7 +436,7 @@ public void OnGameFrame() {
 			
 			// Pyro (Afterburn)
 			if (players[iClient].fTempLevel >= 7.0) {		// Triggers Afterburn after a certain number of flame particle hits
-				PrintToChatAll("Burn");
+				//PrintToChatAll("Burn");
 				TF2Util_SetPlayerBurnDuration(iClient, 6.0);
 				players[iClient].fTempLevel = 7.0;
 			}
@@ -550,26 +551,41 @@ public void OnGameFrame() {
 public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3], float angles[3], int& weapon, int& subtype, int& cmdnum, int& tickcount, int& seed, int mouse[2]) {
 	if (client >= 1 && client <= MaxClients) {
 		if (weapon > 0) {
+			
 			int iPrimary = TF2Util_GetPlayerLoadoutEntity(client, TFWeaponSlot_Primary, true);		// Retrieve the primary weapon
 			int primaryIndex = -1;
 			if(iPrimary >= 0) primaryIndex = GetEntProp(iPrimary, Prop_Send, "m_iItemDefinitionIndex");		// Retrieve the primary weapon index for later
+			
+			int iSecondary = TF2Util_GetPlayerLoadoutEntity(client, TFWeaponSlot_Secondary, true);		// Retrieve the secondary weapon
+			int secondaryIndex = -1;
+			if(iSecondary >= 0) secondaryIndex = GetEntProp(iSecondary, Prop_Send, "m_iItemDefinitionIndex");		// Retrieve the primary weapon index for later
+			
 			int iActive = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");		// Retrieve the active weapon
+			int clientFlags = GetEntityFlags(client);
 			
 			// Pyro
 			if (TF2_GetPlayerClass(client) == TFClass_Pyro) {
-				PrintToChatAll("Pyro");
+
 				char class[64];
-				GetEntityClassname(weapon, class, sizeof(class));		// Retrieve the weapon
-				// Airblast jump
-				if (StrEqual(class, "tf_weapon_flamethrower") || StrEqual(class, "tf_weapon_rocketlauncher_fireball")) {		// Are we holding an Airblast-capable weapon?
-					PrintToChatAll("Flamethrower");
+				GetEntityClassname(iPrimary, class, sizeof(class));		// Retrieve the weapon
+				
+				if (StrEqual(class, "tf_weapon_flamethrower")) {		// Are we holding an Airblast-capable weapon?
 					int weaponState = GetEntProp(iPrimary, Prop_Send, "m_iWeaponState");
 					float vecVel[3];
 					GetEntPropVector(client, Prop_Data, "m_vecVelocity", vecVel);		// Retrieve existing velocity
-					if (weaponState == 3 && (vecVel[2] != 0 && !(GetEntityFlags(client) & FL_ONGROUND))) {		// Did we do an Airblast while airborne? (FT_STATE_SECONDARY = 3)
-						PrintToChatAll("Airborne Airblast");
+					if (weaponState == 3 && (vecVel[2] != 0 && !(clientFlags & FL_ONGROUND))) {		// Did we do an Airblast while airborne? (FT_STATE_SECONDARY = 3)
 						if (players[client].AirblastJumpCD == true) {
-							PrintToChatAll("Success");
+							AirblastJump(client);
+							players[client].AirblastJumpCD = false;		// Prevent Airblast jump from triggering multiple times in one Airblast
+						}
+					}
+				}
+				else if (StrEqual(class, "tf_weapon_rocketlauncher_fireball")) {		// Are we holding the Dragon's Fury?
+					int weaponState = GetEntProp(iPrimary, Prop_Send, "m_iWeaponState");
+					float vecVel[3];
+					GetEntPropVector(client, Prop_Data, "m_vecVelocity", vecVel);		// Retrieve existing velocity
+					if (weaponState == 3 && (vecVel[2] != 0 && !(clientFlags & FL_ONGROUND))) {		// Did we do an Airblast while airborne? (FT_STATE_SECONDARY = 3)
+						if (players[client].AirblastJumpCD == true) {
 							AirblastJump(client);
 							players[client].AirblastJumpCD = false;		// Prevent Airblast jump from triggering multiple times in one Airblast
 						}
@@ -579,7 +595,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 			
 			// Sniper
 			else if (TF2_GetPlayerClass(client) == TFClass_Sniper) {
-				PrintToChatAll("Sniper");
+				//PrintToChatAll("Sniper");
 				
 				// Huntsman passive reload
 				if (iPrimary != -1) {
@@ -602,12 +618,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 			}
 
 			// Panic Attack
-			else if (TF2_GetPlayerClass(client) == TFClass_Soldier || TF2_GetPlayerClass(client) == TFClass_Pyro || TF2_GetPlayerClass(client) == TFClass_Heavy) {
-			
-				int iSecondary = TF2Util_GetPlayerLoadoutEntity(client, TFWeaponSlot_Secondary, true);		// Retrieve the secondary weapon
-				int secondaryIndex = -1;
-				if(iSecondary >= 0) secondaryIndex = GetEntProp(iSecondary, Prop_Send, "m_iItemDefinitionIndex");		// Retrieve the primary weapon index for later
-			
+			if (secondaryIndex == 1153) {		// Is the secondary the Panic Attack
 				if (iSecondary != -1) {
 					if (iActive != weapon) {		// Are we switching weapons?
 						if (secondaryIndex == 1153) {		// Is the secondary the Panic Attack
@@ -620,12 +631,20 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 							if (clip < 2 && ammoCount > 0) {
 								CreateTimer(2.0, AutoreloadSecondary, client);
 							}
+					if (iActive != iSecondary) {		// Are we holding our secondary?
+						int iAmmoTable = FindSendPropInfo("CTFWeaponBase", "m_iClip1");
+						int clip = GetEntData(iSecondary, iAmmoTable, 4);		// Retrieve the loaded ammo of our secondary
+						
+						int primaryAmmo = GetEntProp(iSecondary, Prop_Send, "m_iPrimaryAmmoType");
+						int ammoCount = GetEntProp(client, Prop_Data, "m_iAmmo", _, primaryAmmo);		// Retrieve the reserve secondary ammo
+						
+						if (clip < 2 && ammoCount > 0) {
+							CreateTimer(2.0, AutoreloadSecondary, client);
 						}
 					}
 				}
 			}
-			else if (TF2_GetPlayerClass(client) == TFClass_Engineer) {
-				
+			else if (primaryIndex == 1153) {	
 				if (iPrimary != -1) {
 					if (iActive != weapon) {		// Are we switching weapons?
 						if (primaryIndex == 1153) {		// Is the primary the Panic Attack
@@ -638,6 +657,15 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 							if (clip < 2 && ammoCount > 0) {		// weapon is the weapon we swap to; check if we're swapping to something other than the PA
 								CreateTimer(2.0, AutoreloadPrimary, client);
 							}
+					if (iActive != iPrimary) {		// Are we holding our primary?
+						int iAmmoTable = FindSendPropInfo("CTFWeaponBase", "m_iClip1");
+						int clip = GetEntData(iPrimary, iAmmoTable, 4);		// Retrieve the loaded ammo of our primary
+						
+						int primaryAmmo = GetEntProp(iPrimary, Prop_Send, "m_iPrimaryAmmoType");
+						int ammoCount = GetEntProp(client, Prop_Data, "m_iAmmo", _, primaryAmmo);		// Retrieve the reserve primary ammo
+						
+						if (clip < 2 && ammoCount > 0) {		// weapon is the weapon we swap to; check if we're swapping to something other than the PA
+							CreateTimer(2.0, AutoreloadPrimary, client);
 						}
 					}
 				}
@@ -646,6 +674,48 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 	}
 	
 	return Plugin_Continue;
+}
+
+
+	// -={ Performs the Airblast jump }=-
+
+void AirblastJump(int client) {
+	PrintToChatAll("jump successful");
+	float vecAngle[3], vecVel[3], fRedirect, fBuffer, vecBuffer[3];
+	GetClientEyeAngles(client, vecAngle);		// Identify where we're looking
+	GetEntPropVector(client, Prop_Data, "m_vecVelocity", vecVel);		// Retrieve existing velocity
+	
+	float vecForce[3];
+	vecForce[0] = -Cosine(vecAngle[1] * 0.01745329) * Cosine(vecAngle[0] * 0.01745329);		// We are facing straight down the X axis when pitch and yaw are both 0; Cos(0) is 1
+	vecForce[1] = -Sine(vecAngle[1] * 0.01745329) * Cosine(vecAngle[0] * 0.01745329);		// We are facing straight down the Y axis when pitch is 0 and yaw is 90
+	vecForce[2] = Sine(vecAngle[0] * 0.01745329); 	// We are facing straight up the Z axis when pitch is 90 (yaw is irrelevant)
+	
+	fBuffer = GetVectorDotProduct(vecForce, vecVel) / GetVectorLength(vecVel, false);
+	vecBuffer = vecVel;
+	ScaleVector(vecBuffer, fBuffer);
+	float vecProjection[3];
+	vecProjection[0] = -vecBuffer[0];		// Takes the negative of the projection of our velocity vector in the aim direction
+	vecProjection[1] = -vecBuffer[1];
+	vecProjection[2] = -vecBuffer[2];
+	
+	if (vecVel[2] < 0.0) {
+		fRedirect = vecVel[2];		// Stores this momentum for later
+		vecVel[2] = 0.0;		// Makes sure we always have at least enough push force to break our fall (unless we aim downwards for some reason)
+	}
+	
+	// Convert pitch and yaw into a directional vector (and make it face behind us)
+	float fForce = 200.0 + (fRedirect / 2);		// Add half of our redirected falling speed to this
+	vecForce[0] *= fForce;
+	vecForce[1] *= fForce;
+	vecForce[2] *= fForce;
+	
+	vecForce[2] += 50.0;		// Some fixed upward force to make the jump feel beter
+	AddVectors(vecVel, vecForce, vecForce);		// Add the Airblast push force to our velocity
+	//AddVectors(vecProjection, vecForce, vecForce); This bit is terrible
+	
+	TeleportEntity(client, NULL_VECTOR, NULL_VECTOR, vecForce);		// Sets the Pyro's momentum to the appropriate value
+
+	return;
 }
 
 
@@ -690,48 +760,6 @@ public void OnTakeDamagePost(int victim, int attacker, int inflictor, float dama
 }
 
 
-	// -={ Performs the Airblast jump }=-
-
-void AirblastJump(int client) {
-	
-	float vecAngle[3], vecVel[3], fRedirect, fBuffer, vecBuffer[3];
-	GetClientEyeAngles(client, vecAngle);		// Identify where we're looking
-	GetEntPropVector(client, Prop_Data, "m_vecVelocity", vecVel);		// Retrieve existing velocity
-	
-	float vecForce[3];
-	vecForce[0] = -Cosine(vecAngle[1] * 0.01745329) * Cosine(vecAngle[0] * 0.01745329);		// We are facing straight down the X axis when pitch and yaw are both 0; Cos(0) is 1
-	vecForce[1] = -Sine(vecAngle[1] * 0.01745329) * Cosine(vecAngle[0] * 0.01745329);		// We are facing straight down the Y axis when pitch is 0 and yaw is 90
-	vecForce[2] = Sine(vecAngle[0] * 0.01745329); 	// We are facing straight up the Z axis when pitch is 90 (yaw is irrelevant)
-	
-	fBuffer = GetVectorDotProduct(vecForce, vecVel) / GetVectorLength(vecVel, false);
-	vecBuffer = vecVel;
-	ScaleVector(vecBuffer, fBuffer);
-	float vecProjection[3];
-	vecProjection[0] = -vecBuffer[0];		// Takes the negative of the projection of our velocity vector in the aim direction
-	vecProjection[1] = -vecBuffer[1];
-	vecProjection[2] = -vecBuffer[2];
-	
-	if (vecVel[2] < 0.0) {
-		fRedirect = vecVel[2];		// Stores this momentum for later
-		vecVel[2] = 0.0;		// Makes sure we always have at least enough push force to break our fall (unless we aim downwards for some reason)
-	}
-	
-	// Convert pitch and yaw into a directional vector (and make it face behind us)
-	float fForce = 200.0 + (fRedirect / 2);		// Add half of our redirected falling speed to this
-	vecForce[0] *= fForce;
-	vecForce[1] *= fForce;
-	vecForce[2] *= fForce;
-	
-	vecForce[2] += 50.0;		// Some fixed upward force to make the jump feel beter
-	AddVectors(vecVel, vecForce, vecForce);		// Add the Airblast push force to our velocity
-	//AddVectors(vecProjection, vecForce, vecForce); This bit is terrible
-	
-	TeleportEntity(client, NULL_VECTOR, NULL_VECTOR, vecForce);		// Sets the Pyro's momentum to the appropriate value
-
-	return;
-}
-
-
 	// -={ Calculates damage }=-
 
 Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, int& damage_type, int& weapon, float damage_force[3], float damage_position[3], int damage_custom) {
@@ -760,11 +788,11 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 				damage = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 14.333333, 9.05);
 				if (TF2_IsPlayerInCondition(victim, TFCond_Cloaked) || TF2_IsPlayerInCondition(victim, TFCond_CloakFlicker)) {
 					players[victim].fTempLevel += 0.65;
-					PrintToChatAll("Temp :%f", players[victim].fTempLevel);
+					//PrintToChatAll("Temp :%f", players[victim].fTempLevel);
 				}
 				else {
 					players[victim].fTempLevel += 1.0;
-					PrintToChatAll("Temp :%f", players[victim].fTempLevel);
+					//PrintToChatAll("Temp :%f", players[victim].fTempLevel);
 				}
 				damage_type &= ~DMG_IGNITE;
 
