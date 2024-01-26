@@ -609,7 +609,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 				if(iSecondary >= 0) secondaryIndex = GetEntProp(iSecondary, Prop_Send, "m_iItemDefinitionIndex");		// Retrieve the primary weapon index for later
 			
 				if (iSecondary != -1) {
-					if (iActive != iSecondary) {		// Are we holding our secondary?
+					if (iActive != weapon) {		// Are we switching weapons?
 						if (secondaryIndex == 1153) {		// Is the secondary the Panic Attack
 							int iAmmoTable = FindSendPropInfo("CTFWeaponBase", "m_iClip1");
 							int clip = GetEntData(iSecondary, iAmmoTable, 4);		// Retrieve the loaded ammo of our secondary
@@ -627,7 +627,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 			else if (TF2_GetPlayerClass(client) == TFClass_Engineer) {
 				
 				if (iPrimary != -1) {
-					if (iActive != iPrimary) {		// Are we holding our primary?
+					if (iActive != weapon) {		// Are we switching weapons?
 						if (primaryIndex == 1153) {		// Is the primary the Panic Attack
 							int iAmmoTable = FindSendPropInfo("CTFWeaponBase", "m_iClip1");
 							int clip = GetEntData(iPrimary, iAmmoTable, 4);		// Retrieve the loaded ammo of our primary
