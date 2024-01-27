@@ -56,6 +56,8 @@ enum struct Player {
 	//int iTempLevel;
 	float fTempLevel;	// How many particles before we start to burn
 	float fRev;		// Tracks how long we've been revved for the purposes of undoing the L&W nerf
+	float fPressure;	// Tracks Airblast repressurisation status
+	float fPressureCD;	// Tracks Airblast repressurisation cooldown
 	float fBoost;		// Natascha Boost
 	float fFlare_Cooldown;		// HLH firing interval (to prevent tapfiring)
 }
@@ -91,7 +93,7 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 	}
 	
 	// Pyro
-	if (StrEqual(class, "tf_weapon_flamethrower")) {	// All Flamethrowers
+	if (StrEqual(class, "tf_weapon_flamethrower") && (index != 30474)) {	// All Flamethrowers (except Nostromo Napalmer)
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
 		TF2Items_SetNumAttributes(item1, 11);
@@ -108,6 +110,14 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 		TF2Items_SetAttribute(item1, 10, 174, 1.33); // flame_ammopersec_increased (33%)
 	}
 	
+	if (index == 30474) {	// Nostromo Napalmer (Abs' prototype)
+		item1 = TF2Items_CreateItem(0);
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 2);
+		TF2Items_SetAttribute(item1, 0, 839, 0.0); // flame_spread_degree (none)
+		TF2Items_SetAttribute(item1, 1, 863, 0.0); // flame_random_lifetime_offset (none)
+	}
+	
 	if (index == 214) {	// Powerjack
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
@@ -122,14 +132,15 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
 		TF2Items_SetNumAttributes(item1, 1);
-		TF2Items_SetAttribute(item1, 0, 86, 1.15); // minigun spinup time increased (15%)
+		TF2Items_SetAttribute(item1, 0, 1, 0.85); // damage penalty (15%)
+		TF2Items_SetAttribute(item1, 1, 86, 1.15); // minigun spinup time increased (15%)
 	}
 	
 	if (index == 41) {	// Natascha
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
 		TF2Items_SetNumAttributes(item1, 4);
-		TF2Items_SetAttribute(item1, 0, 1, 0.65); // damage penalty (35%)
+		TF2Items_SetAttribute(item1, 0, 1, 0.6375); // damage penalty (25%)
 		TF2Items_SetAttribute(item1, 1, 32, 0.0); // chance to slow target (removed)
 		TF2Items_SetAttribute(item1, 2, 76, 0.75); // maxammo primary increased (25%)
 		TF2Items_SetAttribute(item1, 3, 738, 0.0); // spinup_damage_resistance (removed)
@@ -139,6 +150,7 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
 		TF2Items_SetNumAttributes(item1, 1);
+		TF2Items_SetAttribute(item1, 0, 2, 1.02); // damage bonus (20% * 0.85 base damage)
 		TF2Items_SetAttribute(item1, 0, 738, 0.0); // spinup_damage_resistance (removed)
 	}
 	
@@ -434,6 +446,12 @@ public void OnGameFrame() {
 	for (int iClient = 1; iClient <= MaxClients; iClient++) {		// Caps Afterburn at 6 and handles Temperature
 		if (IsClientInGame(iClient) && IsPlayerAlive(iClient)) {
 			
+			int primary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
+			int primaryIndex = -1;
+			if (primary >= 0) {
+				primaryIndex = GetEntProp(primary, Prop_Send, "m_iItemDefinitionIndex");
+			}
+			
 			// Pyro (Afterburn)
 			if (players[iClient].fTempLevel >= 7.0) {		// Triggers Afterburn after a certain number of flame particle hits
 				//PrintToChatAll("Burn");
@@ -452,12 +470,44 @@ public void OnGameFrame() {
 				players[iClient].fTempLevel -= 0.05;
 			}
 			
+			// Pyro (proper)
+			if (TF2_GetPlayerClass(iClient) == TFClass_Pyro) {
+				// Airblast jump chaining prevention
+				float vecVel[3];
+				GetEntPropVector(iClient, Prop_Data, "m_vecVelocity", vecVel);		// Retrieve existing velocity
+				if (vecVel[2] == 0 && (GetEntityFlags(iClient) & FL_ONGROUND)) {		// Are we grounded?
+					players[iClient].AirblastJumpCD = true;
+				}
 			
-			// Airblast jump chaining prevention
-			float vecVel[3];
-			GetEntPropVector(iClient, Prop_Data, "m_vecVelocity", vecVel);		// Retrieve existing velocity
-			if (vecVel[2] == 0 && (GetEntityFlags(iClient) & FL_ONGROUND)) {		// Are we grounded?
-				players[iClient].AirblastJumpCD = true;
+				// Pressure
+				char class[64];
+				GetEntityClassname(iPrimary, class, sizeof(class));
+				
+				if (primaryIndex == 30474) {		// Cap Napalmer pressure to 1 tank
+					players[victim].fPressure += 0.01;	// 1.5 seconds repressurisation time
+					if (players[victim].fPressure > 1.0) {
+						players[victim].fPressure = 1.0;
+						TF2Attrib_SetByDefIndex(primary, 255, 1.33);		// Increased push force when pressurised (to live TF2 value)
+					}
+					else {
+						TF2Attrib_SetByDefIndex(primary, 255, 1.125);
+					}
+				}
+
+				else if (StrEqual(class, "tf_weapon_flamethrower")) {		// Cap other Flamethrowers' pressure to 2 tanks
+					if players[victim].fPressureCD <= 0.0) {		// Only repressurise once our cooldown is up
+						players[victim].fPressure += 0.03;	// 0.5 seconds repressurisation time
+						if (players[victim].fPressure > 2.0) {
+							players[victim].fPressure = 2.0;
+						}
+					}
+					else {
+						players[victim].fPressureCD -= 0.015;
+					}
+				}
+				
+				SetHudTextParams(-0.1, -0.16, 0.5, 255, 255, 255, 255);
+				ShowHudText(iClient, 1, "Boost: %.0f", players[iClient].fPressure);
 			}
 			
 			// Heavy
@@ -465,12 +515,6 @@ public void OnGameFrame() {
 			if (TF2_GetPlayerClass(iClient) == TFClass_Heavy) {
 				
 				players[iClient].fFlare_Cooldown -= 0.015;
-				
-				int primary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
-				int primaryIndex = -1;
-				if (primary >= 0) {
-					primaryIndex = GetEntProp(primary, Prop_Send, "m_iItemDefinitionIndex");
-				}
 				
 				float fDmgMult = 1.0;		// Default values -- for stock, and in case of emergency
 				float fAccMult = 1.0;
@@ -489,7 +533,7 @@ public void OnGameFrame() {
 						fAccMult = 1.0;
 					}
 					case 312: {		// Brass Beast
-						fDmgMult = 1.2;
+						fDmgMult = 1.02;
 						fAccMult = 1.0;
 					}
 				}
@@ -569,25 +613,29 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 				char class[64];
 				GetEntityClassname(iPrimary, class, sizeof(class));		// Retrieve the weapon
 				
-				if (StrEqual(class, "tf_weapon_flamethrower")) {		// Are we holding an Airblast-capable weapon?
+				if ((StrEqual(class, "tf_weapon_flamethrower")) || (StrEqual(class, "tf_weapon_rocketlauncher_fireball"))) {		// Are we holding an Airblast-capable weapon?
 					int weaponState = GetEntProp(iPrimary, Prop_Send, "m_iWeaponState");
 					float vecVel[3];
 					GetEntPropVector(client, Prop_Data, "m_vecVelocity", vecVel);		// Retrieve existing velocity
-					if (weaponState == 3 && (vecVel[2] != 0 && !(clientFlags & FL_ONGROUND))) {		// Did we do an Airblast while airborne? (FT_STATE_SECONDARY = 3)
-						if (players[client].AirblastJumpCD == true) {
-							AirblastJump(client);
-							players[client].AirblastJumpCD = false;		// Prevent Airblast jump from triggering multiple times in one Airblast
+					if (weaponState == 3) {		// Did we do an Airblast? (FT_STATE_SECONDARY = 3)
+						if (primaryIndex == 30474) {		// Nostromo Napalmer
+							if (players[victim].fPressure >= 1.0) {
+								players[victim].fPressure = 0.0;
+							}
 						}
-					}
-				}
-				else if (StrEqual(class, "tf_weapon_rocketlauncher_fireball")) {		// Are we holding the Dragon's Fury?
-					int weaponState = GetEntProp(iPrimary, Prop_Send, "m_iWeaponState");
-					float vecVel[3];
-					GetEntPropVector(client, Prop_Data, "m_vecVelocity", vecVel);		// Retrieve existing velocity
-					if (weaponState == 3 && (vecVel[2] != 0 && !(clientFlags & FL_ONGROUND))) {		// Did we do an Airblast while airborne? (FT_STATE_SECONDARY = 3)
-						if (players[client].AirblastJumpCD == true) {
-							AirblastJump(client);
-							players[client].AirblastJumpCD = false;		// Prevent Airblast jump from triggering multiple times in one Airblast
+						else if (primaryIndex != 1178) {		// Not Napalmer or Dragon's Fury
+							if (players[victim].fPressure <= 1.0) {		// If we don't have enough pressure, cancel
+								buttons &= ~IN_ATTACK2;
+							}
+							players[victim].fPressure -= 1.0;
+							players[victim].fPressureCD = 0.75;
+						}
+							
+						if ((vecVel[2] != 0 && !(clientFlags & FL_ONGROUND))) {		// Are we airborne?
+							if (players[client].AirblastJumpCD == true) {
+								AirblastJump(client);
+								players[client].AirblastJumpCD = false;		// Prevent Airblast jump from triggering multiple times in one Airblast
+							}
 						}
 					}
 				}
@@ -945,10 +993,10 @@ Action FlareSpawn(int entity) {
 				int primary = TF2Util_GetPlayerLoadoutEntity(owner, TFWeaponSlot_Primary, true);
 				int primaryAmmo = GetEntProp(primary, Prop_Send, "m_iPrimaryAmmoType");
 				int ammoCount = GetEntProp(owner, Prop_Data, "m_iAmmo", _, primaryAmmo);		// Retrieve primary ammo
-				if (ammoCount < 80) {
+				/*if (ammoCount < 80) {
 					ammoCount += 1;
 					SetEntProp(owner, Prop_Data, "m_iAmmo", ammoCount + 1, _, primaryAmmo);		// Restore the ammo
-				}
+				}*/
 				
 				return Plugin_Handled;
 			}
