@@ -119,7 +119,7 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
 		TF2Items_SetNumAttributes(item1, 4);
 		TF2Items_SetAttribute(item1, 0, 1, 0.8); // damage penalty (80%)
-		TF2Items_SetAttribute(item1, 1, 75, 2.5); // aiming movespeed increased (+250%)
+		TF2Items_SetAttribute(item1, 1, 75, 2.25); // aiming movespeed increased (+225%)
 		TF2Items_SetAttribute(item1, 2, 90, 1.935); // SRifle charge rate increased (193.5%)
 		TF2Items_SetAttribute(item1, 3, 46, 1.667); // sniper zoom penalty (~40% reduced zoom)
 	}
@@ -817,7 +817,7 @@ public Action OnPlayerRunCmd(int iClient, int &buttons, int &impulse, float vel[
 					players[iClient].fBoosting = RemapValClamped(fHype, 0.0, 99.0, 0.0, 4.0);		// Tracks whether or not the alt-fire is active and for how long
 					
 					for (int i = 1; i <= MaxClients; i++) {
-							if (IsClientInGame(i) && IsPlayerAlive(i)) {
+						if (IsClientInGame(i) && IsPlayerAlive(i)) {
 							float vecTeammate[3];
 							float vecUs[3];
 							float distance;
