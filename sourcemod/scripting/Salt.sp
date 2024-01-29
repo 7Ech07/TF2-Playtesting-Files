@@ -21,12 +21,12 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 	if (index == 405 || index == 608) {	// Ali Baba's Wee Booties (& Bootlegger)
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 4);
+		TF2Items_SetNumAttributes(item1, 3);
 		TF2Items_SetAttribute(item1, 0, 107, 1.1); // move speed bonus (10%; same as existing one)
 		TF2Items_SetAttribute(item1, 1, 788, 1.0); // move speed bonus shield required (removed)
 		TF2Items_SetAttribute(item1, 2, 252, 0.25); // damage force reduction (25%)
 	}
-	
+
 	if (StrEqual(class, "tf_wearable_demoshield")) {	// All Shields
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
@@ -42,24 +42,69 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 	if (index == 406) {	// Splendid Screen
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 5);
-		TF2Items_SetAttribute(item1, 1, 249, 1.0); // charge recharge rate increased (removed)
-		TF2Items_SetAttribute(item1, 2, 205, 0.85); // dmg from ranged reduced (15% reduction)
-		TF2Items_SetAttribute(item1, 3, 206, 0.85); // dmg from melee increased (15% reduction)
-		TF2Items_SetAttribute(item1, 4, 252, 0.85); // damage force reduction (15%)
-		TF2Items_SetAttribute(item1, 3, 676, 1.0); // lose demo charge on damage when charging (Hoping this re-adds Crits to the Tide)
+		TF2Items_SetNumAttributes(item1, 4);
+		TF2Items_SetAttribute(item1, 0, 249, 1.0); // charge recharge rate increased (removed)
+		TF2Items_SetAttribute(item1, 1, 205, 0.85); // dmg from ranged reduced (15% reduction)
+		TF2Items_SetAttribute(item1, 2, 206, 0.85); // dmg from melee increased (15% reduction)
+		TF2Items_SetAttribute(item1, 3, 252, 0.85); // damage force reduction (15%)
 	}
 	
 	if (index == 1099) {	// Tide Turner
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 4);
-		TF2Items_SetAttribute(item1, 1, 205, 0.80); // dmg from ranged reduced (10% reduction)
-		TF2Items_SetAttribute(item1, 2, 206, 0.80); // dmg from melee increased (10% reduction)
-		TF2Items_SetAttribute(item1, 3, 252, 0.80); // damage force reduction (10%)
-		TF2Items_SetAttribute(item1, 3, 676, 1.0); // lose demo charge on damage when charging (Hoping this re-adds Crits to the Tide)
+		TF2Items_SetNumAttributes(item1, 3);
+		TF2Items_SetAttribute(item1, 0, 205, 0.80); // dmg from ranged reduced (10% reduction)
+		TF2Items_SetAttribute(item1, 1, 206, 0.80); // dmg from melee increased (10% reduction)
+		TF2Items_SetAttribute(item1, 2, 252, 0.80); // damage force reduction (10%)
+	}
+	
+	int primary = TF2Util_GetPlayerLoadoutEntity(client, TFWeaponSlot_Primary, true);
+	int primaryIndex = -1;
+	if (primary >= 0) {
+		primaryIndex = GetEntProp(primary, Prop_Send, "m_iItemDefinitionIndex");
+	}
+	
+	if (primaryIndex == 405 || primaryIndex == 608) {
+		
+		if (StrEqual(class, "tf_wearable_demoshield")) {	// All Shields
+			item1 = TF2Items_CreateItem(0);
+			TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+			TF2Items_SetNumAttributes(item1, 6);
+			TF2Items_SetAttribute(item1, 0, 64, 1.0); // dmg taken from blast reduced (removed)
+			TF2Items_SetAttribute(item1, 1, 60, 1.0); // dmg taken from fire reduced (removed)
+			TF2Items_SetAttribute(item1, 2, 249, 1.15); // charge recharge rate increased (15%; reduces cooldown to 10 seconds)
+			TF2Items_SetAttribute(item1, 3, 205, 0.75); // dmg from ranged reduced (25% reduction)
+			TF2Items_SetAttribute(item1, 4, 206, 0.75); // dmg from melee increased (25% reduction, in spite of what the attribute says)
+			TF2Items_SetAttribute(item1, 5, 252, 0.75); // damage force reduction (25%)
+		}
+		
+		if (index == 1099) {	// Tide Turner
+			item1 = TF2Items_CreateItem(0);
+			TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+			TF2Items_SetNumAttributes(item1, 1);
+			TF2Items_SetAttribute(item1, 0, 676, 0.0); // lose demo charge on damage when charging (Hoping this re-adds Crits to the Tide)
+		}
+	}
+	
+	else {
+		if (StrEqual(class, "tf_wearable_demoshield")) {	// All Shields
+			item1 = TF2Items_CreateItem(0);
+			TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+			TF2Items_SetNumAttributes(item1, 1);
+			TF2Items_SetAttribute(item1, 0, 676, 1.0); // lose demo charge on damage when charging (Hoping this re-adds Crits to the Tide)
+		}
 	}
 }
+
+
+	// -={ Preps all of the other functions }=-
+
+enum struct Player {
+	float fHitscan_Accuracy;		// Tracks dynamic accuracy on hitscan weapons
+}
+
+Player players[MAXPLAYERS+1];
+
 
 public Action Event_PlayerSpawn(Handle hEvent, const char[] cName, bool dontBroadcast) {
 	int iClient = GetClientOfUserId(GetEventInt(hEvent, "userid"));
@@ -110,6 +155,44 @@ public Action PlayerSpawn(Handle timer, DataPack dPack) {
 }
 
 
+	// -={ Pistol Dynamic Accuracy }=-
+
+Action TraceAttack(int victim, int& attacker, int& inflictor, float& damage, int& damage_type, int& ammo_type, int hitbox, int hitgroup) {
+	if (victim >= 1 && victim <= MaxClients && attacker >= 1 && attacker <= MaxClients) {
+		int iActive = GetEntPropEnt(attacker, Prop_Send, "m_hActiveWeapon");		// Retrieve the active weapon
+		char class[64];
+		GetEntityClassname(iActive, class, sizeof(class));		// Retrieve the weapon
+		
+		if ((StrEqual(class, "tf_weapon_pistol"))) {		// Are we holding a Pistol?
+			players[client].fHitscan_Accuracy += 0.50025;
+		}
+	}
+	return Plugin_Continue;
+}
+
+
+public void OnGameFrame() {
+	int iClient;		// Index; lets us run through all the players on the server	
+	SetConVarString(cvar_ref_tf_parachute_aircontrol, "3.5");
+
+	for (iClient = 1; iClient <= MaxClients; iClient++) {
+		if (IsClientInGame(iClient) && IsPlayerAlive(iClient)) {
+			if (players[iClient].fHitscan_Accuracy > 1.005) {
+				players[iClient].fHitscan_Accuracy = 1.005;
+			}
+			players[iClient].fHitscan_Accuracy -= 0.015;
+			if (players[iClient].fHitscan_Accuracy > 0.0) {
+				int time = RoundFloat(players[iClient].fHitscan_Accuracy * 1000);
+				if (time%90 == 0) {		// Only adjust accuracy every so often
+					float factor = 1.0 + time/990.0;		// We accuracy over time proportional to the rev meter
+					TF2Attrib_SetByDefIndex(primary, 106, );		// Spread bonus
+				}
+			}
+		}
+	}
+}
+
+	
 	// -={ Restores charge on Tide on kills with non-melees }=-
 
 public Action Event_PlayerDeath(Event event, const char[] cName, bool dontBroadcast)
