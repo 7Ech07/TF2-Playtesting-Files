@@ -62,6 +62,8 @@ enum struct Player {
 	float fFlare_Cooldown;		// HLH firing interval (to prevent tapfiring)
 }
 
+int g_TrueLastButtons[MAXPLAYERS+1];
+int g_LastButtons[MAXPLAYERS+1];
 
 	// -={ Precaches audio }=-
 
@@ -93,7 +95,7 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 	}
 	
 	// Pyro
-	if (StrEqual(class, "tf_weapon_flamethrower") && (index != 30474)) {	// All Flamethrowers (except Nostromo Napalmer)
+	if (StrEqual(class, "tf_weapon_flamethrower") && (index != 30474) && (index != 741)) {	// All Flamethrowers (except Nostromo Napalmer)
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
 		TF2Items_SetNumAttributes(item1, 11);
@@ -110,7 +112,7 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 		TF2Items_SetAttribute(item1, 10, 174, 1.33); // flame_ammopersec_increased (33%)
 	}
 	
-	if (index == 30474) {	// Nostromo Napalmer (Abs' prototype)
+	if (index == 30474 || index == 741) {	// Nostromo Napalmer (Abs' prototype)
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
 		TF2Items_SetNumAttributes(item1, 2);
@@ -180,14 +182,14 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 	}
 	
 	// Spy
-	if (index == 460) {	// Enforcer
+	/*if (index == 460) {	// Enforcer
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
 		TF2Items_SetNumAttributes(item1, 3);
 		TF2Items_SetAttribute(item1, 0, 5, 1.3); // fire rate penalty (30%)
 		TF2Items_SetAttribute(item1, 1, 410, 0.0); // damage bonus while disguised (removed)
 		TF2Items_SetAttribute(item1, 2, 797, 0.0); // dmg pierces resists absorbs (removed)
-	}
+	}*/
 
 	if (item1 != null) {
 		item = item1;
@@ -481,12 +483,12 @@ public void OnGameFrame() {
 			
 				// Pressure
 				char class[64];
-				GetEntityClassname(iPrimary, class, sizeof(class));
+				GetEntityClassname(primary, class, sizeof(class));
 				
-				if (primaryIndex == 30474) {		// Cap Napalmer pressure to 1 tank
-					players[victim].fPressure += 0.01;	// 1.5 seconds repressurisation time
-					if (players[victim].fPressure > 1.0) {
-						players[victim].fPressure = 1.0;
+				if (primaryIndex == 30474 || primaryIndex == 741) {		// Cap Napalmer pressure to 1 tank
+					players[iClient].fPressure += 0.01;	// 1.5 seconds repressurisation time
+					if (players[iClient].fPressure > 1.0) {
+						players[iClient].fPressure = 1.0;
 						TF2Attrib_SetByDefIndex(primary, 255, 1.33);		// Increased push force when pressurised (to live TF2 value)
 					}
 					else {
@@ -495,19 +497,21 @@ public void OnGameFrame() {
 				}
 
 				else if (StrEqual(class, "tf_weapon_flamethrower")) {		// Cap other Flamethrowers' pressure to 2 tanks
-					if players[victim].fPressureCD <= 0.0) {		// Only repressurise once our cooldown is up
-						players[victim].fPressure += 0.03;	// 0.5 seconds repressurisation time
-						if (players[victim].fPressure > 2.0) {
-							players[victim].fPressure = 2.0;
+					if (players[iClient].fPressureCD <= 0.0) {		// Only repressurise once our cooldown is up
+						players[iClient].fPressure += 0.03;	// 0.5 seconds repressurisation time
+						if (players[iClient].fPressure > 2.0) {
+							players[iClient].fPressure = 2.0;
 						}
 					}
 					else {
-						players[victim].fPressureCD -= 0.015;
+						players[iClient].fPressureCD -= 0.015;
 					}
 				}
 				
-				SetHudTextParams(-0.1, -0.16, 0.5, 255, 255, 255, 255);
-				ShowHudText(iClient, 1, "Boost: %.0f", players[iClient].fPressure);
+				if ((primaryIndex != 594) && (primaryIndex != 1178)) {
+					SetHudTextParams(-0.1, -0.16, 0.5, 255, 255, 255, 255);
+					ShowHudText(iClient, 1, "Pressure: %.0f", players[iClient].fPressure);
+				}
 			}
 			
 			// Heavy
@@ -594,6 +598,7 @@ public void OnGameFrame() {
 
 public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3], float angles[3], int& weapon, int& subtype, int& cmdnum, int& tickcount, int& seed, int mouse[2]) {
 	if (client >= 1 && client <= MaxClients) {
+		bool buttonsModified = false;
 		if (weapon > 0) {
 			
 			int iPrimary = TF2Util_GetPlayerLoadoutEntity(client, TFWeaponSlot_Primary, true);		// Retrieve the primary weapon
@@ -618,19 +623,23 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 					float vecVel[3];
 					GetEntPropVector(client, Prop_Data, "m_vecVelocity", vecVel);		// Retrieve existing velocity
 					if (weaponState == 3) {		// Did we do an Airblast? (FT_STATE_SECONDARY = 3)
-						if (primaryIndex == 30474) {		// Nostromo Napalmer
-							if (players[victim].fPressure >= 1.0) {
-								players[victim].fPressure = 0.0;
+						if (primaryIndex == 30474 || primaryIndex == 741) {		// Nostromo Napalmer
+							if (players[client].fPressure >= 1.0) {
+								players[client].fPressure = 0.0;
 							}
 						}
 						else if (primaryIndex != 1178) {		// Not Napalmer or Dragon's Fury
-							if (players[victim].fPressure <= 1.0) {		// If we don't have enough pressure, cancel
+							if (players[client].fPressure < 1.0) {		// If we don't have enough pressure, cancel
+								g_TrueLastButtons[client] = buttons;
+								buttonsModified = true;
 								buttons &= ~IN_ATTACK2;
 							}
-							players[victim].fPressure -= 1.0;
-							players[victim].fPressureCD = 0.75;
+							else {
+								players[client].fPressure -= 1.0;
+								players[client].fPressureCD = 0.75;
+							}
 						}
-							
+					
 						if ((vecVel[2] != 0 && !(clientFlags & FL_ONGROUND))) {		// Are we airborne?
 							if (players[client].AirblastJumpCD == true) {
 								AirblastJump(client);
@@ -679,6 +688,8 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 							if (clip < 2 && ammoCount > 0) {
 								CreateTimer(2.0, AutoreloadSecondary, client);
 							}
+						}
+					}
 					if (iActive != iSecondary) {		// Are we holding our secondary?
 						int iAmmoTable = FindSendPropInfo("CTFWeaponBase", "m_iClip1");
 						int clip = GetEntData(iSecondary, iAmmoTable, 4);		// Retrieve the loaded ammo of our secondary
@@ -705,6 +716,8 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 							if (clip < 2 && ammoCount > 0) {		// weapon is the weapon we swap to; check if we're swapping to something other than the PA
 								CreateTimer(2.0, AutoreloadPrimary, client);
 							}
+						}
+					}
 					if (iActive != iPrimary) {		// Are we holding our primary?
 						int iAmmoTable = FindSendPropInfo("CTFWeaponBase", "m_iClip1");
 						int clip = GetEntData(iPrimary, iAmmoTable, 4);		// Retrieve the loaded ammo of our primary
@@ -719,6 +732,8 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 				}
 			}
 		}
+		g_LastButtons[client] = buttons;
+		if(!buttonsModified) g_TrueLastButtons[client] = buttons;
 	}
 	
 	return Plugin_Continue;
@@ -728,7 +743,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 	// -={ Performs the Airblast jump }=-
 
 void AirblastJump(int client) {
-	PrintToChatAll("jump successful");
+	//PrintToChatAll("jump successful");
 	float vecAngle[3], vecVel[3], fRedirect, fBuffer, vecBuffer[3];
 	GetClientEyeAngles(client, vecAngle);		// Identify where we're looking
 	GetEntPropVector(client, Prop_Data, "m_vecVelocity", vecVel);		// Retrieve existing velocity
@@ -786,7 +801,7 @@ public void OnTakeDamagePost(int victim, int attacker, int inflictor, float dama
 			}
 			
 			// Enforcer
-			if (GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") == 460) {		// Do we have the Enforcer equipped?
+			/*if (GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") == 460) {		// Do we have the Enforcer equipped?
 				
 				float vecAttackerAng[3], vecVictimAng[3];		// Stores the shooter and victim's facing
 				GetClientEyeAngles(attacker, vecAttackerAng);
@@ -802,7 +817,7 @@ public void OnTakeDamagePost(int victim, int attacker, int inflictor, float dama
 						TF2_AddCondition(victim, TFCond_MarkedForDeath, 5.0);
 					}
 				}
-			}
+			}*/
 		}
 	}
 }
