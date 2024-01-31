@@ -7,6 +7,7 @@
 #include <tf2_stocks>
 #include <tf2items>
 #include <tf2utils>
+#include <tf2attributes>
 
 #pragma semicolon 1
 #pragma newdecls required
@@ -41,6 +42,8 @@ Handle cvar_ref_tf_airblast_cray_reflect_coeff;*/
 
 enum struct Player {
 	bool AirblastJumpCD;
+	float fPressure;	// Tracks Airblast repressurisation status
+	float fPressureCD;	// Tracks Airblast repressurisation cooldown
 	//bool ParticleCD;
 	//int iTempLevel; 
 }
@@ -145,33 +148,78 @@ public void OnGameFrame() {
 	SetConVarString(cvar_ref_tf_airblast_cray_reflect_coeff, "1");*/
 	
 	
-	for (int i = 1; i <= MaxClients; i++) {		// Caps Afterburn at 8 and handles Temperature
-		if (IsClientInGame(i) && IsPlayerAlive(i)) {
-			/*float fBurn = TF2Util_GetPlayerBurnDuration(i);
+	for (int iClient = 1; iClient <= MaxClients; iClient++) {		// Caps Afterburn at 8 and handles Temperature
+		if (IsClientInGame(iClient) && IsPlayerAlive(iClient)) {
+			
+			int primary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
+			int primaryIndex = -1;
+			if (primary >= 0) {
+				primaryIndex = GetEntProp(primary, Prop_Send, "m_iItemDefinitionIndex");
+			}
+			/*float fBurn = TF2Util_GetPlayerBurnDuration(iClient);
 			if (fBurn > 8.0) {
-				TF2Util_SetPlayerBurnDuration(i, 8.0);
-				players[i].iTempLevel = 2;
-				if (players[i].ParticleCD == true) {
-					CreateParticle(i,"dragons_fury_effect", 0.5);
-					players[i].ParticleCD = false;
+				TF2Util_SetPlayerBurnDuration(iClient, 8.0);
+				players[iClient].iTempLevel = 2;
+				if (players[iClient].ParticleCD == true) {
+					CreateParticle(iClient,"dragons_fury_effect", 0.5);
+					players[iClient].ParticleCD = false;
 				}
 			}
 			
 			else if (fBurn > 5.5) {
-				players[i].iTempLevel = 1;
+				players[iClient].iTempLevel = 1;
 			}
 			
 			else {
-				players[i].iTempLevel = 0;
-				players[i].ParticleCD = true;
+				players[iClient].iTempLevel = 0;
+				players[iClient].ParticleCD = true;
 			}*/
 			
 			float vecVel[3];
-			GetEntPropVector(i, Prop_Data, "m_vecVelocity", vecVel);		// Retrieve existing velocity
-			if (vecVel[2] == 0 && (GetEntityFlags(i) & FL_ONGROUND)) {		// Are we grounded?
-				players[i].AirblastJumpCD = true;
+			GetEntPropVector(iClient, Prop_Data, "m_vecVelocity", vecVel);		// Retrieve existing velocity
+			if (vecVel[2] == 0 && (GetEntityFlags(iClient) & FL_ONGROUND)) {		// Are we grounded?
+				players[iClient].AirblastJumpCD = true;
 			}
-			else {
+		
+			// Pyro (proper)
+			if (TF2_GetPlayerClass(iClient) == TFClass_Pyro) {
+				// Airblast jump chaining prevention
+
+				if (vecVel[2] == 0 && (GetEntityFlags(iClient) & FL_ONGROUND)) {		// Are we grounded?
+					players[iClient].AirblastJumpCD = true;
+				}
+			
+				// Pressure
+				char class[64];
+				GetEntityClassname(primary, class, sizeof(class));
+				
+				if (primaryIndex == 30474 || primaryIndex == 741) {		// Cap Napalmer pressure to 1 tank
+					players[iClient].fPressure += 0.01;	// 1.5 seconds repressurisation time
+					if (players[iClient].fPressure > 1.0) {
+						players[iClient].fPressure = 1.0;
+						TF2Attrib_SetByDefIndex(primary, 255, 1.33);		// Increased push force when pressurised (to live TF2 value)
+					}
+					else {
+						TF2Attrib_SetByDefIndex(primary, 255, 1.125);
+					}
+				}
+
+				else if (StrEqual(class, "tf_weapon_flamethrower")) {		// Cap other Flamethrowers' pressure to 2 tanks
+					if (players[iClient].fPressureCD <= 0.0) {		// Only repressurise once our cooldown is up
+						players[iClient].fPressure += 0.03;	// 0.5 seconds repressurisation time
+						if (players[iClient].fPressure > 2.0) {
+							players[iClient].fPressure = 2.0;
+						}
+					}
+					else {
+						players[iClient].fPressureCD -= 0.015;
+					}
+				}
+				
+				if ((primaryIndex != 594) && (primaryIndex != 1178)) {
+					SetHudTextParams(-0.1, -0.16, 0.5, 255, 255, 255, 255);
+					ShowHudText(iClient, 1, "Pressure: %.0f", players[iClient].fPressure);
+				}
 			}
 		}
 	}

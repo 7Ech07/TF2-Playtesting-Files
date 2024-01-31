@@ -12,10 +12,45 @@
 #pragma newdecls required
 
 
+	// -={ Stock functions -- taken from Valve themselves }=-
+	// https://github.com/ValveSoftware/source-sdk-2013/blob/master/sp/src/public/mathlib/mathlib.h#L648s
+
+float clamp(float val, float minVal, float maxVal) {		// Used in the following function to clamp values for SimpleSpline
+	if (maxVal < minVal) {return maxVal;}
+	else if (val < minVal) {return minVal;}
+	else if (val > maxVal) {return maxVal;}
+	else {return val;}
+}
+
+float RemapValClamped( float val, float A, float B, float C, float D)		// Remaps val from the A-B range to the C-D range
+{
+	if (A == B) {
+		return val >= B ? D : C;
+	}
+	float cVal = (val - A) / (B - A);
+	cVal = clamp(cVal, 0.0, 1.0);
+
+	return C + (D - C) * cVal;
+}
+
+
+public void OnClientPutInServer(int client) {
+	SDKHook(client, SDKHook_TraceAttack, TraceAttack);
+}
+
+
 	// -={ Modifies attributes without needing to go through another plugin }=-
 
 public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Handle& item) {
 	Handle item1;
+	
+	// Scout (includes Engie Pistol)
+	if (StrEqual(class, "tf_weapon_pistol")) {	// All Pistols
+		item1 = TF2Items_CreateItem(0);
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 1);
+		TF2Items_SetAttribute(item1, 0, 106, 0.7); // weapon spread bonus (removed)
+	}
 	
 	// Demoman
 	if (index == 405 || index == 608) {	// Ali Baba's Wee Booties (& Bootlegger)
@@ -108,10 +143,6 @@ Player players[MAXPLAYERS+1];
 
 public Action Event_PlayerSpawn(Handle hEvent, const char[] cName, bool dontBroadcast) {
 	int iClient = GetClientOfUserId(GetEventInt(hEvent, "userid"));
-	
-	int melee = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Melee, true);
-	int meleeIndex = -1;
-	if(melee >= 0) meleeIndex = GetEntProp(melee, Prop_Send, "m_iItemDefinitionIndex");
 
 	char[] event = new char[64];
 	GetEventName(hEvent,event,64);
@@ -138,14 +169,10 @@ public Action PlayerSpawn(Handle timer, DataPack dPack) {
 
 	if (iClient >= 1 && iClient <= MaxClients) {
 		int primary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
-		int primaryIndex = -1;
-		if(primary >= 0) primaryIndex = GetEntProp(primary, Prop_Send, "m_iItemDefinitionIndex");
 		int secondary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Secondary, true);
 		int secondaryIndex = -1;
 		if(secondary>0) secondaryIndex = GetEntProp(secondary, Prop_Send, "m_iItemDefinitionIndex");
 		int melee = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Melee, true);
-		int meleeIndex = -1;
-		if(melee >= 0) meleeIndex = GetEntProp(melee, Prop_Send, "m_iItemDefinitionIndex");
 
 		if (secondaryIndex == 406) {		// Splendid Screen
 			TF2Attrib_SetByDefIndex(primary, 6, 0.85); // fire rate bonus (15%)
@@ -164,7 +191,7 @@ Action TraceAttack(int victim, int& attacker, int& inflictor, float& damage, int
 		GetEntityClassname(iActive, class, sizeof(class));		// Retrieve the weapon
 		
 		if ((StrEqual(class, "tf_weapon_pistol"))) {		// Are we holding a Pistol?
-			players[client].fHitscan_Accuracy += 0.50025;
+			players[attacker].fHitscan_Accuracy += 0.50025;
 		}
 	}
 	return Plugin_Continue;
@@ -173,7 +200,6 @@ Action TraceAttack(int victim, int& attacker, int& inflictor, float& damage, int
 
 public void OnGameFrame() {
 	int iClient;		// Index; lets us run through all the players on the server	
-	SetConVarString(cvar_ref_tf_parachute_aircontrol, "3.5");
 
 	for (iClient = 1; iClient <= MaxClients; iClient++) {
 		if (IsClientInGame(iClient) && IsPlayerAlive(iClient)) {
@@ -182,10 +208,12 @@ public void OnGameFrame() {
 			}
 			players[iClient].fHitscan_Accuracy -= 0.015;
 			if (players[iClient].fHitscan_Accuracy > 0.0) {
-				int time = RoundFloat(players[iClient].fHitscan_Accuracy * 1000);
-				if (time%90 == 0) {		// Only adjust accuracy every so often
-					float factor = 1.0 + time/990.0;		// We accuracy over time proportional to the rev meter
-					TF2Attrib_SetByDefIndex(primary, 106, );		// Spread bonus
+				int iSecondary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Secondary, true);		// Retrieve the secondary weapon
+				if (iSecondary >= 0) {
+					int time = RoundFloat(players[iClient].fHitscan_Accuracy * 1000);
+					if (time%90 == 0) {		// Only adjust accuracy every so often
+						TF2Attrib_SetByDefIndex(iSecondary, 106, RemapValClamped(players[iClient].fHitscan_Accuracy, 0.0, 1.005, 0.0001, 0.7));		// Spread bonus
+					}
 				}
 			}
 		}
