@@ -35,7 +35,7 @@ float RemapValClamped( float val, float A, float B, float C, float D)		// Remaps
 
 
 public void OnClientPutInServer(int client) {
-	SDKHook(client, SDKHook_TraceAttack, TraceAttack);
+	//SDKHook(client, SDKHook_TraceAttack, TraceAttack);
 }
 
 
@@ -179,12 +179,13 @@ public Action PlayerSpawn(Handle timer, DataPack dPack) {
 			TF2Attrib_SetByDefIndex(melee, 6, 0.85); // fire rate bonus (15%)
 		}
 	}
+	return Plugin_Changed;
 }
 
 
 	// -={ Pistol Dynamic Accuracy }=-
 
-Action TraceAttack(int victim, int& attacker, int& inflictor, float& damage, int& damage_type, int& ammo_type, int hitbox, int hitgroup) {
+/*Action TraceAttack(int victim, int& attacker, int& inflictor, float& damage, int& damage_type, int& ammo_type, int hitbox, int hitgroup) {
 	if (victim >= 1 && victim <= MaxClients && attacker >= 1 && attacker <= MaxClients) {
 		int iActive = GetEntPropEnt(attacker, Prop_Send, "m_hActiveWeapon");		// Retrieve the active weapon
 		char class[64];
@@ -195,6 +196,35 @@ Action TraceAttack(int victim, int& attacker, int& inflictor, float& damage, int
 		}
 	}
 	return Plugin_Continue;
+}*/
+
+
+public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3], float angles[3], int& weapon, int& subtype, int& cmdnum, int& tickcount, int& seed, int mouse[2]) {
+	if (client >= 1 && client <= MaxClients) {
+		bool buttonsModified = false;
+		if (weapon > 0) {
+			
+			int iPrimary = TF2Util_GetPlayerLoadoutEntity(client, TFWeaponSlot_Primary, true);		// Retrieve the primary weapon
+			int primaryIndex = -1;
+			if(iPrimary >= 0) primaryIndex = GetEntProp(iPrimary, Prop_Send, "m_iItemDefinitionIndex");		// Retrieve the primary weapon index for later
+			
+			int iSecondary = TF2Util_GetPlayerLoadoutEntity(client, TFWeaponSlot_Secondary, true);		// Retrieve the secondary weapon
+			int secondaryIndex = -1;
+			if(iSecondary >= 0) secondaryIndex = GetEntProp(iSecondary, Prop_Send, "m_iItemDefinitionIndex");		// Retrieve the primary weapon index for later
+			
+			int iActive = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");		// Retrieve the active weapon
+			int clientFlags = GetEntityFlags(client);
+			
+			// Pistol
+			if ((TF2_GetPlayerClass(client) == TFClass_Scout) || (TF2_GetPlayerClass(client) == TFClass_Engineer)) {
+				if(buttons & IN_ATTACK) {
+					if (iActive == iSecondary) {
+						players[client].fHitscan_Accuracy += 0.50025;
+					}
+				}
+			}
+		}
+	}
 }
 
 
@@ -203,16 +233,22 @@ public void OnGameFrame() {
 
 	for (iClient = 1; iClient <= MaxClients; iClient++) {
 		if (IsClientInGame(iClient) && IsPlayerAlive(iClient)) {
-			if (players[iClient].fHitscan_Accuracy > 1.005) {
-				players[iClient].fHitscan_Accuracy = 1.005;
-			}
-			players[iClient].fHitscan_Accuracy -= 0.015;
-			if (players[iClient].fHitscan_Accuracy > 0.0) {
-				int iSecondary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Secondary, true);		// Retrieve the secondary weapon
-				if (iSecondary >= 0) {
-					int time = RoundFloat(players[iClient].fHitscan_Accuracy * 1000);
-					if (time%90 == 0) {		// Only adjust accuracy every so often
-						TF2Attrib_SetByDefIndex(iSecondary, 106, RemapValClamped(players[iClient].fHitscan_Accuracy, 0.0, 1.005, 0.0001, 0.7));		// Spread bonus
+			//PrintToChatAll("Accuracy: %f", players[iClient].fHitscan_Accuracy);
+			if (IsClientInGame(iClient) && IsPlayerAlive(iClient)) {
+				if (players[iClient].fHitscan_Accuracy > 1.005) {
+					players[iClient].fHitscan_Accuracy = 1.005;
+				}
+				else if (players[iClient].fHitscan_Accuracy < 0.0) {
+					players[iClient].fHitscan_Accuracy = 0.0;
+				}
+				players[iClient].fHitscan_Accuracy -= 0.015;
+				if (players[iClient].fHitscan_Accuracy > 0.0) {
+					int iSecondary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Secondary, true);		// Retrieve the secondary weapon
+					if (iSecondary >= 0) {
+						int time = RoundFloat(players[iClient].fHitscan_Accuracy * 1000);
+						if (time%90 == 0) {		// Only adjust accuracy every so often
+							TF2Attrib_SetByDefIndex(iSecondary, 106, RemapValClamped(players[iClient].fHitscan_Accuracy, 0.0, 1.005, 0.0001, 0.7));		// Spread bonus
+						}
 					}
 				}
 			}

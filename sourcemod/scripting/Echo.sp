@@ -115,9 +115,16 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 	if (index == 30474 || index == 741) {	// Nostromo Napalmer (Abs' prototype)
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 2);
+		TF2Items_SetNumAttributes(item1, 9);
 		TF2Items_SetAttribute(item1, 0, 839, 0.0); // flame_spread_degree (none)
-		TF2Items_SetAttribute(item1, 1, 863, 0.0); // flame_random_lifetime_offset (none)
+		TF2Items_SetAttribute(item1, 1, 841, 0.0); // flame_gravity (none)
+		TF2Items_SetAttribute(item1, 2, 843, 0.0); // flame_drag (none)
+		TF2Items_SetAttribute(item1, 3, 844, 2300.0); // flame_speed (1920 HU/s)
+		TF2Items_SetAttribute(item1, 4, 862, 0.6); // flame_lifetime (0.6 s)
+		TF2Items_SetAttribute(item1, 5, 865, 50.0); // flame_up_speed (removed)
+		TF2Items_SetAttribute(item1, 6, 843, 0.0); // flame_drag (none)
+		TF2Items_SetAttribute(item1, 7, 863, 0.0); // flame_random_lifetime_offset (none)
+		TF2Items_SetAttribute(item1, 8, 838, 1.0); // flame_reflect_on_collision (flames riccochet off surfaces)
 	}
 	
 	if (index == 214) {	// Powerjack
@@ -162,7 +169,7 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 		TF2Items_SetNumAttributes(item1, 4);
 		TF2Items_SetAttribute(item1, 0, 1, 0.62); // damage penalty (38%)
 		TF2Items_SetAttribute(item1, 1, 87, 0.287); // minigun spinup time decreased (-75% of Minigun's new speed)
-		TF2Items_SetAttribute(item1, 2, 106, 1.0); // weapon spread bonus (removed)
+		TF2Items_SetAttribute(item1, 2, 106, 0.8); // weapon spread bonus (removed)
 		TF2Items_SetAttribute(item1, 3, 125, -50.0); // max health additive penalty
 	}
 	
