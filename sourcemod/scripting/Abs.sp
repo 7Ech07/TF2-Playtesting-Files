@@ -133,6 +133,13 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 		TF2Items_SetAttribute(item1, 2, 397, 1.0); // projectile penetration heavy
 	}
 	
+	if (index == 58 || index == 1083) {		// Jarate
+		item1 = TF2Items_CreateItem(0);
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 1);
+		TF2Items_SetAttribute(item1, 0, 874, 1.5); // mult_item_meter_charge_rate
+	}
+	
 	if (index == 231) {		// Darwin's Danger Shield
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
@@ -586,6 +593,14 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 					}
 				}
 			}
+			
+			// Removal of Mini-Crits from Jarate
+			if (TF2_IsPlayerInCondition(victim, TFCond_Jarated)) {		// If we're Jarate'd
+				damage *= 3.0;
+				if (!isKritzed(attacker) && !isMiniKritzed(attacker, victim)) {		// If the attack has no other Crit modifiers
+					damage_type = (damage_type & ~DMG_CRIT);
+				}
+			}
 		}
 	}
 	
@@ -834,4 +849,31 @@ public Action OnPlayerRunCmd(int iClient, int &buttons, int &impulse, float vel[
 		}
 	}
 	return Plugin_Continue;
+}
+
+
+	// -={ Identifies sources of (Mini-)Crits (taken from ShSilver) }=-
+
+bool isKritzed(int client)
+{
+	return (TF2_IsPlayerInCondition(client,TFCond_Kritzkrieged) ||
+	TF2_IsPlayerInCondition(client,TFCond_CritOnFirstBlood) ||
+	TF2_IsPlayerInCondition(client,TFCond_CritOnWin) ||
+	TF2_IsPlayerInCondition(client,TFCond_CritOnFlagCapture) ||
+	TF2_IsPlayerInCondition(client,TFCond_CritOnKill) ||
+	TF2_IsPlayerInCondition(client,TFCond_CritOnDamage) ||
+	TF2_IsPlayerInCondition(client,TFCond_CritDemoCharge));
+}
+
+bool isMiniKritzed(int client,int victim=-1)
+{
+	bool result=false;
+	if(victim!=-1)
+	{
+		if (TF2_IsPlayerInCondition(victim,TFCond_MarkedForDeath) || TF2_IsPlayerInCondition(victim,TFCond_MarkedForDeathSilent))
+			result = true;
+	}
+	if (TF2_IsPlayerInCondition(client,TFCond_CritMmmph) || TF2_IsPlayerInCondition(client,TFCond_MiniCritOnKill) || TF2_IsPlayerInCondition(client,TFCond_Buffed) || TF2_IsPlayerInCondition(client,TFCond_CritCola))
+		result = true;
+	return result;
 }
