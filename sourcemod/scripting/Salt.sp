@@ -199,6 +199,7 @@ public Action PlayerSpawn(Handle timer, DataPack dPack) {
 }*/
 
 
+/*
 public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3], float angles[3], int& weapon, int& subtype, int& cmdnum, int& tickcount, int& seed, int mouse[2]) {
 	if (client >= 1 && client <= MaxClients) {
 		bool buttonsModified = false;
@@ -225,7 +226,8 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 			}
 		}
 	}
-}
+	return Plugin_Continue;
+}*/
 
 
 public void OnGameFrame() {
