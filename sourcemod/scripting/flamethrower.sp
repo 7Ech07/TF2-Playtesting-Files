@@ -332,7 +332,7 @@ void AirblastJump(int client) {
 			if(StrEqual(class, "tf_weapon_flamethrower") && (damage_type & DMG_IGNITE) && !(damage_type & DMG_BLAST)) {
 				//recreate flamethrower damage scaling, code inpsired by NotnHeavy
 				//base damage plus any bonus
-				/*Address bonus = TF2Attrib_GetByDefIndex(weapon, 2);
+				Address bonus = TF2Attrib_GetByDefIndex(weapon, 2);
 				float value = bonus == Address_Null ? 1.0 : TF2Attrib_GetValue(bonus);*//*
 				damage = 6.8181 + (2.727272 * players[victim].iTempLevel);
 
