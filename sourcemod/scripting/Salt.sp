@@ -92,43 +92,6 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 		TF2Items_SetAttribute(item1, 1, 206, 0.90); // dmg from melee increased (10% reduction)
 		TF2Items_SetAttribute(item1, 2, 252, 0.90); // damage force reduction (10%)
 	}
-	
-	int primary = TF2Util_GetPlayerLoadoutEntity(client, TFWeaponSlot_Primary, true);
-	int primaryIndex = -1;
-	if (primary >= 0) {
-		primaryIndex = GetEntProp(primary, Prop_Send, "m_iItemDefinitionIndex");
-	}
-	
-	if (primaryIndex == 405 || primaryIndex == 608) {
-		
-		if (StrEqual(class, "tf_wearable_demoshield")) {	// All Shields
-			item1 = TF2Items_CreateItem(0);
-			TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-			TF2Items_SetNumAttributes(item1, 6);
-			TF2Items_SetAttribute(item1, 0, 64, 1.0); // dmg taken from blast reduced (removed)
-			TF2Items_SetAttribute(item1, 1, 60, 1.0); // dmg taken from fire reduced (removed)
-			TF2Items_SetAttribute(item1, 2, 249, 1.15); // charge recharge rate increased (15%; reduces cooldown to 10 seconds)
-			TF2Items_SetAttribute(item1, 3, 205, 0.75); // dmg from ranged reduced (25% reduction)
-			TF2Items_SetAttribute(item1, 4, 206, 0.75); // dmg from melee increased (25% reduction, in spite of what the attribute says)
-			TF2Items_SetAttribute(item1, 5, 252, 0.75); // damage force reduction (25%)
-		}
-		
-		if (index == 1099) {	// Tide Turner
-			item1 = TF2Items_CreateItem(0);
-			TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-			TF2Items_SetNumAttributes(item1, 1);
-			TF2Items_SetAttribute(item1, 0, 676, 0.0); // lose demo charge on damage when charging (Hoping this re-adds Crits to the Tide)
-		}
-	}
-	
-	else {
-		if (StrEqual(class, "tf_wearable_demoshield")) {	// All Shields
-			item1 = TF2Items_CreateItem(0);
-			TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-			TF2Items_SetNumAttributes(item1, 1);
-			TF2Items_SetAttribute(item1, 0, 676, 1.0); // lose demo charge on damage when charging (Hoping this re-adds Crits to the Tide)
-		}
-	}
 }
 
 
@@ -234,13 +197,17 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 public void OnGameFrame() {
 	int iClient;		// Index; lets us run through all the players on the server	
 
-	int melee = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Melee, true);
-	int current = GetEntPropEnt(iClient, Prop_Send, "m_hActiveWeapon");
-
 	for (iClient = 1; iClient <= MaxClients; iClient++) {
 		if (IsClientInGame(iClient) && IsPlayerAlive(iClient)) {
 			//PrintToChatAll("Accuracy: %f", players[iClient].fHitscan_Accuracy);
 			if (IsClientInGame(iClient) && IsPlayerAlive(iClient)) {
+				
+				int primary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
+				int primaryIndex = -1;
+				if(primary > 0) primaryIndex = GetEntProp(primary, Prop_Send, "m_iItemDefinitionIndex");
+				int melee = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Melee, true);
+				int current = GetEntPropEnt(iClient, Prop_Send, "m_hActiveWeapon");
+				
 				if (players[iClient].fHitscan_Accuracy > 1.005) {
 					players[iClient].fHitscan_Accuracy = 1.005;
 				}
@@ -263,23 +230,21 @@ public void OnGameFrame() {
 					
 					float fCharge = GetEntPropFloat(iClient, Prop_Send, "m_flChargeMeter");
 					
-					if ((primaryIndex == 405 || primaryIndex == 608) && current == melee) {
-						PrintToChatAll("booties");
-						if (fCharge < 25.0) {		// Are we eligible for a Crit
+					if (primaryIndex == 405 || primaryIndex == 608) {
+						if (fCharge < 25.0  && TF2_IsPlayerInCondition(iClient, TFCond_Charging) && current == melee) {		// Are we eligible for a Crit
 							players[iClient].iCrit_Status = 1;		// Mark us to recieve Crits
-							PrintToChatAll("Crit added");
+						}
+						else {		// Take away Crits if the charge ends
+							players[iClient].iCrit_Status = 0;
+						}
+						
+						if (players[iClient].iCrit_Status == 1) {
+							TF2_AddCondition(iClient, TFCond_CritOnFirstBlood, 0.25);		// We want an extra 0.05 second buffer so we still get Crits if the charge breaks by hitting an enemy
 						}
 					}
-					else {		// Take away Crits if we swap weapons or the charge ends
-						players[iClient].iCrit_Status = 0;
-					}
-					
-					if (players[iClient].iCrit_Status == 1) {
-						TF2_AddCondition(iClient, TFCond_CritOnFirstBlood, 0.25);
-					}
-					else {
-						TF2_AddCondition(iClient, TFCond_CritOnFirstBlood, 0.25);
-					}
+					/*else {
+						TF2_RemoveCondition(iClient, TFCond_CritDemoCharge);		// If we aren't using the Booties, take our Crits away
+					}*/
 				}
 			}
 		}
@@ -321,92 +286,18 @@ public Action Event_PlayerDeath(Event event, const char[] cName, bool dontBroadc
 }
 
 
-	// -={ Removes Demoknight melee Crits unless the Booties are equipped; re-adds Tide Turner Crits if Booties are equipped }=-
-
-/*Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, int& damage_type, int& weapon, float damage_force[3], float damage_position[3], int damage_custom) {
-	char class[64];
-	if (TF2_GetPlayerClass(attacker) == TFClass_DemoMan) {
-		if (victim >= 1 && victim <= MaxClients && attacker >= 1 && attacker <= MaxClients) {		// Ensures we only go through damage dealt by other players
-			if (weapon > 0) {		// Prevents us attempting to process data from e.g. Sentry Guns and causing errors
-				PrintToChatAll("demo detected");
-				int primary = TF2Util_GetPlayerLoadoutEntity(attacker, TFWeaponSlot_Primary, true);
-				int primaryIndex = -1;
-				if (primary >= 0) {
-					primaryIndex = GetEntProp(primary, Prop_Send, "m_iItemDefinitionIndex");
-				}
-				
-				int secondary = TF2Util_GetPlayerLoadoutEntity(attacker, TFWeaponSlot_Secondary, true);
-				int secondaryIndex = -1;
-				if (secondary >= 0) {
-					secondaryIndex = GetEntProp(secondary, Prop_Send, "m_iItemDefinitionIndex");
-				}
-				
-				int melee = TF2Util_GetPlayerLoadoutEntity(attacker, TFWeaponSlot_Melee, true);
-				
-				if (primaryIndex != 405 && primaryIndex != 608 && weapon == melee) {		// We can't check for the charge effect since it gets removed before the swing actually connects; this is good enough
-					PrintToChatAll("no booties");
-					if (!(TF2_IsPlayerInCondition(attacker, TFCond_Kritzkrieged) || TF2_IsPlayerInCondition(attacker, TFCond_CritOnFirstBlood) 
-						|| TF2_IsPlayerInCondition(attacker, TFCond_CritOnWin) || TF2_IsPlayerInCondition(attacker, TFCond_CritOnFlagCapture) || TF2_IsPlayerInCondition(attacker, TFCond_CritOnKill) 
-						|| TF2_IsPlayerInCondition(attacker, TFCond_CritOnDamage))) {		// If we're not Crit boosted
-						damage_type &= ~DMG_CRIT;		// ...Remove the Crits
-						int iDamage;
-						iDamage = RoundFloat(damage)/3;
-						PrintToChatAll("damage %i", iDamage);
-						damage = iDamage;		// This gives a warning, but damage needs to be an int else it gives insane numbers
-						TF2_AddCondition(victim, TFCond_MarkedForDeathSilent, 0.001, 0);
-						PrintToChatAll("Crit removed");
-						return Plugin_Changed;
-					}
-				}
-			}
+	// -={ Prevents charge loss from damage on the Tide Turner }=-
+	
+public void OnTakeDamage(int victim, int attacker, int inflictor, float damage, int damage_type, int weapon, const float damage_Force[3], const float damage_Position[3], int damage_custom) {
+	if (victim != attacker && (damage_type & DMG_FALL) == 0 && TF2_GetPlayerClass(victim) == TFClass_DemoMan && TF2_IsPlayerInCondition(victim, TFCond_Charging)) {
+			
+		if (GetEntProp(victim, Prop_Send, "m_iItemDefinitionIndex") == 1099) {
+			float fCharge = GetEntPropFloat(victim, Prop_Send, "m_flChargeMeter");
+			
+			fCharge = (fCharge - damage);
+			fCharge = (fCharge < 0.0 ? 0.0 : fCharge);
+			
+			SetEntPropFloat(victim, Prop_Send, "m_flChargeMeter", fCharge);
 		}
 	}
-	return Plugin_Continue;
-}*/
-
-
-	// -={ Re-adds Tide Turner Crits on full Demoknight }=-
-
-/*public Action OnPlayerRunCmd(int iClient, int& buttons, int& impulse, float vel[3], float angles[3], int& weapon, int& subtype, int& cmdnum, int& tickcount, int& seed, int mouse[2]) {
-	if (iClient >= 1 && iClient <= MaxClients) {
-		
-		int iPrimary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);		// Retrieve the primary weapon
-		int primaryIndex = -1;
-		if(iPrimary >= 0) primaryIndex = GetEntProp(iPrimary, Prop_Send, "m_iItemDefinitionIndex");		// Retrieve the primary weapon index for later
-		int iActive = GetEntPropEnt(iClient, Prop_Send, "m_hActiveWeapon");		// Retrieve the active weapon
-		
-		int secondary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Secondary, true);
-		int secondaryIndex = -1;
-		if (secondary >= 0) {
-			secondaryIndex = GetEntProp(secondary, Prop_Send, "m_iItemDefinitionIndex");
-		}
-		
-		int melee = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Melee, true);
-		
-		// Demoman
-		if (TF2_GetPlayerClass(iClient) == TFClass_DemoMan) {
-			
-			float fCharge = GetEntPropFloat(iClient, Prop_Send, "m_flChargeMeter");
-			
-			if (primaryIndex != 405 && primaryIndex != 608 && weapon == melee && TF2_IsPlayerInCondition(iClient, TFCond_Charging) && (buttons & IN_ATTACK == IN_ATTACK)) {
-				PrintToChatAll("no booties");
-				if (fCharge < 25) {		// Are we eligible for a Crit
-					TF2_RemoveCondition(iClient, TFCond_CritDemoCharge);
-					TF2_AddCondition(iClient, TFCond_CritCola, 0.5);
-					PrintToChatAll("Crit removed");
-				}
-			}
-			
-			else if (secondaryIndex == 1099 && weapon == melee && TF2_IsPlayerInCondition(iClient, TFCond_Charging) && (buttons & IN_ATTACK == IN_ATTACK)) {
-				PrintToChatAll("Tide");
-				
-				PrintToChatAll("charge %f", fCharge);
-				if (fCharge < 25) {		// Are we eligible for a Crit
-					TF2_AddCondition(iClient, TFCond_CritOnFirstBlood, 0.5);
-					PrintToChatAll("added crit");
-				}
-			}
-		}
-	}
-	return Plugin_Continue;
-}*/
+}
