@@ -59,7 +59,7 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 		TF2Items_SetNumAttributes(item1, 3);
 		TF2Items_SetAttribute(item1, 0, 107, 1.1); // move speed bonus (10%; same as existing one)
 		TF2Items_SetAttribute(item1, 1, 788, 1.0); // move speed bonus shield required (removed)
-		TF2Items_SetAttribute(item1, 2, 252, 0.25); // damage force reduction (25%)
+		TF2Items_SetAttribute(item1, 2, 252, 0.75); // damage force reduction (25%)
 	}
 
 	if (StrEqual(class, "tf_wearable_demoshield")) {	// All Shields
@@ -88,9 +88,9 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
 		TF2Items_SetNumAttributes(item1, 3);
-		TF2Items_SetAttribute(item1, 0, 205, 0.80); // dmg from ranged reduced (10% reduction)
-		TF2Items_SetAttribute(item1, 1, 206, 0.80); // dmg from melee increased (10% reduction)
-		TF2Items_SetAttribute(item1, 2, 252, 0.80); // damage force reduction (10%)
+		TF2Items_SetAttribute(item1, 0, 205, 0.90); // dmg from ranged reduced (10% reduction)
+		TF2Items_SetAttribute(item1, 1, 206, 0.90); // dmg from melee increased (10% reduction)
+		TF2Items_SetAttribute(item1, 2, 252, 0.90); // damage force reduction (10%)
 	}
 	
 	int primary = TF2Util_GetPlayerLoadoutEntity(client, TFWeaponSlot_Primary, true);
@@ -136,6 +136,7 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 
 enum struct Player {
 	float fHitscan_Accuracy;		// Tracks dynamic accuracy on hitscan weapons
+	int iCrit_Status;			// Stores whether or not a charging Demo should be allowed to melee Crit
 }
 
 Player players[MAXPLAYERS+1];
@@ -233,6 +234,9 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 public void OnGameFrame() {
 	int iClient;		// Index; lets us run through all the players on the server	
 
+	int melee = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Melee, true);
+	int current = GetEntPropEnt(iClient, Prop_Send, "m_hActiveWeapon");
+
 	for (iClient = 1; iClient <= MaxClients; iClient++) {
 		if (IsClientInGame(iClient) && IsPlayerAlive(iClient)) {
 			//PrintToChatAll("Accuracy: %f", players[iClient].fHitscan_Accuracy);
@@ -251,6 +255,30 @@ public void OnGameFrame() {
 						if (time%90 == 0) {		// Only adjust accuracy every so often
 							TF2Attrib_SetByDefIndex(iSecondary, 106, RemapValClamped(players[iClient].fHitscan_Accuracy, 0.0, 1.005, 0.0001, 0.7));		// Spread bonus
 						}
+					}
+				}
+				
+				// Demoman
+				if (TF2_GetPlayerClass(iClient) == TFClass_DemoMan) {
+					
+					float fCharge = GetEntPropFloat(iClient, Prop_Send, "m_flChargeMeter");
+					
+					if ((primaryIndex == 405 || primaryIndex == 608) && current == melee) {
+						PrintToChatAll("booties");
+						if (fCharge < 25.0) {		// Are we eligible for a Crit
+							players[iClient].iCrit_Status = 1;		// Mark us to recieve Crits
+							PrintToChatAll("Crit added");
+						}
+					}
+					else {		// Take away Crits if we swap weapons or the charge ends
+						players[iClient].iCrit_Status = 0;
+					}
+					
+					if (players[iClient].iCrit_Status == 1) {
+						TF2_AddCondition(iClient, TFCond_CritOnFirstBlood, 0.25);
+					}
+					else {
+						TF2_AddCondition(iClient, TFCond_CritOnFirstBlood, 0.25);
 					}
 				}
 			}
