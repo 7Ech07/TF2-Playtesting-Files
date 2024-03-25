@@ -231,7 +231,7 @@ public void OnGameFrame() {
 					float fCharge = GetEntPropFloat(iClient, Prop_Send, "m_flChargeMeter");
 					
 					if (primaryIndex == 405 || primaryIndex == 608) {
-						if (fCharge < 25.0  && TF2_IsPlayerInCondition(iClient, TFCond_Charging) && current == melee) {		// Are we eligible for a Crit
+						if (fCharge < 40.0  && TF2_IsPlayerInCondition(iClient, TFCond_Charging) && current == melee) {		// Are we eligible for a Crit
 							players[iClient].iCrit_Status = 1;		// Mark us to recieve Crits
 						}
 						else {		// Take away Crits if the charge ends
@@ -242,16 +242,53 @@ public void OnGameFrame() {
 							TF2_AddCondition(iClient, TFCond_CritOnFirstBlood, 0.25);		// We want an extra 0.05 second buffer so we still get Crits if the charge breaks by hitting an enemy
 						}
 					}
-					/*else {
-						TF2_RemoveCondition(iClient, TFCond_CritDemoCharge);		// If we aren't using the Booties, take our Crits away
-					}*/
 				}
 			}
 		}
 	}
 }
 
+
+	// -={ Removes Crits when the Booties are unequipped }=-
+
+public Action OnTakeDamage(int victim, int attacker, int inflictor, float damage, int damage_type, int weapon, const float damageForce[3], const float damagePosition[3], int damagecustom) {
+	char class[64];
 	
+	if (victim >= 1 && victim <= MaxClients && attacker >= 1 && attacker <= MaxClients) {		// Ensures we only go through damage dealt by other players
+		if (weapon > 0) {		// Prevents us attempting to process data from e.g. Sentry Guns and causing errors
+			GetEntityClassname(weapon, class, sizeof(class));		// Retrieve the weapon
+			
+			int primary = TF2Util_GetPlayerLoadoutEntity(attacker, TFWeaponSlot_Primary, true);
+			int primaryIndex = -1;
+			if(primary > 0) primaryIndex = GetEntProp(primary, Prop_Send, "m_iItemDefinitionIndex");
+			int melee = TF2Util_GetPlayerLoadoutEntity(attacker, TFWeaponSlot_Melee, true);
+			
+			if (TF2_GetPlayerClass(attacker) == TFClass_DemoMan) {
+				if (!(primaryIndex == 405 || primaryIndex == 608)) {		// Do we have the Booties equipped?
+					if (weapon == melee) {
+						damage_type = (damage_type & ~DMG_CRIT);
+					}
+				}
+			}
+		}
+	}
+	
+	// Tide Turner
+	if (victim != attacker && (damage_type & DMG_FALL) == 0 && TF2_GetPlayerClass(victim) == TFClass_DemoMan && TF2_IsPlayerInCondition(victim, TFCond_Charging)) {
+			
+		if (GetEntProp(victim, Prop_Send, "m_iItemDefinitionIndex") == 1099) {
+			float fCharge = GetEntPropFloat(victim, Prop_Send, "m_flChargeMeter");
+			
+			fCharge = (fCharge - damage);
+			fCharge = (fCharge < 0.0 ? 0.0 : fCharge);
+			
+			SetEntPropFloat(victim, Prop_Send, "m_flChargeMeter", fCharge);
+		}
+	}
+	return Plugin_Changed;
+}
+
+
 	// -={ Restores charge on Tide on kills with non-melees }=-
 
 public Action Event_PlayerDeath(Event event, const char[] cName, bool dontBroadcast)
@@ -288,7 +325,7 @@ public Action Event_PlayerDeath(Event event, const char[] cName, bool dontBroadc
 
 	// -={ Prevents charge loss from damage on the Tide Turner }=-
 	
-public void OnTakeDamage(int victim, int attacker, int inflictor, float damage, int damage_type, int weapon, const float damage_Force[3], const float damage_Position[3], int damage_custom) {
+/*public void OnTakeDamage(int victim, int attacker, int inflictor, float damage, int damage_type, int weapon, const float damage_Force[3], const float damage_Position[3], int damage_custom) {
 	if (victim != attacker && (damage_type & DMG_FALL) == 0 && TF2_GetPlayerClass(victim) == TFClass_DemoMan && TF2_IsPlayerInCondition(victim, TFCond_Charging)) {
 			
 		if (GetEntProp(victim, Prop_Send, "m_iItemDefinitionIndex") == 1099) {
@@ -300,4 +337,4 @@ public void OnTakeDamage(int victim, int attacker, int inflictor, float damage, 
 			SetEntPropFloat(victim, Prop_Send, "m_flChargeMeter", fCharge);
 		}
 	}
-}
+}*/
