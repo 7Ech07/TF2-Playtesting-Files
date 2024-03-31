@@ -34,11 +34,6 @@ float RemapValClamped( float val, float A, float B, float C, float D)		// Remaps
 }
 
 
-public void OnClientPutInServer(int client) {
-	//SDKHook(client, SDKHook_TraceAttack, TraceAttack);
-}
-
-
 	// -={ Modifies attributes without needing to go through another plugin }=-
 
 public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Handle& item) {
@@ -99,10 +94,15 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 
 enum struct Player {
 	float fHitscan_Accuracy;		// Tracks dynamic accuracy on hitscan weapons
-	int iCrit_Status;			// Stores whether or not a charging Demo should be allowed to melee Crit
+	float fCrit_Status;			// Timer that counts down Crit status after a charge
 }
 
 Player players[MAXPLAYERS+1];
+
+
+public void OnClientPutInServer (int iClient) {
+	SDKHook(iClient, SDKHook_OnTakeDamageAlive, OnTakeDamage);
+}
 
 
 public Action Event_PlayerSpawn(Handle hEvent, const char[] cName, bool dontBroadcast) {
@@ -232,16 +232,16 @@ public void OnGameFrame() {
 					
 					if (primaryIndex == 405 || primaryIndex == 608) {
 						if (fCharge < 40.0  && TF2_IsPlayerInCondition(iClient, TFCond_Charging) && current == melee) {		// Are we eligible for a Crit
-							players[iClient].iCrit_Status = 1;		// Mark us to recieve Crits
-						}
-						else {		// Take away Crits if the charge ends
-							players[iClient].iCrit_Status = 0;
-						}
-						
-						if (players[iClient].iCrit_Status == 1) {
 							TF2_AddCondition(iClient, TFCond_CritOnFirstBlood, 0.25);		// We want an extra 0.05 second buffer so we still get Crits if the charge breaks by hitting an enemy
 						}
 					}
+					else if (fCharge < 40.0  && TF2_IsPlayerInCondition(iClient, TFCond_Charging) && current == melee) {
+						players[iClient].fCrit_Status = 0.25;
+					}
+				}
+				players[iClient].fCrit_Status -= 0.0015;		// Count the timer down every frame
+				if (players[iClient].fCrit_Status < 0.0) {
+					players[iClient].fCrit_Status = 0.0;		// Don't forget to clamp
 				}
 			}
 		}
@@ -251,12 +251,10 @@ public void OnGameFrame() {
 
 	// -={ Removes Crits when the Booties are unequipped }=-
 
-public Action OnTakeDamage(int victim, int attacker, int inflictor, float damage, int damage_type, int weapon, const float damageForce[3], const float damagePosition[3], int damagecustom) {
-	char class[64];
+public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damage_type, int &weapon, float damageForce[3], float damagePosition[3], int damagecustom) {
 	
 	if (victim >= 1 && victim <= MaxClients && attacker >= 1 && attacker <= MaxClients) {		// Ensures we only go through damage dealt by other players
 		if (weapon > 0) {		// Prevents us attempting to process data from e.g. Sentry Guns and causing errors
-			GetEntityClassname(weapon, class, sizeof(class));		// Retrieve the weapon
 			
 			int primary = TF2Util_GetPlayerLoadoutEntity(attacker, TFWeaponSlot_Primary, true);
 			int primaryIndex = -1;
@@ -264,12 +262,17 @@ public Action OnTakeDamage(int victim, int attacker, int inflictor, float damage
 			int melee = TF2Util_GetPlayerLoadoutEntity(attacker, TFWeaponSlot_Melee, true);
 			
 			if (TF2_GetPlayerClass(attacker) == TFClass_DemoMan) {
+				//PrintToChatAll("Demo");
 				if (!(primaryIndex == 405 || primaryIndex == 608)) {		// Do we have the Booties equipped?
 					float fCharge = GetEntPropFloat(attacker, Prop_Send, "m_flChargeMeter");
+					//PrintToChatAll("Booties");
 					
-					if (fCharge < 40.0  && TF2_IsPlayerInCondition(iClient, TFCond_Charging) && current == melee) {		// Are we eligible for a Crit
+					if (fCharge < 40.0  && players[attacker].fCrit_Status > 0.0 && weapon == melee) {		// Are we eligible for a Crit
 						damage_type = (damage_type & ~DMG_CRIT);
-						damage /= 2.222222		// This is the difference between a Mini-Crit and a full Crit
+						damage /= 3;
+						TF2_AddCondition(victim, TFCond_MarkedForDeathSilent, 0.001, 0);		// Applies a Mini-Crit
+						//PrintToChatAll("Crit removed");
+						return Plugin_Changed;
 					}
 				}
 			}
