@@ -265,8 +265,11 @@ public Action OnTakeDamage(int victim, int attacker, int inflictor, float damage
 			
 			if (TF2_GetPlayerClass(attacker) == TFClass_DemoMan) {
 				if (!(primaryIndex == 405 || primaryIndex == 608)) {		// Do we have the Booties equipped?
-					if (weapon == melee) {
+					float fCharge = GetEntPropFloat(attacker, Prop_Send, "m_flChargeMeter");
+					
+					if (fCharge < 40.0  && TF2_IsPlayerInCondition(iClient, TFCond_Charging) && current == melee) {		// Are we eligible for a Crit
 						damage_type = (damage_type & ~DMG_CRIT);
+						damage /= 2.222222		// This is the difference between a Mini-Crit and a full Crit
 					}
 				}
 			}
@@ -283,9 +286,11 @@ public Action OnTakeDamage(int victim, int attacker, int inflictor, float damage
 			fCharge = (fCharge < 0.0 ? 0.0 : fCharge);
 			
 			SetEntPropFloat(victim, Prop_Send, "m_flChargeMeter", fCharge);
+			
+			return Plugin_Changed;
 		}
 	}
-	return Plugin_Changed;
+	return Plugin_Continue;
 }
 
 
