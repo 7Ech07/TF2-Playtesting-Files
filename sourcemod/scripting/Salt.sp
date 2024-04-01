@@ -230,18 +230,23 @@ public void OnGameFrame() {
 					
 					float fCharge = GetEntPropFloat(iClient, Prop_Send, "m_flChargeMeter");
 					
+					// Booties + Tide Turner case
 					if (primaryIndex == 405 || primaryIndex == 608) {
 						if (fCharge < 40.0  && TF2_IsPlayerInCondition(iClient, TFCond_Charging) && current == melee) {		// Are we eligible for a Crit
-							TF2_AddCondition(iClient, TFCond_CritOnFirstBlood, 0.25);		// We want an extra 0.05 second buffer so we still get Crits if the charge breaks by hitting an enemy
+							TF2_AddCondition(iClient, TFCond_CritOnFirstBlood, 0.35);		// We want a buffer so we still get Crits if the charge breaks by hitting an enemy
 						}
 					}
-					else if (fCharge < 40.0  && TF2_IsPlayerInCondition(iClient, TFCond_Charging) && current == melee) {
-						players[iClient].fCrit_Status = 0.25;
+					// Hybrid-knight case
+					else if (fCharge < 40.0  && TF2_IsPlayerInCondition(iClient, TFCond_Charging) && current == melee) {	// If we aren't recieving Crits from an external source, nulify our charge Crit
+						if (!(TF2_IsPlayerInCondition(iClient,TFCond_Kritzkrieged) ||
+							TF2_IsPlayerInCondition(iClient,TFCond_CritOnFirstBlood) ||
+							TF2_IsPlayerInCondition(iClient,TFCond_CritOnWin) ||
+							TF2_IsPlayerInCondition(iClient,TFCond_CritOnFlagCapture) ||
+							TF2_IsPlayerInCondition(iClient,TFCond_CritOnKill) ||
+							TF2_IsPlayerInCondition(iClient,TFCond_CritOnDamage))) {
+							TF2Attrib_AddCustomPlayerAttribute(iClient, "crits_become_minicrits", 1.0, 0.45);
+						}
 					}
-				}
-				players[iClient].fCrit_Status -= 0.0015;		// Count the timer down every frame
-				if (players[iClient].fCrit_Status < 0.0) {
-					players[iClient].fCrit_Status = 0.0;		// Don't forget to clamp
 				}
 			}
 		}
@@ -253,31 +258,15 @@ public void OnGameFrame() {
 
 public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damage_type, int &weapon, float damageForce[3], float damagePosition[3], int damagecustom) {
 	
-	if (victim >= 1 && victim <= MaxClients && attacker >= 1 && attacker <= MaxClients) {		// Ensures we only go through damage dealt by other players
+	/*if (victim >= 1 && victim <= MaxClients && attacker >= 1 && attacker <= MaxClients) {		// Ensures we only go through damage dealt by other players
 		if (weapon > 0) {		// Prevents us attempting to process data from e.g. Sentry Guns and causing errors
 			
 			int primary = TF2Util_GetPlayerLoadoutEntity(attacker, TFWeaponSlot_Primary, true);
 			int primaryIndex = -1;
 			if(primary > 0) primaryIndex = GetEntProp(primary, Prop_Send, "m_iItemDefinitionIndex");
 			int melee = TF2Util_GetPlayerLoadoutEntity(attacker, TFWeaponSlot_Melee, true);
-			
-			if (TF2_GetPlayerClass(attacker) == TFClass_DemoMan) {
-				//PrintToChatAll("Demo");
-				if (!(primaryIndex == 405 || primaryIndex == 608)) {		// Do we have the Booties equipped?
-					float fCharge = GetEntPropFloat(attacker, Prop_Send, "m_flChargeMeter");
-					//PrintToChatAll("Booties");
-					
-					if (fCharge < 40.0  && players[attacker].fCrit_Status > 0.0 && weapon == melee) {		// Are we eligible for a Crit
-						damage_type = (damage_type & ~DMG_CRIT);
-						damage /= 3;
-						TF2_AddCondition(victim, TFCond_MarkedForDeathSilent, 0.001, 0);		// Applies a Mini-Crit
-						//PrintToChatAll("Crit removed");
-						return Plugin_Changed;
-					}
-				}
-			}
 		}
-	}
+	}*/
 	
 	// Tide Turner
 	if (victim != attacker && (damage_type & DMG_FALL) == 0 && TF2_GetPlayerClass(victim) == TFClass_DemoMan && TF2_IsPlayerInCondition(victim, TFCond_Charging)) {
