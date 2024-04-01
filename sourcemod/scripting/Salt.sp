@@ -43,8 +43,9 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 	if (StrEqual(class, "tf_weapon_pistol")) {	// All Pistols
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 1);
+		TF2Items_SetNumAttributes(item1, 2);
 		TF2Items_SetAttribute(item1, 0, 106, 0.7); // weapon spread bonus (removed)
+		TF2Items_SetAttribute(item1, 1, 808, 1.0); // mult_spread_scales_consecutive
 	}
 	
 	// Demoman
