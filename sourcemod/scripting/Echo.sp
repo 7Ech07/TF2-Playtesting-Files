@@ -54,6 +54,7 @@ enum struct Player {
 	bool AirblastJumpCD;
 	bool ParticleCD;
 	//int iTempLevel;
+	int iEnforcer_Mark;	// Tracks when a person is Marked by the Enforcer, and the Spy who marked them
 	float fTempLevel;	// How many particles before we start to burn
 	float fRev;		// Tracks how long we've been revved for the purposes of undoing the L&W nerf
 	float fPressure;	// Tracks Airblast repressurisation status
@@ -189,14 +190,14 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 	}
 	
 	// Spy
-	/*if (index == 460) {	// Enforcer
+	if (index == 460) {	// Enforcer
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
 		TF2Items_SetNumAttributes(item1, 3);
 		TF2Items_SetAttribute(item1, 0, 5, 1.3); // fire rate penalty (30%)
-		TF2Items_SetAttribute(item1, 1, 410, 0.0); // damage bonus while disguised (removed)
+		TF2Items_SetAttribute(item1, 1, 410, 1.0); // damage bonus while disguised (removed)
 		TF2Items_SetAttribute(item1, 2, 797, 0.0); // dmg pierces resists absorbs (removed)
-	}*/
+	}
 
 	if (item1 != null) {
 		item = item1;
@@ -375,8 +376,7 @@ Handle cvar_ref_tf_airblast_cray_reflect_coeff;
 Player players[MAXPLAYERS+1];
 
 
-public void OnClientPutInServer (int iClient)
-{
+public void OnClientPutInServer (int iClient) {
 	SDKHook(iClient, SDKHook_OnTakeDamageAlive, OnTakeDamage);
 	SDKHook(iClient, SDKHook_OnTakeDamageAlivePost, OnTakeDamagePost);
 }
@@ -411,13 +411,27 @@ public void OnPluginStart() {
 
 	// -={ Resets variables on death }=-
 
-public Action Event_PlayerDeath(Event event, const char[] cName, bool dontBroadcast)
-{
+public Action Event_PlayerDeath(Event event, const char[] cName, bool dontBroadcast) {
 	//int attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
 	int victim = event.GetInt("victim_entindex");
 	//int customKill = event.GetInt("customkill");
 
 	players[victim].fBoost = 0.0;			// Reset Heads to 0 on death
+	
+	// Enforcer
+	for (int i = 1; i <= MaxClients; i++) {		// Remove mark when the Spy dies
+		if (IsClientInGame(i) && IsPlayerAlive(i)) {
+			if (players[i].iEnforcer_Mark == victim) {
+				players[i].iEnforcer_Mark = 0;
+				TF2_RemoveCondition(i, TFCond_MarkedForDeath);
+			}
+		}
+	}
+	
+	if (players[victim].iEnforcer_Mark > 0) {		// Enforcer speed boost on mark kill
+		TF2_AddCondition(players[victim].iEnforcer_Mark, TFCond_SpeedBuffAlly, 5.0, 0);
+		players[victim].iEnforcer_Mark = 0;
+	}
 
 	return Plugin_Continue;
 }
@@ -461,9 +475,9 @@ public void OnGameFrame() {
 				primaryIndex = GetEntProp(primary, Prop_Send, "m_iItemDefinitionIndex");
 			}
 			
-			// Pyro (Afterburn)
+			// Global
+			// Afterburn
 			if (players[iClient].fTempLevel >= 7.0) {		// Triggers Afterburn after a certain number of flame particle hits
-				//PrintToChatAll("Burn");
 				TF2Util_SetPlayerBurnDuration(iClient, 6.0);
 				players[iClient].fTempLevel = 7.0;
 			}
@@ -477,6 +491,11 @@ public void OnGameFrame() {
 			}
 			else if (fBurn > 0.0) {		// Don't reduce temperature while we're burning
 				players[iClient].fTempLevel -= 0.05;
+			}
+			
+			// Enforcer
+			if (!TF2_IsPlayerInCondition(iClient, TFCond_MarkedForDeath)) {		// Remove Enforcer mark when the Mark-for-Death debuff expires
+				players[iClient].iEnforcer_Mark = 0;
 			}
 			
 			// Pyro (proper)
@@ -588,6 +607,17 @@ public void OnGameFrame() {
 					if (players[iClient].fBoost > 0.0) {
 						TF2_AddCondition(iClient, TFCond_SpeedBuffAlly, RemapValClamped(players[iClient].fBoost, 0.0, 300.0, 0.0, 3.0));		// Apply speed to us depending on the amount of Boost we have
 						players[iClient].fBoost = 0.0;
+					}
+				}
+				
+				else if (weaponState == 2 && (primaryIndex == 811 || primaryIndex == 832)) {		// Are we revved up with the HLH?
+					if (players[iClient].fFlare_Cooldown > 0.0) {		// If we shouldn't be allowed to fire yet...
+						SetEntProp(primary, Prop_Send, "m_iWeaponState", 1);		// Set us to idle
+						
+						float fFireTime = GetGameTime() + players[iClient].fFlare_Cooldown;		// If our next attack would be before the intended firing interval of the weapon, cancel it
+						if (fFireTime > GetEntPropFloat(primary, Prop_Data, "m_flNextPrimaryAttack")) {
+							SetEntPropFloat(primary, Prop_Data, "m_flNextPrimaryAttack", fFireTime);
+						}
 					}
 				}
 				
@@ -806,25 +836,6 @@ public void OnTakeDamagePost(int victim, int attacker, int inflictor, float dama
 					players[attacker].fBoost = 300.0;
 				}
 			}
-			
-			// Enforcer
-			/*if (GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") == 460) {		// Do we have the Enforcer equipped?
-				
-				float vecAttackerAng[3], vecVictimAng[3];		// Stores the shooter and victim's facing
-				GetClientEyeAngles(attacker, vecAttackerAng);
-				GetClientEyeAngles(victim, vecVictimAng);
-				NormalizeVector(vecAttackerAng, vecAttackerAng);
-				NormalizeVector(vecVictimAng, vecVictimAng);
-				
-				if (GetVectorDotProduct(vecAttackerAng, vecVictimAng) > 0.0 && TF2_IsPlayerInCondition(attacker, TFCond_Disguised)) {		// Are we disguised and behind the victim?
-					float vecAttackerPos[3], vecVictimPos[3];
-					GetClientEyePosition(attacker, vecAttackerPos);
-					GetClientEyePosition(victim, vecVictimPos);
-					if (GetVectorDotProduct(vecAttackerPos, vecVictimPos) < 512.0001) {		// Are we close?
-						TF2_AddCondition(victim, TFCond_MarkedForDeath, 5.0);
-					}
-				}
-			}*/
 		}
 	}
 }
@@ -934,6 +945,28 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 					return Plugin_Changed;
 				}
 			}
+			
+			// Spy
+			// Enforcer
+			if (GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") == 460) {		// Do we have the Enforcer equipped?
+				
+				float vecAttackerAng[3], vecVictimAng[3];		// Stores the shooter and victim's facing
+				GetClientEyeAngles(attacker, vecAttackerAng);
+				GetClientEyeAngles(victim, vecVictimAng);
+				NormalizeVector(vecAttackerAng, vecAttackerAng);
+				NormalizeVector(vecVictimAng, vecVictimAng);
+				
+				PrintToChatAll("dotproduct: %f", GetVectorDotProduct(vecAttackerAng, vecVictimAng));
+				
+				if (GetVectorDotProduct(vecAttackerAng, vecVictimAng) > 0.0 && TF2_IsPlayerInCondition(attacker, TFCond_Disguised)) {		// Are we disguised and behind the victim?
+					if (fDistance < 512.0001) {		// Are we close?
+						TF2_AddCondition(victim, TFCond_MarkedForDeath, 5.0);
+						players[victim].iEnforcer_Mark = attacker;		// Record the person that marks us so we can buff them when we die
+						//PrintToChatAll("marker: %i marked %i", players[victim].iEnforcer_Mark, victim);
+					}
+				}
+				return Plugin_Changed;
+			}
 		}
 	}
 	
@@ -1013,9 +1046,9 @@ Action FlareSpawn(int entity) {
 				AcceptEntityInput(entity, "KillHierarchy");		// Instantly delete the flare
 				
 				int primary = TF2Util_GetPlayerLoadoutEntity(owner, TFWeaponSlot_Primary, true);
-				int primaryAmmo = GetEntProp(primary, Prop_Send, "m_iPrimaryAmmoType");
+				/*int primaryAmmo = GetEntProp(primary, Prop_Send, "m_iPrimaryAmmoType");
 				int ammoCount = GetEntProp(owner, Prop_Data, "m_iAmmo", _, primaryAmmo);		// Retrieve primary ammo
-				/*if (ammoCount < 80) {
+				if (ammoCount < 80) {
 					ammoCount += 1;
 					SetEntProp(owner, Prop_Data, "m_iAmmo", ammoCount + 1, _, primaryAmmo);		// Restore the ammo
 				}*/
@@ -1092,14 +1125,12 @@ Action KillFlare(Handle timer, int flare) {
 	
 	// -={ Displays particles (taken from ShSilver) }=-
 
-stock int CreateParticle(int ent, char[] particleType, float time,float angleX=0.0,float angleY=0.0,float Xoffset=0.0,float Yoffset=0.0,float Zoffset=0.0,float size=1.0,bool update=true,bool parent=true,bool attach=false,float angleZ=0.0,int owner=-1)
-{
+stock int CreateParticle(int ent, char[] particleType, float time,float angleX=0.0,float angleY=0.0,float Xoffset=0.0,float Yoffset=0.0,float Zoffset=0.0,float size=1.0,bool update=true,bool parent=true,bool attach=false,float angleZ=0.0,int owner=-1) {
 	int particle = CreateEntityByName("info_particle_system");
 
 	char[] name = new char[64];
 
-	if (IsValidEdict(particle))
-	{
+	if (IsValidEdict(particle)) {
 		float position[3];
 		GetEntPropVector(ent, Prop_Send, "m_vecOrigin", position);
 		position[0] += Xoffset;
@@ -1118,21 +1149,18 @@ stock int CreateParticle(int ent, char[] particleType, float time,float angleX=0
 		DispatchKeyValue(particle, "effect_name", particleType);
 		if(size!=-1.0) SetEntPropFloat(ent, Prop_Data, "m_flRadius",size);
 
-		if(ent!=0)
-		{
-			if(parent)
-			{
+		if(ent!=0) {
+			if(parent) {
 				SetVariantString(name);
 				AcceptEntityInput(particle, "SetParent", particle, particle, 0);
-
 			}
-			else
-			{
+			
+			else {
 				SetVariantString("!activator");
 				AcceptEntityInput(particle, "SetParent", ent, particle, 0);
 			}
-			if(attach)
-			{
+			
+			if(attach) {
 				SetVariantString("head");
 				AcceptEntityInput(particle, "SetParentAttachment", particle, particle, 0);
 			}
@@ -1142,11 +1170,11 @@ stock int CreateParticle(int ent, char[] particleType, float time,float angleX=0
 		ActivateEntity(particle);
 		AcceptEntityInput(particle, "Start");
 
-		if(owner!=-1)
+		if(owner!=-1) {
 			SetEntPropEnt(particle, Prop_Send, "m_hOwnerEntity", owner);
+		}
 		
-		if(update)
-		{
+		if(update) {
 			DataPack pack = new DataPack();
 			pack.Reset();
 			pack.WriteCell(particle);
@@ -1163,8 +1191,7 @@ stock int CreateParticle(int ent, char[] particleType, float time,float angleX=0
 	return particle;
 }
 
-public Action DeleteParticle(Handle timer, int particle)
-{
+public Action DeleteParticle(Handle timer, int particle) {
 	char[] classN = new char[64];
 	if (IsValidEdict(particle))
 	{
@@ -1175,8 +1202,7 @@ public Action DeleteParticle(Handle timer, int particle)
 	return Plugin_Continue;
 }
 
-public Action UpdateParticle(Handle timer, DataPack pack)
-{
+public Action UpdateParticle(Handle timer, DataPack pack) {
 	pack.Reset();
 	int particle = pack.ReadCell();
 	int parent = pack.ReadCell();
@@ -1228,8 +1254,7 @@ public Action UpdateParticle(Handle timer, DataPack pack)
 
 	// -={ Identifies sources of (Mini-)Crits (taken from ShSilver) }=-
 
-bool isKritzed(int client)
-{
+bool isKritzed(int client) {
 	return (TF2_IsPlayerInCondition(client,TFCond_Kritzkrieged) ||
 	TF2_IsPlayerInCondition(client,TFCond_CritOnFirstBlood) ||
 	TF2_IsPlayerInCondition(client,TFCond_CritOnWin) ||
@@ -1239,8 +1264,7 @@ bool isKritzed(int client)
 	TF2_IsPlayerInCondition(client,TFCond_CritDemoCharge));
 }
 
-bool isMiniKritzed(int client,int victim=-1)
-{
+bool isMiniKritzed(int client,int victim=-1) {
 	bool result=false;
 	if(victim!=-1)
 	{
@@ -1253,8 +1277,7 @@ bool isMiniKritzed(int client,int victim=-1)
 }
 
 
-stock bool IsValidClient(int client, bool replaycheck = true)
-{
+stock bool IsValidClient(int client, bool replaycheck = true) {
 	if (client <= 0 || client > MaxClients) return false;
 	if (!IsClientInGame(client)) return false;
 	return true;

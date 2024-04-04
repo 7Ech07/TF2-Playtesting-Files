@@ -432,6 +432,19 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 						else {		// Melees and Flying Guillotine (no distance modifiers)
 							fDmgMod = 1.0;
 						}
+						
+						if (isKritzed(attacker)) {		// Account for critical damage
+							fDmgMod = 3.0;
+						}
+						else if (isMiniKritzed(attacker, victim)) {
+							if (fDistance > 512.0) {
+								fDmgMod = 1.35;
+							}
+							else {
+								fDmgMod *= 1.35;
+							}
+						}
+						
 						damage *= fDmgMod;		// This is the true amount of damage we do
 						float fHype = GetEntPropFloat(attacker, Prop_Send, "m_flHypeMeter");		// This is our Boost
 						
