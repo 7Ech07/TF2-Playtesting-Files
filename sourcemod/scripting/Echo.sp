@@ -55,6 +55,7 @@ enum struct Player {
 	bool ParticleCD;
 	//int iTempLevel;
 	int iEnforcer_Mark;	// Tracks when a person is Marked by the Enforcer, and the Spy who marked them
+	int iPhlog_Ammo;		// Tracks ammo on the Phlog so we can determine when to fire the beam
 	float fTempLevel;	// How many particles before we start to burn
 	float fRev;		// Tracks how long we've been revved for the purposes of undoing the L&W nerf
 	float fPressure;	// Tracks Airblast repressurisation status
@@ -96,7 +97,7 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 	}
 	
 	// Pyro
-	if (StrEqual(class, "tf_weapon_flamethrower") && (index != 30474) && (index != 741)) {	// All Flamethrowers (except Nostromo Napalmer)
+	if (StrEqual(class, "tf_weapon_flamethrower") && (index != 594) && (index != 30474) && (index != 741)) {	// All Flamethrowers (except Nostromo Napalmer)
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
 		TF2Items_SetNumAttributes(item1, 11);
@@ -111,6 +112,16 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 		TF2Items_SetAttribute(item1, 8, 838, 1.0); // flame_reflect_on_collision (flames riccochet off surfaces)
 		TF2Items_SetAttribute(item1, 9, 828, -7.4); // weapon burn time reduced (this value reduces burn time to 1 tick)
 		TF2Items_SetAttribute(item1, 10, 174, 1.33); // flame_ammopersec_increased (33%)
+	}
+	
+	if (index == 30474 || index == 741) {	// Phlogistnator
+		item1 = TF2Items_CreateItem(0);
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 4);
+		TF2Items_SetAttribute(item1, 0, 280, 1.0); // override projectile type (to hitscan)
+		TF2Items_SetAttribute(item1, 1, 844, 1.0); // flame_speed (basically removed)
+		TF2Items_SetAttribute(item1, 2, 862, 0.015); // flame_lifetime (basically removed)
+		TF2Items_SetAttribute(item1, 3, 174, 1.33); // flame_ammopersec_increased (33%)
 	}
 	
 	if (index == 30474 || index == 741) {	// Nostromo Napalmer (Abs' prototype)
@@ -406,6 +417,30 @@ public void OnPluginStart() {
 	
 	cvar_ref_tf_airblast_cray_power = FindConVar("tf_airblast_cray_power");
 	cvar_ref_tf_airblast_cray_reflect_coeff = FindConVar("tf_airblast_cray_reflect_coeff");
+	
+	SetConVarString(cvar_ref_tf_flame_dmg_mode_dist, "0.0");
+	SetConVarString(cvar_ref_tf_flamethrower_boxsize, "12.0");
+	SetConVarString(cvar_ref_tf_flamethrower_drag, "0.0");
+	SetConVarString(cvar_ref_tf_flamethrower_flametime, "0.2");
+	SetConVarString(cvar_ref_tf_flamethrower_float, "0.0");
+	SetConVarString(cvar_ref_tf_flamethrower_maxdamagedist, "384.0");
+	SetConVarString(cvar_ref_tf_flamethrower_new_flame_offset, "0.0");
+	SetConVarString(cvar_ref_tf_flamethrower_shortrangedamagemultiplier, "1.0");
+	SetConVarString(cvar_ref_tf_flamethrower_vecrand, "0.0");
+	SetConVarString(cvar_ref_tf_flamethrower_velocity, "1920.0");
+	SetConVarString(cvar_ref_tf_flamethrower_velocityfadeend, "0.2");
+	SetConVarString(cvar_ref_tf_flamethrower_velocityfadestart, "1.2");
+
+
+	SetConVarString(cvar_ref_tf_fireball_airblast_recharge_penalty, "0.55");
+	SetConVarString(cvar_ref_tf_fireball_burn_duration, "3");
+	SetConVarString(cvar_ref_tf_fireball_burning_bonus, "2");
+	SetConVarString(cvar_ref_tf_fireball_damage, "37.5");
+	SetConVarString(cvar_ref_tf_fireball_radius, "17.5");
+
+
+	SetConVarString(cvar_ref_tf_airblast_cray_power, "400");
+	SetConVarString(cvar_ref_tf_airblast_cray_reflect_coeff, "1");
 }
 
 
@@ -439,33 +474,7 @@ public Action Event_PlayerDeath(Event event, const char[] cName, bool dontBroadc
 
 	// -={ Iterates every frame }=-
 
-public void OnGameFrame() {
-	
-	SetConVarString(cvar_ref_tf_flame_dmg_mode_dist, "0.0");
-	SetConVarString(cvar_ref_tf_flamethrower_boxsize, "12.0");
-	SetConVarString(cvar_ref_tf_flamethrower_drag, "0.0");
-	SetConVarString(cvar_ref_tf_flamethrower_flametime, "0.2");
-	SetConVarString(cvar_ref_tf_flamethrower_float, "0.0");
-	SetConVarString(cvar_ref_tf_flamethrower_maxdamagedist, "384.0");
-	SetConVarString(cvar_ref_tf_flamethrower_new_flame_offset, "0.0");
-	SetConVarString(cvar_ref_tf_flamethrower_shortrangedamagemultiplier, "1.0");
-	SetConVarString(cvar_ref_tf_flamethrower_vecrand, "0.0");
-	SetConVarString(cvar_ref_tf_flamethrower_velocity, "1920.0");
-	SetConVarString(cvar_ref_tf_flamethrower_velocityfadeend, "0.2");
-	SetConVarString(cvar_ref_tf_flamethrower_velocityfadestart, "1.2");
-
-
-	SetConVarString(cvar_ref_tf_fireball_airblast_recharge_penalty, "0.55");
-	SetConVarString(cvar_ref_tf_fireball_burn_duration, "3");
-	SetConVarString(cvar_ref_tf_fireball_burning_bonus, "2");
-	SetConVarString(cvar_ref_tf_fireball_damage, "37.5");
-	SetConVarString(cvar_ref_tf_fireball_radius, "17.5");
-
-
-	SetConVarString(cvar_ref_tf_airblast_cray_power, "400");
-	SetConVarString(cvar_ref_tf_airblast_cray_reflect_coeff, "1");
-	
-	
+public void OnGameFrame() {	
 	for (int iClient = 1; iClient <= MaxClients; iClient++) {		// Caps Afterburn at 6 and handles Temperature
 		if (IsClientInGame(iClient) && IsPlayerAlive(iClient)) {
 			
@@ -493,12 +502,12 @@ public void OnGameFrame() {
 				players[iClient].fTempLevel -= 0.05;
 			}
 			
-			// Enforcer
+			// Enforcer mark
 			if (!TF2_IsPlayerInCondition(iClient, TFCond_MarkedForDeath)) {		// Remove Enforcer mark when the Mark-for-Death debuff expires
 				players[iClient].iEnforcer_Mark = 0;
 			}
 			
-			// Pyro (proper)
+			// Pyro
 			if (TF2_GetPlayerClass(iClient) == TFClass_Pyro) {
 				// Airblast jump chaining prevention
 				float vecVel[3];
@@ -506,7 +515,56 @@ public void OnGameFrame() {
 				if (vecVel[2] == 0 && (GetEntityFlags(iClient) & FL_ONGROUND)) {		// Are we grounded?
 					players[iClient].AirblastJumpCD = true;
 				}
-			
+				
+				/* *Flamethrower weaponstates*
+					0 = Idle
+					1 = Start firing
+					2 = Firing
+					3 = Airblasting
+				*/
+				
+				// Phlogistinator
+				int weaponState = GetEntProp(primary, Prop_Send, "m_iWeaponState");
+				if (primaryIndex == 594 && (weaponState == 1 || weaponState == 2)) {		// Are we firing the Phlog?
+					
+					int iAmmoTable = FindSendPropInfo("CTFWeaponBase", "m_iClip1");
+					int Ammo = GetEntProp(primary, Prop_Send, "m_iPrimaryAmmoType");
+					int ammoCount = GetEntProp(iClient, Prop_Data, "m_iAmmo", _, Ammo);		// Only fire the beam on frames where the ammo changes
+					if (ammoCount == (players[iClient].iPhlog_Ammo - 1)) {		// We update iPhlog_Ammo after this check, so clip will always be 1 lower on frames in which we fire a shot
+						
+						float vecPos[3], vecAng[3];
+						float vecMax[3], vecMin[3];
+						
+						GetClientEyePosition(iClient, vecPos);
+						GetClientEyeAngles(iClient, vecAng);
+						
+						GetAngleVectors(vecAng, vecAng, NULL_VECTOR, NULL_VECTOR);
+						ScaleVector(vecAng, 512.0);		// Scales this vector 512 HU out
+						AddVectors(vecPos, vecAng, vecAng);		// Add this vector to the position vector so the game can aim it better
+						
+						/*vecMax[0] = 20.0;
+						vecMax[1] = 20.0;
+						vecMax[2] = 5.0;
+						
+						vecMin[0] = (0.0 - vecMax[0]);
+						vecMin[1] = (0.0 - vecMax[1]);
+						vecMin[2] = (0.0 - vecMax[2]);*/
+						
+						//TR_TraceHullFilter(vecPos, vecAng, vecMin, vecMax, MASK_SOLID, TraceFilter_ExcludeSingle, iClient);		// Create a trace that starts at us and ends 512 HU forward
+						TR_TraceRayFilter(vecPos, vecAng, MASK_SOLID, RayType_EndPoint, TraceFilter_ExcludeSingle, iClient);		// Create a trace that starts at us and ends 512 HU forward
+						
+						if (TR_DidHit()) {
+							int iEntity = TR_GetEntityIndex();		// This is the ID of the thing we hit
+							
+							if (iEntity >= 1 && iEntity <= MaxClients && GetClientTeam(iEntity) != GetClientTeam(iClient)) {		// Did we hit an enemy?
+								PrintToChatAll("Hit");
+								SDKHooks_TakeDamage(iEntity, primary, iClient, 7.5, DMG_SHOCK, primary, NULL_VECTOR, vecPos);
+							}
+						}
+					}
+					players[iClient].iPhlog_Ammo = ammoCount;
+				} 
+				
 				// Pressure
 				char class[64];
 				GetEntityClassname(primary, class, sizeof(class));
@@ -613,11 +671,6 @@ public void OnGameFrame() {
 				else if (weaponState == 2 && (primaryIndex == 811 || primaryIndex == 832)) {		// Are we revved up with the HLH?
 					if (players[iClient].fFlare_Cooldown > 0.0) {		// If we shouldn't be allowed to fire yet...
 						SetEntProp(primary, Prop_Send, "m_iWeaponState", 1);		// Set us to idle
-						
-						float fFireTime = GetGameTime() + players[iClient].fFlare_Cooldown;		// If our next attack would be before the intended firing interval of the weapon, cancel it
-						if (fFireTime > GetEntPropFloat(primary, Prop_Data, "m_flNextPrimaryAttack")) {
-							SetEntPropFloat(primary, Prop_Data, "m_flNextPrimaryAttack", fFireTime);
-						}
 					}
 				}
 				
@@ -1071,6 +1124,10 @@ Action FlareSpawn(int entity) {
 			SetEntPropEnt(entity, Prop_Send, "m_hLauncher", primary);
 
 			CreateTimer(0.5, KillFlare, entity);		// A flare will travel about 1000 HU in this time
+			
+			if (0.285 > GetEntPropFloat(primary, Prop_Data, "m_flNextPrimaryAttack")) {		// If our next attack would be before the intended firing interval of the weapon, cancel it
+				SetEntPropFloat(primary, Prop_Data, "m_flNextPrimaryAttack", 0.285);
+			}
 		}
 	}
 	
@@ -1281,4 +1338,11 @@ stock bool IsValidClient(int client, bool replaycheck = true) {
 	if (client <= 0 || client > MaxClients) return false;
 	if (!IsClientInGame(client)) return false;
 	return true;
+}
+
+
+	// -={ Handles data filtering when performing traces (taken from Bakugo) }=-
+
+bool TraceFilter_ExcludeSingle(int entity, int contentsmask, any data) {
+	return (entity != data);
 }
