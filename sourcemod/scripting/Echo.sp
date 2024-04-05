@@ -116,12 +116,9 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 	
 	if (index == 30474 || index == 741) {	// Phlogistnator
 		item1 = TF2Items_CreateItem(0);
-		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 4);
-		TF2Items_SetAttribute(item1, 0, 280, 1.0); // override projectile type (to hitscan)
-		TF2Items_SetAttribute(item1, 1, 844, 1.0); // flame_speed (basically removed)
-		TF2Items_SetAttribute(item1, 2, 862, 0.015); // flame_lifetime (basically removed)
-		TF2Items_SetAttribute(item1, 3, 174, 1.33); // flame_ammopersec_increased (33%)
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES));	// We're not preserving attributes in the hopes that this cleanses the flame particle attributes, thus breaking the normal primary fire
+		TF2Items_SetNumAttributes(item1, 1);
+		TF2Items_SetAttribute(item1, 0, 174, 1.33); // flame_ammopersec_increased (33%)
 	}
 	
 	if (index == 30474 || index == 741) {	// Nostromo Napalmer (Abs' prototype)
@@ -525,15 +522,17 @@ public void OnGameFrame() {
 				
 				// Phlogistinator
 				int weaponState = GetEntProp(primary, Prop_Send, "m_iWeaponState");
+				if (weaponState == 3) {
+					PrintToChatAll("Airblasting debug");
+				}
+				
 				if (primaryIndex == 594 && (weaponState == 1 || weaponState == 2)) {		// Are we firing the Phlog?
 					
-					int iAmmoTable = FindSendPropInfo("CTFWeaponBase", "m_iClip1");
 					int Ammo = GetEntProp(primary, Prop_Send, "m_iPrimaryAmmoType");
 					int ammoCount = GetEntProp(iClient, Prop_Data, "m_iAmmo", _, Ammo);		// Only fire the beam on frames where the ammo changes
 					if (ammoCount == (players[iClient].iPhlog_Ammo - 1)) {		// We update iPhlog_Ammo after this check, so clip will always be 1 lower on frames in which we fire a shot
 						
 						float vecPos[3], vecAng[3];
-						float vecMax[3], vecMin[3];
 						
 						GetClientEyePosition(iClient, vecPos);
 						GetClientEyeAngles(iClient, vecAng);
@@ -542,23 +541,20 @@ public void OnGameFrame() {
 						ScaleVector(vecAng, 512.0);		// Scales this vector 512 HU out
 						AddVectors(vecPos, vecAng, vecAng);		// Add this vector to the position vector so the game can aim it better
 						
-						/*vecMax[0] = 20.0;
-						vecMax[1] = 20.0;
-						vecMax[2] = 5.0;
-						
-						vecMin[0] = (0.0 - vecMax[0]);
-						vecMin[1] = (0.0 - vecMax[1]);
-						vecMin[2] = (0.0 - vecMax[2]);*/
-						
-						//TR_TraceHullFilter(vecPos, vecAng, vecMin, vecMax, MASK_SOLID, TraceFilter_ExcludeSingle, iClient);		// Create a trace that starts at us and ends 512 HU forward
 						TR_TraceRayFilter(vecPos, vecAng, MASK_SOLID, RayType_EndPoint, TraceFilter_ExcludeSingle, iClient);		// Create a trace that starts at us and ends 512 HU forward
 						
 						if (TR_DidHit()) {
 							int iEntity = TR_GetEntityIndex();		// This is the ID of the thing we hit
 							
 							if (iEntity >= 1 && iEntity <= MaxClients && GetClientTeam(iEntity) != GetClientTeam(iClient)) {		// Did we hit an enemy?
-								PrintToChatAll("Hit");
-								SDKHooks_TakeDamage(iEntity, primary, iClient, 7.5, DMG_SHOCK, primary, NULL_VECTOR, vecPos);
+								//PrintToChatAll("Hit");
+								
+								float vecVictim[3], fDmgMod;
+								GetEntPropVector(iEntity, Prop_Send, "m_vecOrigin", vecVictim);		// Gets defender position
+								float fDistance = GetVectorDistance(vecPos, vecVictim, false);		// Distance calculation
+								fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.2, 0.8);		// Gives us our distance multiplier
+								// TODO: knockback equation
+								SDKHooks_TakeDamage(iEntity, primary, iClient, (7.5 * fDmgMod), DMG_SHOCK, primary, NULL_VECTOR, vecVictim);		// Deal damage (credited to the Phlog)
 							}
 						}
 					}
@@ -1098,8 +1094,8 @@ Action FlareSpawn(int entity) {
 			if (players[owner].fFlare_Cooldown > 0.0) {		// If we shouldn't be allowed to fire yet...
 				AcceptEntityInput(entity, "KillHierarchy");		// Instantly delete the flare
 				
-				int primary = TF2Util_GetPlayerLoadoutEntity(owner, TFWeaponSlot_Primary, true);
-				/*int primaryAmmo = GetEntProp(primary, Prop_Send, "m_iPrimaryAmmoType");
+				/*int primary = TF2Util_GetPlayerLoadoutEntity(owner, TFWeaponSlot_Primary, true);
+				int primaryAmmo = GetEntProp(primary, Prop_Send, "m_iPrimaryAmmoType");
 				int ammoCount = GetEntProp(owner, Prop_Data, "m_iAmmo", _, primaryAmmo);		// Retrieve primary ammo
 				if (ammoCount < 80) {
 					ammoCount += 1;
