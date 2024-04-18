@@ -553,26 +553,24 @@ public void OnGameFrame() {
 						
 						TR_TraceRayFilter(vecPos, vecAng, MASK_SOLID, RayType_EndPoint, TraceFilter_ExcludeSingle, iClient);		// Create a trace that starts at us and ends 512 HU forward
 						
+						int iBeamColour[4];		// Colour of the beam
+						if (TF2_GetClientTeam(iClient) == TFTeam_Red) {
+							iBeamColour[0] = 255;
+							iBeamColour[1] = 0;
+							iBeamColour[2] = 0;
+							iBeamColour[3] = 200;
+						}
+						else if (TF2_GetClientTeam(iClient) == TFTeam_Blue) {
+							iBeamColour[0] = 0;
+							iBeamColour[1] = 255;
+							iBeamColour[2] = 0;
+							iBeamColour[3] = 200;
+						}
+						vecPos[2] -= 12.0;
+						TE_SetupBeamPoints(vecPos, vecAng, g_modelLaser, g_modelHalo, 0, 1, 0.1, 2.0, 2.0, 1, 1.0, iBeamColour, 1);	// Create a beam visual
+						
 						if (TR_DidHit()) {
-							float vecEnd[3];
-							TR_GetEndPosition(vecEnd, INVALID_HANDLE);		// This is the coordinate of the beam end
-							// TODO: find the endpoint of the beam if we don't hit anything
 							int iEntity = TR_GetEntityIndex();		// This is the ID of the thing we hit
-							
-							int iBeamColour[4];		// Colour of the beam
-							if (TF2_GetClientTeam(iClient) == TFTeam_Red) {
-								iBeamColour[0] = 255;
-								iBeamColour[1] = 0;
-								iBeamColour[2] = 0;
-								iBeamColour[3] = 200;
-							}
-							else if (TF2_GetClientTeam(iClient) == TFTeam_Blue) {
-								iBeamColour[0] = 0;
-								iBeamColour[1] = 255;
-								iBeamColour[2] = 0;
-								iBeamColour[3] = 200;
-							}
-							TE_SetupBeamPoints(vecPos, vecEnd, g_modelLaser, g_modelHalo, 0, 1, 0.1, 2.0, 2.0, 1, 1.0, iBeamColour, 1);	// Create a beam visual
 							
 							if (iEntity >= 1 && iEntity <= MaxClients && GetClientTeam(iEntity) != GetClientTeam(iClient)) {		// Did we hit an enemy?
 								//PrintToChatAll("Hit");
