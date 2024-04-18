@@ -12,6 +12,10 @@
 #pragma newdecls required
 
 
+static int g_modelLaser;		// Phlog laser beam
+static int g_modelHalo;
+
+
 	// -={ Stock functions -- taken from Valve themselves }=-
 	// https://github.com/ValveSoftware/source-sdk-2013/blob/master/sp/src/public/mathlib/mathlib.h#L648s
 
@@ -69,8 +73,10 @@ int g_LastButtons[MAXPLAYERS+1];
 
 	// -={ Precaches audio }=-
 
-public void OnMapStart()
-{
+public void OnMapStart() {
+	g_modelLaser = PrecacheModel("sprites/laser.vmt");
+	g_modelHalo = PrecacheModel("materials/sprites/halo01.vmt");
+	
 	PrecacheSound("weapons/widow_maker_pump_action_back.wav", true);
 	PrecacheSound("weapons/widow_maker_pump_action_forward.wav", true);
 	PrecacheSound("weapons/flare_detonator_explode.wav", true);
@@ -114,11 +120,14 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 		TF2Items_SetAttribute(item1, 10, 174, 1.33); // flame_ammopersec_increased (33%)
 	}
 	
-	if (index == 30474 || index == 741) {	// Phlogistnator
+	if (index == 594) {	// Phlogistinator
 		item1 = TF2Items_CreateItem(0);
-		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES));	// We're not preserving attributes in the hopes that this cleanses the flame particle attributes, thus breaking the normal primary fire
-		TF2Items_SetNumAttributes(item1, 1);
-		TF2Items_SetAttribute(item1, 0, 174, 1.33); // flame_ammopersec_increased (33%)
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 4);
+		TF2Items_SetAttribute(item1, 0, 1, 0.0); // damage penalty (100%; prevents damage from flame particles)
+		TF2Items_SetAttribute(item1, 1, 174, 1.33); // flame_ammopersec_increased (33%)
+		TF2Items_SetAttribute(item1, 2, 844, 0.0); // flame_speed (nil)
+		TF2Items_SetAttribute(item1, 3, 862, 0.0); // flame_lifetime (nil)
 	}
 	
 	if (index == 30474 || index == 741) {	// Nostromo Napalmer (Abs' prototype)
@@ -415,7 +424,7 @@ public void OnPluginStart() {
 	cvar_ref_tf_airblast_cray_power = FindConVar("tf_airblast_cray_power");
 	cvar_ref_tf_airblast_cray_reflect_coeff = FindConVar("tf_airblast_cray_reflect_coeff");
 	
-	SetConVarString(cvar_ref_tf_flame_dmg_mode_dist, "0.0");
+	/*SetConVarString(cvar_ref_tf_flame_dmg_mode_dist, "0.0");
 	SetConVarString(cvar_ref_tf_flamethrower_boxsize, "12.0");
 	SetConVarString(cvar_ref_tf_flamethrower_drag, "0.0");
 	SetConVarString(cvar_ref_tf_flamethrower_flametime, "0.2");
@@ -426,7 +435,7 @@ public void OnPluginStart() {
 	SetConVarString(cvar_ref_tf_flamethrower_vecrand, "0.0");
 	SetConVarString(cvar_ref_tf_flamethrower_velocity, "1920.0");
 	SetConVarString(cvar_ref_tf_flamethrower_velocityfadeend, "0.2");
-	SetConVarString(cvar_ref_tf_flamethrower_velocityfadestart, "1.2");
+	SetConVarString(cvar_ref_tf_flamethrower_velocityfadestart, "1.2");*/
 
 
 	SetConVarString(cvar_ref_tf_fireball_airblast_recharge_penalty, "0.55");
@@ -544,7 +553,25 @@ public void OnGameFrame() {
 						TR_TraceRayFilter(vecPos, vecAng, MASK_SOLID, RayType_EndPoint, TraceFilter_ExcludeSingle, iClient);		// Create a trace that starts at us and ends 512 HU forward
 						
 						if (TR_DidHit()) {
+							float vecEnd[3];
+							TR_GetEndPosition(vecEnd, INVALID_HANDLE);		// This is the coordinate of the beam end
+							// TODO: find the endpoint of the beam if we don't hit anything
 							int iEntity = TR_GetEntityIndex();		// This is the ID of the thing we hit
+							
+							int iBeamColour[4];		// Colour of the beam
+							if (TF2_GetClientTeam(iClient) == TFTeam_Red) {
+								iBeamColour[0] = 255;
+								iBeamColour[1] = 0;
+								iBeamColour[2] = 0;
+								iBeamColour[3] = 200;
+							}
+							else if (TF2_GetClientTeam(iClient) == TFTeam_Blue) {
+								iBeamColour[0] = 0;
+								iBeamColour[1] = 255;
+								iBeamColour[2] = 0;
+								iBeamColour[3] = 200;
+							}
+							TE_SetupBeamPoints(vecPos, vecEnd, g_modelLaser, g_modelHalo, 0, 1, 0.1, 2.0, 2.0, 1, 1.0, iBeamColour, 1);	// Create a beam visual
 							
 							if (iEntity >= 1 && iEntity <= MaxClients && GetClientTeam(iEntity) != GetClientTeam(iClient)) {		// Did we hit an enemy?
 								//PrintToChatAll("Hit");
