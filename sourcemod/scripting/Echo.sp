@@ -122,12 +122,13 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 	
 	if (index == 594) {	// Phlogistinator
 		item1 = TF2Items_CreateItem(0);
-		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 4);
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 5);
 		TF2Items_SetAttribute(item1, 0, 1, 0.0); // damage penalty (100%; prevents damage from flame particles)
 		TF2Items_SetAttribute(item1, 1, 174, 1.33); // flame_ammopersec_increased (33%)
 		TF2Items_SetAttribute(item1, 2, 844, 0.0); // flame_speed (nil)
 		TF2Items_SetAttribute(item1, 3, 862, 0.0); // flame_lifetime (nil)
+		TF2Items_SetAttribute(item1, 4, 828, -7.5); // weapon burn time reduced (turns off Afterburn)
 	}
 	
 	if (index == 30474 || index == 741) {	// Nostromo Napalmer (Abs' prototype)
