@@ -216,6 +216,56 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 		TF2Items_SetAttribute(item1, 1, 410, 1.0); // damage bonus while disguised (removed)
 		TF2Items_SetAttribute(item1, 2, 797, 0.0); // dmg pierces resists absorbs (removed)
 	}
+	
+		// Scout (includes Engie Pistol)
+	if (StrEqual(class, "tf_weapon_pistol")) {	// All Pistols
+		item1 = TF2Items_CreateItem(0);
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 1);
+		TF2Items_SetAttribute(item1, 0, 106, 0.7); // weapon spread bonus (removed)
+	}
+	
+	// Demoman
+	if (index == 405 || index == 608) {	// Ali Baba's Wee Booties (& Bootlegger)
+		item1 = TF2Items_CreateItem(0);
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 3);
+		TF2Items_SetAttribute(item1, 0, 107, 1.10); // move speed bonus (10%; same as existing one)
+		TF2Items_SetAttribute(item1, 1, 788, 1.00); // move speed bonus shield required (removed)
+		TF2Items_SetAttribute(item1, 2, 252, 0.75); // damage force reduction (25%)
+	}
+
+	if (StrEqual(class, "tf_wearable_demoshield")) {	// All Shields
+		item1 = TF2Items_CreateItem(0);
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 6);
+		TF2Items_SetAttribute(item1, 0, 64, 1.0); // dmg taken from blast reduced (removed)
+		TF2Items_SetAttribute(item1, 1, 60, 1.0); // dmg taken from fire reduced (removed)
+		TF2Items_SetAttribute(item1, 2, 249, 1.15); // charge recharge rate increased (15%; reduces cooldown to 10 seconds)
+		TF2Items_SetAttribute(item1, 3, 205, 0.75); // dmg from ranged reduced (25% reduction)
+		TF2Items_SetAttribute(item1, 4, 206, 0.75); // dmg from melee increased (25% reduction, in spite of what the attribute says)
+		TF2Items_SetAttribute(item1, 5, 252, 0.75); // damage force reduction (25%)
+	}
+	
+	if (index == 406) {	// Splendid Screen
+		item1 = TF2Items_CreateItem(0);
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 4);
+		TF2Items_SetAttribute(item1, 0, 249, 1.0); // charge recharge rate increased (removed)
+		TF2Items_SetAttribute(item1, 1, 205, 0.85); // dmg from ranged reduced (15% reduction)
+		TF2Items_SetAttribute(item1, 2, 206, 0.85); // dmg from melee increased (15% reduction)
+		TF2Items_SetAttribute(item1, 3, 252, 0.85); // damage force reduction (15%)
+	}
+	
+	if (index == 1099) {	// Tide Turner
+		item1 = TF2Items_CreateItem(0);
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 4);
+		TF2Items_SetAttribute(item1, 0, 205, 0.90); // dmg from ranged reduced (10% reduction)
+		TF2Items_SetAttribute(item1, 1, 206, 0.90); // dmg from melee increased (10% reduction)
+		TF2Items_SetAttribute(item1, 2, 252, 0.90); // damage force reduction (10%)
+		TF2Items_SetAttribute(item1, 3, 676, 0.0); // lose demo charge on damage when charging
+	}
 
 	if (item1 != null) {
 		item = item1;
@@ -533,7 +583,7 @@ public void OnGameFrame() {
 				// Phlogistinator
 				int weaponState = GetEntProp(primary, Prop_Send, "m_iWeaponState");
 				if (weaponState == 3) {
-					PrintToChatAll("Airblasting debug");
+					//PrintToChatAll("Airblasting debug");
 				}
 				
 				if (primaryIndex == 594 && (weaponState == 1 || weaponState == 2)) {		// Are we firing the Phlog?
