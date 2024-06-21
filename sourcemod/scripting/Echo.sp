@@ -59,6 +59,7 @@ enum struct Player {
 	bool ParticleCD;
 	//int iTempLevel;
 	int iEnforcer_Mark;	// Tracks when a person is Marked by the Enforcer, and the Spy who marked them
+	int iAirdash_Count;	// Tracks the number of double jumps performed by an Atomizer-wielder
 	int iPhlog_Ammo;		// Tracks ammo on the Phlog so we can determine when to fire the beam
 	float fTempLevel;	// How many particles before we start to burn
 	float fRev;		// Tracks how long we've been revved for the purposes of undoing the L&W nerf
@@ -100,6 +101,23 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 		TF2Items_SetAttribute(item1, 4, 178, 0.75); // deploy time decreased (25%)
 		TF2Items_SetAttribute(item1, 5, 808, 0.0); // mult_spread_scales_consecutive (removed)
 		TF2Items_SetAttribute(item1, 6, 809, 0.0); // fixed_shot_pattern (none)
+	}
+	
+	// Scout	
+	if (index == 220) {	// Shortstop
+		item1 = TF2Items_CreateItem(0);
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 2);
+		TF2Items_SetAttribute(item1, 0, 26, 25.0); // max health additive bonus
+		TF2Items_SetAttribute(item1, 1, 128, 0.0); // when weapon is active (removed)
+	}
+	
+	if (index == 450) {	// Atomizer
+		item1 = TF2Items_CreateItem(0);
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 2);
+		TF2Items_SetAttribute(item1, 0, 49, 1.0); // disables double jump
+		TF2Items_SetAttribute(item1, 0, 250, 0.0); // air dash count (disabled; we're handling this manually)
 	}
 	
 	// Pyro
@@ -540,6 +558,11 @@ public void OnGameFrame() {
 			if (primary >= 0) {
 				primaryIndex = GetEntProp(primary, Prop_Send, "m_iItemDefinitionIndex");
 			}
+			int melee = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Melee, true);
+			int meleeIndex = -1;
+			if (melee >= 0) {
+				meleeIndex = GetEntProp(melee, Prop_Send, "m_iItemDefinitionIndex");
+			}
 			
 			// Global
 			// Afterburn
@@ -562,6 +585,39 @@ public void OnGameFrame() {
 			// Enforcer mark
 			if (!TF2_IsPlayerInCondition(iClient, TFCond_MarkedForDeath)) {		// Remove Enforcer mark when the Mark-for-Death debuff expires
 				players[iClient].iEnforcer_Mark = 0;
+			}
+			
+			// Scout
+			if (TF2_GetPlayerClass(iClient) == TFClass_Scout) {
+				// Atomizer
+				if (meleeIndex == 450) {
+				
+					int airdash_value = GetEntProp(iClient, Prop_Send, "m_iAirDash");
+					if (airdash_value > 0) {		// Did we double jump this frame?
+						
+						players[iClient].iAirdash_Count++;		// Count the double jump
+						
+						if (players[iClient].iAirdash_Count >= 1) {
+							EmitSoundToAll("misc/banana_slip.wav", iClient, SNDCHAN_AUTO, 30, (SND_CHANGEVOL|SND_CHANGEPITCH), 1.0, 100);
+						}
+					}
+						
+					else {
+						if ((GetEntityFlags(iClient) & FL_ONGROUND) != 0) {		// Reset the jump count when grounded
+							players[iClient].iAirdash_Count = 0;
+						}
+					}
+					
+					if (airdash_value >= 1) {		// Reset the double jump variable to 0 if we haven't maxed out our double jumps yet
+						if (players[iClient].iAirdash_Count < 3) {
+							airdash_value = 0;
+						}
+					}
+					
+					if (airdash_value != GetEntProp(iClient, Prop_Send, "m_iAirDash")) {
+						SetEntProp(iClient, Prop_Send, "m_iAirDash", airdash_value);
+					}
+				}
 			}
 			
 			// Pyro
