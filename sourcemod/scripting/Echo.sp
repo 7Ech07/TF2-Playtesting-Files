@@ -59,6 +59,7 @@ enum struct Player {
 	bool ParticleCD;
 	//int iTempLevel;
 	int iEnforcer_Mark;	// Tracks when a person is Marked by the Enforcer, and the Spy who marked them
+	int iAirdash_Count;	// Tracks the number of double jumps performed by an Atomizer-wielder
 	int iPhlog_Ammo;		// Tracks ammo on the Phlog so we can determine when to fire the beam
 	float fTempLevel;	// How many particles before we start to burn
 	float fRev;		// Tracks how long we've been revved for the purposes of undoing the L&W nerf
@@ -100,6 +101,23 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 		TF2Items_SetAttribute(item1, 4, 178, 0.75); // deploy time decreased (25%)
 		TF2Items_SetAttribute(item1, 5, 808, 0.0); // mult_spread_scales_consecutive (removed)
 		TF2Items_SetAttribute(item1, 6, 809, 0.0); // fixed_shot_pattern (none)
+	}
+	
+	// Scout	
+	if (index == 220) {	// Shortstop
+		item1 = TF2Items_CreateItem(0);
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 2);
+		TF2Items_SetAttribute(item1, 0, 26, 25.0); // max health additive bonus
+		TF2Items_SetAttribute(item1, 1, 128, 0.0); // when weapon is active (removed)
+	}
+	
+	if (index == 450) {	// Atomizer
+		item1 = TF2Items_CreateItem(0);
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 2);
+		TF2Items_SetAttribute(item1, 0, 49, 1.0); // disables double jump
+		TF2Items_SetAttribute(item1, 0, 250, 0.0); // air dash count (disabled; we're handling this manually)
 	}
 	
 	// Pyro
@@ -225,6 +243,56 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 		TF2Items_SetAttribute(item1, 0, 5, 1.3); // fire rate penalty (30%)
 		TF2Items_SetAttribute(item1, 1, 410, 1.0); // damage bonus while disguised (removed)
 		TF2Items_SetAttribute(item1, 2, 797, 0.0); // dmg pierces resists absorbs (removed)
+	}
+	
+		// Scout (includes Engie Pistol)
+	if (StrEqual(class, "tf_weapon_pistol")) {	// All Pistols
+		item1 = TF2Items_CreateItem(0);
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 1);
+		TF2Items_SetAttribute(item1, 0, 106, 0.7); // weapon spread bonus (removed)
+	}
+	
+	// Demoman
+	if (index == 405 || index == 608) {	// Ali Baba's Wee Booties (& Bootlegger)
+		item1 = TF2Items_CreateItem(0);
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 3);
+		TF2Items_SetAttribute(item1, 0, 107, 1.10); // move speed bonus (10%; same as existing one)
+		TF2Items_SetAttribute(item1, 1, 788, 1.00); // move speed bonus shield required (removed)
+		TF2Items_SetAttribute(item1, 2, 252, 0.75); // damage force reduction (25%)
+	}
+
+	if (StrEqual(class, "tf_wearable_demoshield")) {	// All Shields
+		item1 = TF2Items_CreateItem(0);
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 6);
+		TF2Items_SetAttribute(item1, 0, 64, 1.0); // dmg taken from blast reduced (removed)
+		TF2Items_SetAttribute(item1, 1, 60, 1.0); // dmg taken from fire reduced (removed)
+		TF2Items_SetAttribute(item1, 2, 249, 1.15); // charge recharge rate increased (15%; reduces cooldown to 10 seconds)
+		TF2Items_SetAttribute(item1, 3, 205, 0.75); // dmg from ranged reduced (25% reduction)
+		TF2Items_SetAttribute(item1, 4, 206, 0.75); // dmg from melee increased (25% reduction, in spite of what the attribute says)
+		TF2Items_SetAttribute(item1, 5, 252, 0.75); // damage force reduction (25%)
+	}
+	
+	if (index == 406) {	// Splendid Screen
+		item1 = TF2Items_CreateItem(0);
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 4);
+		TF2Items_SetAttribute(item1, 0, 249, 1.0); // charge recharge rate increased (removed)
+		TF2Items_SetAttribute(item1, 1, 205, 0.85); // dmg from ranged reduced (15% reduction)
+		TF2Items_SetAttribute(item1, 2, 206, 0.85); // dmg from melee increased (15% reduction)
+		TF2Items_SetAttribute(item1, 3, 252, 0.85); // damage force reduction (15%)
+	}
+	
+	if (index == 1099) {	// Tide Turner
+		item1 = TF2Items_CreateItem(0);
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 4);
+		TF2Items_SetAttribute(item1, 0, 205, 0.90); // dmg from ranged reduced (10% reduction)
+		TF2Items_SetAttribute(item1, 1, 206, 0.90); // dmg from melee increased (10% reduction)
+		TF2Items_SetAttribute(item1, 2, 252, 0.90); // damage force reduction (10%)
+		TF2Items_SetAttribute(item1, 3, 676, 0.0); // lose demo charge on damage when charging
 	}
 
 	if (item1 != null) {
@@ -500,6 +568,11 @@ public void OnGameFrame() {
 			if (primary >= 0) {
 				primaryIndex = GetEntProp(primary, Prop_Send, "m_iItemDefinitionIndex");
 			}
+			int melee = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Melee, true);
+			int meleeIndex = -1;
+			if (melee >= 0) {
+				meleeIndex = GetEntProp(melee, Prop_Send, "m_iItemDefinitionIndex");
+			}
 			
 			// Global
 			// Afterburn
@@ -524,6 +597,39 @@ public void OnGameFrame() {
 				players[iClient].iEnforcer_Mark = 0;
 			}
 			
+			// Scout
+			if (TF2_GetPlayerClass(iClient) == TFClass_Scout) {
+				// Atomizer
+				if (meleeIndex == 450) {
+				
+					int airdash_value = GetEntProp(iClient, Prop_Send, "m_iAirDash");
+					if (airdash_value > 0) {		// Did we double jump this frame?
+						
+						players[iClient].iAirdash_Count++;		// Count the double jump
+						
+						if (players[iClient].iAirdash_Count >= 1) {
+							EmitSoundToAll("misc/banana_slip.wav", iClient, SNDCHAN_AUTO, 30, (SND_CHANGEVOL|SND_CHANGEPITCH), 1.0, 100);
+						}
+					}
+						
+					else {
+						if ((GetEntityFlags(iClient) & FL_ONGROUND) != 0) {		// Reset the jump count when grounded
+							players[iClient].iAirdash_Count = 0;
+						}
+					}
+					
+					if (airdash_value >= 1) {		// Reset the double jump variable to 0 if we haven't maxed out our double jumps yet
+						if (players[iClient].iAirdash_Count < 3) {
+							airdash_value = 0;
+						}
+					}
+					
+					if (airdash_value != GetEntProp(iClient, Prop_Send, "m_iAirDash")) {
+						SetEntProp(iClient, Prop_Send, "m_iAirDash", airdash_value);
+					}
+				}
+			}
+			
 			// Pyro
 			if (TF2_GetPlayerClass(iClient) == TFClass_Pyro) {
 				// Airblast jump chaining prevention
@@ -543,7 +649,7 @@ public void OnGameFrame() {
 				// Phlogistinator
 				int weaponState = GetEntProp(primary, Prop_Send, "m_iWeaponState");
 				if (weaponState == 3) {
-					PrintToChatAll("Airblasting debug");
+					//PrintToChatAll("Airblasting debug");
 				}
 				
 				if (primaryIndex == 594 && (weaponState == 1 || weaponState == 2)) {		// Are we firing the Phlog?
