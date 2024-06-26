@@ -78,6 +78,7 @@ public void OnMapStart() {
 	g_modelLaser = PrecacheModel("sprites/laser.vmt");
 	g_modelHalo = PrecacheModel("materials/sprites/halo01.vmt");
 	
+	PrecacheSound("misc/banana_slip.wav", true);
 	PrecacheSound("weapons/widow_maker_pump_action_back.wav", true);
 	PrecacheSound("weapons/widow_maker_pump_action_forward.wav", true);
 	PrecacheSound("weapons/flare_detonator_explode.wav", true);
@@ -115,9 +116,11 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 	if (index == 450) {	// Atomizer
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 2);
-		TF2Items_SetAttribute(item1, 0, 49, 1.0); // disables double jump
-		TF2Items_SetAttribute(item1, 0, 250, 0.0); // air dash count (disabled; we're handling this manually)
+		TF2Items_SetNumAttributes(item1, 3);
+		TF2Items_SetAttribute(item1, 0, 125, -25.0); // max health additive penalty (-25)
+		TF2Items_SetAttribute(item1, 1, 250, 0.0); // air dash count (disabled; we're handling this manually)
+		TF2Items_SetAttribute(item1, 2, 773, 1.0); // single wep deploy time increased (removed)
+		TF2Items_SetAttribute(item1, 3, 1, 1.0); // damage penalty (removed)
 	}
 	
 	// Pyro
@@ -609,7 +612,7 @@ public void OnGameFrame() {
 					}
 					
 					if (airdash_value >= 1) {		// Reset the double jump variable to 0 if we haven't maxed out our double jumps yet
-						if (players[iClient].iAirdash_Count < 3) {
+						if (players[iClient].iAirdash_Count < 2) {
 							airdash_value = 0;
 						}
 					}
