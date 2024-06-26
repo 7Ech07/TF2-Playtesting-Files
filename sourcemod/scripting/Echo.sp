@@ -229,7 +229,7 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 	}
 	
 	// Medic
-	if (StrEqual(class, "tf_weapon_minigun")) {	// All Syringe Guns
+	if (StrEqual(class, "tf_weapon_syringegun_medic")) {	// All Syringe Guns
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
 		TF2Items_SetNumAttributes(item1, 2);
@@ -248,7 +248,7 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 		TF2Items_SetAttribute(item1, 2, 797, 0.0); // dmg pierces resists absorbs (removed)
 	}
 	
-		// Scout (includes Engie Pistol)
+	// Scout (includes Engie Pistol)
 	if (StrEqual(class, "tf_weapon_pistol")) {	// All Pistols
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
@@ -822,23 +822,21 @@ public void OnGameFrame() {
 			}
 			
 			// Medic
-			if (TF2_GetPlayerClass(iClient) == TFClass_Medic) {
-				switch(primaryIndex) {
-					// Syringe firing
-					case 17,204,36,412 {
-						if (current == primary) {
-							SetEntPropFloat(iClient, Prop_Send, "m_flItemChargeMeter", 0.0, 0);
-							float lastAttack = GetEntPropFloat(primary, Prop_Send, "m_flLastFireTime");
-							if (lastAttack > g_lastFire[iClient] && g_condFlags[iClient] & TF_CONDFLAG_INFIRE) {
-								g_lastFire[iClient] = lastAttack;
-								float vecAngles[3];
-								GetClientEyeAngles(iClient, vecAngles);
-								Syringe_PrimaryAttack(iClient, primary, vecAngles, primaryIndex);
-							}
+			/*if (TF2_GetPlayerClass(iClient) == TFClass_Medic) {
+				// Syringe firing
+				if (primaryIndex == 17 || primaryIndex == 204 | primaryIndex == 36 | primaryIndex == 412) {
+					if (current == primary) {
+						SetEntPropFloat(iClient, Prop_Send, "m_flItemChargeMeter", 0.0, 0);
+						float lastAttack = GetEntPropFloat(primary, Prop_Send, "m_flLastFireTime");
+						if (lastAttack > g_lastFire[iClient] && g_condFlags[iClient] & TF_CONDFLAG_INFIRE) {
+							g_lastFire[iClient] = lastAttack;
+							float vecAngles[3];
+							GetClientEyeAngles(iClient, vecAngles);
+							Syringe_PrimaryAttack(iClient, primary, vecAngles, primaryIndex);
 						}
 					}
 				}
-			}
+			}*/
 		}
 	}
 }
@@ -925,7 +923,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 			}
 			
 			// Medic
-			else if (primaryIndex == 1153) {		// Is the primary a Syringe Gun
+			else if (primaryIndex == 17 || primaryIndex == 204 | primaryIndex == 36 | primaryIndex == 412) {		// Is the primary a Syringe Gun
 				if (iPrimary != -1) {
 					if (iActive != weapon) {		// Are we switching weapons?
 						int iAmmoTable = FindSendPropInfo("CTFWeaponBase", "m_iClip1");
