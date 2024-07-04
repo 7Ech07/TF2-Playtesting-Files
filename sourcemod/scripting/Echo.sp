@@ -123,6 +123,18 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 		TF2Items_SetAttribute(item1, 3, 1, 1.0); // damage penalty (removed)
 	}
 	
+	// Soldier	
+	if (index == 414) {	// Liberty Launcher
+		item1 = TF2Items_CreateItem(0);
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 5);
+		TF2Items_SetAttribute(item1, 0, 1, 1.0); // damage penalty (removed)
+		TF2Items_SetAttribute(item1, 1, 4, 1.0); // clip size bonus (removed)
+		TF2Items_SetAttribute(item1, 2, 5, 1.3); // fire rate penalty (30%)
+		TF2Items_SetAttribute(item1, 3, 58, 1.2); // self dmg push force increased (20%)
+		TF2Items_SetAttribute(item1, 4, 135, 0.7); // rocket jump damage reduction (30%)
+	}
+	
 	// Pyro
 	if (StrEqual(class, "tf_weapon_flamethrower") && (index != 594) && (index != 30474) && (index != 741)) {	// All Flamethrowers (except Nostromo Napalmer)
 		item1 = TF2Items_CreateItem(0);
@@ -1093,9 +1105,22 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 		if (weapon > 0) {		// Prevents us attempting to process data from e.g. Sentry Guns and causing errors
 			GetEntityClassname(weapon, class, sizeof(class));		// Retrieve the weapon
 			
+			// Soldier
+			if (GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") == 414) {
+				// Liberty Launcher no ramp-up-fall-off
+				if (!(damage_type & DMG_CRIT)) {
+					if (fDistance < 512.0) {
+						fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.25, 0.75);		// Generates a proportion from 1.25 to 1.0 depending on distance (from 0 to 512 HU)
+					}
+					else fDmgMod = 1.0;
+				}
+				damage = damage / fDmgMod;		// Removes ramp-up multiplier
+				return Plugin_Changed;
+			}
+			
 			// Pyro
 			// Flamethrower rebuild
-			if(StrEqual(class, "tf_weapon_flamethrower") && (damage_type & DMG_IGNITE) && !(damage_type & DMG_BLAST)) {
+			else if(StrEqual(class, "tf_weapon_flamethrower") && (damage_type & DMG_IGNITE) && !(damage_type & DMG_BLAST)) {
 				//recreate flamethrower damage scaling, code inpsired by NotnHeavy
 				//base damage plus any bonus
 				/*Address bonus = TF2Attrib_GetByDefIndex(weapon, 2);
