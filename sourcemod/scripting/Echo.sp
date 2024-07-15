@@ -935,7 +935,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 			}
 			
 			// Medic
-			else if (primaryIndex == 17 || primaryIndex == 204 | primaryIndex == 36 | primaryIndex == 412) {		// Is the primary a Syringe Gun
+			if (primaryIndex == 17 || primaryIndex == 204 | primaryIndex == 36 | primaryIndex == 412) {		// Is the primary a Syringe Gun
 				if (iPrimary != -1) {
 					if (iActive != weapon) {		// Are we switching weapons?
 						int iAmmoTable = FindSendPropInfo("CTFWeaponBase", "m_iClip1");
@@ -1184,7 +1184,7 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 						fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);
 					}
 				}
-				damage *= 3.0 * fDmgMod;
+				damage *= 9.0 * fDmgMod;
 				damage_type = (damage_type & ~DMG_IGNITE);
 				return Plugin_Changed;
 			}
@@ -1249,8 +1249,9 @@ Action AutoreloadSyringe(Handle timer, int client) {
 	int ammoCount = GetEntProp(client, Prop_Data, "m_iAmmo", _, primaryAmmo);
 	
 	if (clip < 25 && ammoCount > 0) {
-		SetEntProp(client, Prop_Data, "m_iAmmo", ammoCount - 25 , _, primaryAmmo);
-		SetEntData(iPrimary, iAmmoTable, 2, 4, true);
+		SetEntProp(client, Prop_Data, "m_iAmmo", ammoCount - (25 - clip) , _, primaryAmmo);
+		SetEntData(iPrimary, iAmmoTable, 25, 4, true);
+		EmitSoundToClient(client, "weapons/widow_maker_pump_action_back.wav");
 	}
 	return Plugin_Handled;
 }
