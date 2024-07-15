@@ -11,6 +11,8 @@
 
 #pragma newdecls required
 
+#define TF_DMG_CUSTOM_BACKSTAB 2
+
 
 	// -={ Stock functions -- taken from Valve themselves }=-
 	// https://github.com/ValveSoftware/source-sdk-2013/blob/master/sp/src/public/mathlib/mathlib.h#L648s
@@ -39,12 +41,23 @@ float RemapValClamped( float val, float A, float B, float C, float D)		// Remaps
 public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Handle& item) {
 	Handle item1;
 	
+	// Multi-class
+	if (index == 415) {	// Reserve Shooter
+		item1 = TF2Items_CreateItem(0);
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 4);
+		TF2Items_SetAttribute(item1, 0, 106, 0.8); // weapon spread bonus
+		TF2Items_SetAttribute(item1, 1, 3, 0.33); // clip size penalty (66%)
+		TF2Items_SetAttribute(item1, 2, 114, 0.00); // mod mini-crit airborne (removed; we're handling this internally)
+		TF2Items_SetAttribute(item1, 3, 547, 1.00); // single wep deploy time decreased (removed)
+	}
+	
 	// Scout (includes Engie Pistol)
 	if (StrEqual(class, "tf_weapon_pistol")) {	// All Pistols
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
 		TF2Items_SetNumAttributes(item1, 1);
-		TF2Items_SetAttribute(item1, 0, 106, 0.7); // weapon spread bonus (removed)
+		TF2Items_SetAttribute(item1, 0, 106, 0.7); // weapon spread bonus
 	}
 	
 	// Demoman
@@ -87,6 +100,26 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 		TF2Items_SetAttribute(item1, 1, 206, 0.90); // dmg from melee increased (10% reduction)
 		TF2Items_SetAttribute(item1, 2, 252, 0.90); // damage force reduction (10%)
 		TF2Items_SetAttribute(item1, 3, 676, 0.0); // lose demo charge on damage when charging
+	}
+	
+	// Spy
+	if (index == 525) {	// Diamondback
+		item1 = TF2Items_CreateItem(0);
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 2);
+		TF2Items_SetAttribute(item1, 0, 3, 0.67); // clip size penalty (33%)
+		TF2Items_SetAttribute(item1, 1, 296, 0.00); // sapper kills collect crits (removed)
+	}
+	
+	if (index == 59) {	// Dead Ringer
+		item1 = TF2Items_CreateItem(0);
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 3);
+		TF2Items_SetAttribute(item1, 0, 33, 0.00); // set cloak is feign death (removed)
+		TF2Items_SetAttribute(item1, 1, 83, 1.00); // cloak consume rate decreased (removed)
+		TF2Items_SetAttribute(item1, 2, 84, 1.00); // cloak regen rate increased (removed)
+		TF2Items_SetAttribute(item1, 3, 726, 0.00); // cloak_consume_on_feign_death_activate (removed)
+		TF2Items_SetAttribute(item1, 4, 728, 1.00); // NoCloakWhenCloaked (added; this prevents cloak from ammo while active)
 	}
 }
 
@@ -174,6 +207,10 @@ public void OnGameFrame() {
 				
 				int melee = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Melee, true);
 				
+				int iWatch = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Building, true);
+				int watchIndex = -1;
+				if(iWatch > 0) watchIndex = GetEntProp(iWatch, Prop_Send, "m_iItemDefinitionIndex");
+				
 				int current = GetEntPropEnt(iClient, Prop_Send, "m_hActiveWeapon");
 				
 				// Hitscan accuracy
@@ -184,7 +221,7 @@ public void OnGameFrame() {
 				}
 				players[iClient].iHitscan_Ammo = clip;
 				
-				// Clamping
+				// > Clamping
 				if (players[iClient].fHitscan_Accuracy > 1.005) {
 					players[iClient].fHitscan_Accuracy = 1.005;
 				}
@@ -228,6 +265,22 @@ public void OnGameFrame() {
 						}
 					}
 				}
+				
+				// Spy
+				if (TF2_GetPlayerClass(iClient) == TFClass_Spy) {
+					// Dead Ringer
+					if (watchIndex == 59) {
+						if (TF2_IsPlayerInCondition(iClient, TFCond_Cloaked) == true) {
+							TF2_AddCondition(iClient, TFCond_SpeedBuffAlly, 0.015, 0);		// Repeatedly adds a 1-frame speed buff while cloaked (this is a hackjob, but hopefully it works)
+							TF2Attrib_SetByDefIndex(iWatch, 205, 0.75);		// Add resistance (25% resist stacks with cloak base 20% to give 40%)
+							TF2Attrib_SetByDefIndex(iWatch, 206, 0.75);
+						}
+						else {
+							TF2Attrib_SetByDefIndex(iWatch, 205, 1.0);		// Remove resistance
+							TF2Attrib_SetByDefIndex(iWatch, 206, 1.0);
+						}
+					}
+				}
 			}
 		}
 	}
@@ -254,6 +307,13 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 			}
 		}
 	}
+	
+	// Diamondback
+	if () {
+		if (damagecustom = TF_DMG_CUSTOM_BACKSTAB) {
+			
+		}
+	}
 	return Plugin_Continue;
 }
 
@@ -277,7 +337,8 @@ public Action Event_PlayerDeath(Event event, const char[] cName, bool dontBroadc
 			int melee = TF2Util_GetPlayerLoadoutEntity(attacker, TFWeaponSlot_Melee, true);		// Exclude melee weapons since this is already handled by the game
 			int meleeIndex = -1;
 			if(melee >= 0) meleeIndex = GetEntProp(melee, Prop_Send, "m_iItemDefinitionIndex");
-	
+			
+			// Tide Turner
 			if (secondaryIndex == 1099 && (weaponIndex != meleeIndex) || inflict == secondary) {		// Tide Turner
 				float meter = GetEntPropFloat(attacker, Prop_Send,"m_flChargeMeter");
 				if (meter + 75.0 > 100) meter = 100.0;
@@ -298,11 +359,29 @@ public Action Event_PlayerDeath(Event event, const char[] cName, bool dontBroadc
 	return Plugin_Continue;
 }
 
-public void updateShield(DataPack pack)
-{
+public void updateShield(DataPack pack) {
 	pack.Reset();
-	int client = pack.ReadCell();
-	float meter = pack.ReadFloat();
+	int iClient = pack.ReadCell();
+	float fMeter = pack.ReadFloat();
 	
-	SetEntPropFloat(client, Prop_Send,"m_flChargeMeter",meter);
+	SetEntPropFloat(iClient, Prop_Send, "m_flChargeMeter", fMeter);
+}
+
+
+	// -={ Dead Ringer cloak drain on use }=-
+
+public void TF2_OnConditionAdded(int iClient, TFCond Condition) {
+
+	float fCloak;
+
+	int iWatch = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Building, true);
+	int watchIndex = -1;
+	if(iWatch > 0) watchIndex = GetEntProp(iWatch, Prop_Send, "m_iItemDefinitionIndex");
+	
+	if (watchIndex == 59) {
+		if (TF2_IsPlayerInCondition(iClient, TFCond_Cloaked)) {
+			iCloak = GetEntPropFloat(iClient, Prop_Send, "m_flCloakMeter");
+			SetEntPropFloat(iClient, Prop_Send, "m_flCloakMeter", iCloak / 2);
+		}
+	}
 }
