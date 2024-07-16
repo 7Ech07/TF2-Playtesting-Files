@@ -11,7 +11,7 @@
 
 #pragma newdecls required
 
-#define TF_DMG_CUSTOM_BACKSTAB 2
+#define TF_DMG_CUSTOM_BACKSTAB 2		// Used for detecting backstabs
 
 
 	// -={ Stock functions -- taken from Valve themselves }=-
@@ -45,11 +45,12 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 	if (index == 415) {	// Reserve Shooter
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 4);
-		TF2Items_SetAttribute(item1, 0, 106, 0.8); // weapon spread bonus
+		TF2Items_SetNumAttributes(item1, 5);
+		TF2Items_SetAttribute(item1, 0, 106, 0.8); // weapon spread bonus (20%)
 		TF2Items_SetAttribute(item1, 1, 3, 0.33); // clip size penalty (66%)
 		TF2Items_SetAttribute(item1, 2, 114, 0.00); // mod mini-crit airborne (removed; we're handling this internally)
 		TF2Items_SetAttribute(item1, 3, 547, 1.00); // single wep deploy time decreased (removed)
+		TF2Items_SetAttribute(item1, 4, 1, 0.90); // damage penalty (10%)
 	}
 	
 	// Scout (includes Engie Pistol)
@@ -99,10 +100,20 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 		TF2Items_SetAttribute(item1, 0, 205, 0.90); // dmg from ranged reduced (10% reduction)
 		TF2Items_SetAttribute(item1, 1, 206, 0.90); // dmg from melee increased (10% reduction)
 		TF2Items_SetAttribute(item1, 2, 252, 0.90); // damage force reduction (10%)
-		TF2Items_SetAttribute(item1, 3, 676, 0.0); // lose demo charge on damage when charging
+		TF2Items_SetAttribute(item1, 3, 676, 0.0); // lose demo charge on damage when charging (removed)
 	}
 	
 	// Spy
+	if (index == 460) {	// Enforcer
+		item1 = TF2Items_CreateItem(0);
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 4);
+		TF2Items_SetAttribute(item1, 0, 2, 1.20); // damage bonus (20%)
+		TF2Items_SetAttribute(item1, 1, 5, 1.00); // fire rate penalty (removed
+		TF2Items_SetAttribute(item1, 2, 410, 0.00); // damage bonus while disguised (removed)
+		TF2Items_SetAttribute(item1, 3, 797, 0.00); // dmg pierces resists absorbs (removed)
+	}
+	
 	if (index == 525) {	// Diamondback
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
@@ -121,6 +132,14 @@ public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Hand
 		TF2Items_SetAttribute(item1, 3, 726, 0.00); // cloak_consume_on_feign_death_activate (removed)
 		TF2Items_SetAttribute(item1, 4, 728, 1.00); // NoCloakWhenCloaked (added; this prevents cloak from ammo while active)
 	}
+
+	
+	if (item1 != null) {
+		item = item1;
+		return Plugin_Changed;
+	}
+	
+	return Plugin_Continue;
 }
 
 
@@ -187,14 +206,19 @@ public Action PlayerSpawn(Handle timer, DataPack dPack) {
 }
 
 
-	// -={ Pistol Dynamic Accuracy; Demo Charge Crits }=-
+	// -={ Iterates every frame }=-
+		// > Detects when shots are fired
+			// Handles dynamic accuracy on Pistol and Revolver
+			// Reduces cloak on Enforcer shot
+		// > Ties Demo charge Crits to the Booties
+		// > Handles Dead Ringer attributes
+		// > Handles Diamondback conditional damage penalty
 
 public void OnGameFrame() {
 	int iClient;		// Index; lets us run through all the players on the server	
 
 	for (iClient = 1; iClient <= MaxClients; iClient++) {
 		if (IsClientInGame(iClient) && IsPlayerAlive(iClient)) {
-			//PrintToChatAll("Accuracy: %f", players[iClient].fHitscan_Accuracy);
 			if (IsClientInGame(iClient) && IsPlayerAlive(iClient)) {
 				
 				int primary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
@@ -207,19 +231,25 @@ public void OnGameFrame() {
 				
 				int melee = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Melee, true);
 				
-				int iWatch = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Building, true);
+				int iWatch = TF2Util_GetPlayerLoadoutEntity(iClient, 6, true);
 				int watchIndex = -1;
 				if(iWatch > 0) watchIndex = GetEntProp(iWatch, Prop_Send, "m_iItemDefinitionIndex");
 				
-				int current = GetEntPropEnt(iClient, Prop_Send, "m_hActiveWeapon");
+				int iCurrent = GetEntPropEnt(iClient, Prop_Send, "m_hActiveWeapon");
 				
 				// Hitscan accuracy
 				int iAmmoTable = FindSendPropInfo("CTFWeaponBase", "m_iClip1");
-				int clip = GetEntData(iSecondary, iAmmoTable, 4);		// We can detect shots by checking ammo changes
-				if (clip == (players[iClient].iHitscan_Ammo - 1)) {		// We update iHitscan_Ammo after this check, so clip will always be 1 lower on frames in which we fire a shot
+				int iClip = GetEntData(iSecondary, iAmmoTable, 4);		// We can detect shots by checking ammo changes
+				if (iClip == (players[iClient].iHitscan_Ammo - 1)) {		// We update iHitscan_Ammo after this check, so iClip will always be 1 lower on frames in which we fire a shot
 					players[iClient].fHitscan_Accuracy += 0.50025;
+					if (secondaryIndex == 460) {	// Enforcer
+						
+						float fCloak;
+						fCloak = GetEntPropFloat(iClient, Prop_Send, "m_flCloakMeter");
+						SetEntPropFloat(iClient, Prop_Send, "m_flCloakMeter", fCloak > 20.0 ? fCloak - 20.0 : 0.0);		// Subtract 20 cloak per shot
+					}
 				}
-				players[iClient].iHitscan_Ammo = clip;
+				players[iClient].iHitscan_Ammo = iClip;
 				
 				// > Clamping
 				if (players[iClient].fHitscan_Accuracy > 1.005) {
@@ -239,6 +269,16 @@ public void OnGameFrame() {
 							TF2Attrib_SetByDefIndex(iSecondary, 106, RemapValClamped(players[iClient].fHitscan_Accuracy, 0.0, 1.005, 0.0001, 0.7));		// Spread bonus
 						}
 					}
+					
+					else if (secondaryIndex == 24 || secondaryIndex == 210 || secondaryIndex == 61 || secondaryIndex == 161 || secondaryIndex == 224 	// Do we have a Revolver equipped?
+					|| secondaryIndex == 460 || secondaryIndex == 525 || secondaryIndex == 1006 || secondaryIndex == 1142 || secondaryIndex == 15011
+					|| secondaryIndex == 15027 || secondaryIndex == 15042 || secondaryIndex == 15051 || secondaryIndex == 15062 || secondaryIndex == 15163
+					|| secondaryIndex == 15063 || secondaryIndex == 15065 || secondaryIndex == 15103 || secondaryIndex == 15128 || secondaryIndex == 15127 || secondaryIndex == 15149) {
+						int time = RoundFloat(players[iClient].fHitscan_Accuracy * 1000);
+						if (time%90 == 0) {		// Only adjust accuracy every so often
+							TF2Attrib_SetByDefIndex(iSecondary, 106, RemapValClamped(players[iClient].fHitscan_Accuracy, 0.0, 1.005, 0.0001, 0.1));		// Spread bonus
+						}
+					}
 				}
 				players[iClient].fHitscan_Accuracy -= 0.015;
 				
@@ -249,35 +289,57 @@ public void OnGameFrame() {
 					
 					// Booties + Tide Turner case
 					if (primaryIndex == 405 || primaryIndex == 608) {
-						if (fCharge < 40.0  && TF2_IsPlayerInCondition(iClient, TFCond_Charging) && current == melee) {		// Are we eligible for a Crit
+						if (fCharge < 40.0  && TF2_IsPlayerInCondition(iClient, TFCond_Charging) && iCurrent == melee) {		// Are we eligible for a Crit?
 							TF2_AddCondition(iClient, TFCond_CritOnFirstBlood, 0.35);		// We want a buffer so we still get Crits if the charge breaks by hitting an enemy
 						}
 					}
 					// Hybrid-knight case
-					else if (fCharge < 40.0  && TF2_IsPlayerInCondition(iClient, TFCond_Charging) && current == melee) {	// If we aren't recieving Crits from an external source, nulify our charge Crit
-						if (!(TF2_IsPlayerInCondition(iClient,TFCond_Kritzkrieged) ||
-							TF2_IsPlayerInCondition(iClient,TFCond_CritOnFirstBlood) ||
-							TF2_IsPlayerInCondition(iClient,TFCond_CritOnWin) ||
-							TF2_IsPlayerInCondition(iClient,TFCond_CritOnFlagCapture) ||
-							TF2_IsPlayerInCondition(iClient,TFCond_CritOnKill) ||
-							TF2_IsPlayerInCondition(iClient,TFCond_CritOnDamage))) {
+					else if (fCharge < 40.0  && TF2_IsPlayerInCondition(iClient, TFCond_Charging) && iCurrent == melee) {	// If we aren't recieving Crits from an external source, nulify our charge Crit
+						if (!(TF2_IsPlayerInCondition(iClient, TFCond_Kritzkrieged) ||
+							TF2_IsPlayerInCondition(iClient, TFCond_CritOnFirstBlood) ||
+							TF2_IsPlayerInCondition(iClient, TFCond_CritOnWin) ||
+							TF2_IsPlayerInCondition(iClient, TFCond_CritOnFlagCapture) ||
+							TF2_IsPlayerInCondition(iClient, TFCond_CritOnKill) ||
+							TF2_IsPlayerInCondition(iClient, TFCond_CritOnDamage))) {
 							TF2Attrib_AddCustomPlayerAttribute(iClient, "crits_become_minicrits", 1.0, 0.45);
 						}
 					}
 				}
 				
 				// Spy
+				// This section needs optimisation
 				if (TF2_GetPlayerClass(iClient) == TFClass_Spy) {
 					// Dead Ringer
 					if (watchIndex == 59) {
 						if (TF2_IsPlayerInCondition(iClient, TFCond_Cloaked) == true) {
 							TF2_AddCondition(iClient, TFCond_SpeedBuffAlly, 0.015, 0);		// Repeatedly adds a 1-frame speed buff while cloaked (this is a hackjob, but hopefully it works)
-							TF2Attrib_SetByDefIndex(iWatch, 205, 0.75);		// Add resistance (25% resist stacks with cloak base 20% to give 40%)
-							TF2Attrib_SetByDefIndex(iWatch, 206, 0.75);
+							TF2Attrib_AddCustomPlayerAttribute(iClient, "dmg from ranged reduced", 0.75);		// Add resistance (25% resist stacks with cloak base 20% to give 40%)
+							TF2Attrib_AddCustomPlayerAttribute(iClient, "dmg from melee increased", 0.75);		// Ranged and melee resistances added separately
 						}
 						else {
-							TF2Attrib_SetByDefIndex(iWatch, 205, 1.0);		// Remove resistance
-							TF2Attrib_SetByDefIndex(iWatch, 206, 1.0);
+							TF2Attrib_AddCustomPlayerAttribute(iClient, "dmg from ranged reduced", 1.0);		// Remove resistance
+							TF2Attrib_AddCustomPlayerAttribute(iClient, "dmg from melee increased", 1.0);
+						}
+					}
+					
+					// Diamondback
+					if (secondaryIndex == 525) {
+						if ((TF2_IsPlayerInCondition(iClient, TFCond_Kritzkrieged) ||		// Are we (Mini-)Crit boosted?
+							TF2_IsPlayerInCondition(iClient, TFCond_CritOnFirstBlood) ||
+							TF2_IsPlayerInCondition(iClient, TFCond_CritOnWin) ||
+							TF2_IsPlayerInCondition(iClient, TFCond_CritOnFlagCapture) ||
+							TF2_IsPlayerInCondition(iClient, TFCond_CritOnKill) ||
+							TF2_IsPlayerInCondition(iClient, TFCond_CritOnDamage) ||
+							TF2_IsPlayerInCondition(iClient, TFCond_CritMmmph) || 
+							TF2_IsPlayerInCondition(iClient, TFCond_MiniCritOnKill) || 
+							TF2_IsPlayerInCondition(iClient, TFCond_Buffed) || 
+							TF2_IsPlayerInCondition(iClient, TFCond_CritCola))) {
+							
+							TF2Attrib_SetByDefIndex(iSecondary, 1, 1.0);		// Remove damage penalty
+						}
+						
+						else {
+							TF2Attrib_SetByDefIndex(iSecondary, 1, 0.85);
 						}
 					}
 				}
@@ -287,9 +349,25 @@ public void OnGameFrame() {
 }
 
 
-	// -={ Removes Tide Turner charge loss from damage }=-
+	// -={ Handles on-hit effects }=-
+		// > Handles Reserve Shooter increased damage to airborne targets
+		// > Prevents Tide Turner charge loss from taking damage
+		// > Grants Mini-Crits on backstab for the Diamondback
 
 public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damage_type, int &weapon, float damageForce[3], float damagePosition[3], int damagecustom) {
+	
+	int iSecondary = TF2Util_GetPlayerLoadoutEntity(attacker, TFWeaponSlot_Secondary, true);
+	int secondaryIndex = -1;
+	if (iSecondary > 0) secondaryIndex = GetEntProp(iSecondary, Prop_Send, "m_iItemDefinitionIndex");
+	
+	// Reserve Shooter
+	if (secondaryIndex == 415) {
+		if (!(GetEntityFlags(victim) & FL_ONGROUND)) {
+			damage *= 1.1;
+			
+			return Plugin_Changed;
+		}
+	}
 	
 	// Tide Turner
 	if (attacker > 0 && attacker <= MaxClients && IsClientInGame(attacker) && victim > 0 && victim <= MaxClients && IsClientInGame(victim)) {
@@ -309,9 +387,9 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 	}
 	
 	// Diamondback
-	if (index == 525) {
+	if (secondaryIndex == 525) {
 		if (damagecustom == TF_DMG_CUSTOM_BACKSTAB) {
-			TF2_AddCondition(iClient, TFCond_CritCola, 5.0, 0);		// The Buff Banner Mini-Crit effect applies its icon, so we're using this instead
+			TF2_AddCondition(attacker, TFCond_CritCola, 5.0, 0);		// The Buff Banner Mini-Crit effect applies its icon, so we're using this instead
 		}
 	}
 	return Plugin_Continue;
@@ -374,14 +452,14 @@ public void TF2_OnConditionAdded(int iClient, TFCond Condition) {
 
 	float fCloak;
 
-	int iWatch = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Building, true);
+	int iWatch = TF2Util_GetPlayerLoadoutEntity(iClient, 6, true);
 	int watchIndex = -1;
 	if(iWatch > 0) watchIndex = GetEntProp(iWatch, Prop_Send, "m_iItemDefinitionIndex");
 	
 	if (watchIndex == 59) {
 		if (TF2_IsPlayerInCondition(iClient, TFCond_Cloaked)) {
-			iCloak = GetEntPropFloat(iClient, Prop_Send, "m_flCloakMeter");
-			SetEntPropFloat(iClient, Prop_Send, "m_flCloakMeter", iCloak / 2);
+			fCloak = GetEntPropFloat(iClient, Prop_Send, "m_flCloakMeter");
+			SetEntPropFloat(iClient, Prop_Send, "m_flCloakMeter", fCloak / 2);
 		}
 	}
 }
