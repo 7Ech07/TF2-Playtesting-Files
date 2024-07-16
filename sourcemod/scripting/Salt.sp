@@ -309,9 +309,9 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 	}
 	
 	// Diamondback
-	if () {
-		if (damagecustom = TF_DMG_CUSTOM_BACKSTAB) {
-			
+	if (index == 525) {
+		if (damagecustom == TF_DMG_CUSTOM_BACKSTAB) {
+			TF2_AddCondition(iClient, TFCond_CritCola, 5.0, 0);		// The Buff Banner Mini-Crit effect applies its icon, so we're using this instead
 		}
 	}
 	return Plugin_Continue;
