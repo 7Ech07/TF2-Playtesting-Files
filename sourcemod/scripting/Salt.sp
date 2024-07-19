@@ -149,6 +149,7 @@ enum struct Player {
 	float fHitscan_Accuracy;		// Tracks dynamic accuracy on hitscan weapons
 	int iHitscan_Ammo;				// Tracks ammo changeon hitscan weapons so we can determine when a shot is fired
 	float fCrit_Status;			// Timer that counts down Crit status after a charge
+	float fJuggle_Timer;			// Timer that counts down after taking explosive damage so we can (hopefully) tell when a player is launched airborne
 }
 
 Player players[MAXPLAYERS+1];
@@ -160,7 +161,9 @@ public void OnClientPutInServer (int iClient) {
 
 
 public void OnPluginStart() {
-	HookEvent("player_death", Event_PlayerDeath);	
+	HookEvent("player_spawn", Event_PlayerSpawn);
+	HookEvent("post_inventory_application", Event_PlayerSpawn);
+	HookEvent("player_death", Event_PlayerDeath);
 }
 
 
@@ -205,6 +208,24 @@ public Action PlayerSpawn(Handle timer, DataPack dPack) {
 	return Plugin_Changed;
 }
 
+
+public Action Event_PlayerDeath(Event event, const char[] cName, bool dontBroadcast) {
+	
+	int attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
+	int victim = event.GetInt("victim_entindex");
+	int weaponIndex = event.GetInt("weapon_def_index");
+	int customKill = event.GetInt("customkill");
+	int inflict = event.GetInt("inflictor_entindex");
+	int iCritType = event.GetInt("crit_type");
+
+	if (IsValidClient(attacker)) {
+		if ((attacker != inflict) && (iCritType == 1)) {		// Mini-Crit kill on another player
+			if (weaponIndex == 415) {
+				TF2Util_TakeHealth(attacker, 50.0);
+			}
+		}
+	}
+}
 
 	// -={ Iterates every frame }=-
 		// > Detects when shots are fired
@@ -281,6 +302,9 @@ public void OnGameFrame() {
 					}
 				}
 				players[iClient].fHitscan_Accuracy -= 0.015;
+				
+				// Reserve Shooter cleanup
+				players[iClient].fJuggle_Timer -= 0.015;
 				
 				// Demoman
 				if (TF2_GetPlayerClass(iClient) == TFClass_DemoMan) {
@@ -361,10 +385,16 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 	if (iSecondary > 0) secondaryIndex = GetEntProp(iSecondary, Prop_Send, "m_iItemDefinitionIndex");
 	
 	// Reserve Shooter
-	if (secondaryIndex == 415) {
+	if ((damage_type & DMG_BLAST) && (TF2_GetClientTeam(victim) != TF2_GetClientTeam(attacker))) {
+		players[victim].fJuggle_Timer == 1.5;		// 1.5 second timer
+	}
+	
+	if (secondaryIndex == 415) {		
 		if (!(GetEntityFlags(victim) & FL_ONGROUND)) {
 			damage *= 1.1;
-			
+			if (players[victim].fJuggle_Timer > 0.0) {		// If our target has been launched into the air by an explosive, apply a Mini-Crit
+				TF2_AddCondition(victim, TFCond_MarkedForDeathSilent, 0.015);
+			}
 			return Plugin_Changed;
 		}
 	}
