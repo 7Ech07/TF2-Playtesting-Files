@@ -38,7 +38,7 @@ float RemapValClamped( float val, float A, float B, float C, float D)		// Remaps
 
 	// -={ Modifies attributes without needing to go through another plugin }=-
 
-public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Handle& item) {
+public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Handle& item) {
 	Handle item1;
 	
 	// Multi-class
@@ -161,6 +161,8 @@ public void OnClientPutInServer (int iClient) {
 
 
 public void OnPluginStart() {
+	// Catalogue of game events
+	// https://wiki.alliedmods.net/Team_Fortress_2_Events
 	HookEvent("player_spawn", Event_PlayerSpawn);
 	HookEvent("post_inventory_application", Event_PlayerSpawn);
 	HookEvent("player_death", Event_PlayerDeath);
@@ -186,7 +188,6 @@ public Action Event_PlayerSpawn(Handle hEvent, const char[] cName, bool dontBroa
 	return Plugin_Changed;
 }
 
-
 public Action PlayerSpawn(Handle timer, DataPack dPack) {
 	dPack.Reset();
 	int iClient = dPack.ReadCell();
@@ -195,9 +196,11 @@ public Action PlayerSpawn(Handle timer, DataPack dPack) {
 
 	if (iClient >= 1 && iClient <= MaxClients) {
 		int primary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
+		
 		int secondary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Secondary, true);
 		int secondaryIndex = -1;
-		if(secondary>0) secondaryIndex = GetEntProp(secondary, Prop_Send, "m_iItemDefinitionIndex");
+		if(secondary > 0) secondaryIndex = GetEntProp(secondary, Prop_Send, "m_iItemDefinitionIndex");
+		
 		int melee = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Melee, true);
 
 		if (secondaryIndex == 406) {		// Splendid Screen
@@ -209,23 +212,63 @@ public Action PlayerSpawn(Handle timer, DataPack dPack) {
 }
 
 
+	// -={ Restores charge on Tide on kills with non-melees }=-
+
 public Action Event_PlayerDeath(Event event, const char[] cName, bool dontBroadcast) {
 	
 	int attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
 	int victim = event.GetInt("victim_entindex");
 	int weaponIndex = event.GetInt("weapon_def_index");
-	int customKill = event.GetInt("customkill");
 	int inflict = event.GetInt("inflictor_entindex");
 	int iCritType = event.GetInt("crit_type");
 
-	if (IsValidClient(attacker)) {
-		if ((attacker != inflict) && (iCritType == 1)) {		// Mini-Crit kill on another player
-			if (weaponIndex == 415) {
-				TF2Util_TakeHealth(attacker, 50.0);
+	if (attacker > 0 && attacker <= MaxClients && IsClientInGame(attacker)) {		// Check that we have good data
+		if (victim != attacker) {		// Make sure if wasn't a finish off or feign
+			int secondary = TF2Util_GetPlayerLoadoutEntity(attacker, TFWeaponSlot_Secondary, true);
+			int secondaryIndex = -1;
+			if (secondary >= 0) {
+				secondaryIndex = GetEntProp(secondary, Prop_Send, "m_iItemDefinitionIndex");
+			}
+			int melee = TF2Util_GetPlayerLoadoutEntity(attacker, TFWeaponSlot_Melee, true);		// Exclude melee weapons since this is already handled by the game
+			int meleeIndex = -1;
+			if(melee >= 0) meleeIndex = GetEntProp(melee, Prop_Send, "m_iItemDefinitionIndex");
+			
+			// Reserve Shooter
+			if ((attacker != victim) && (iCritType == 1)) {		// Mini-Crit kill on another player
+				if (weaponIndex == 415) {
+					TF2Util_TakeHealth(attacker, 50.0);		// Heal on kill
+				}
+			}
+			
+			// Tide Turner
+			if (secondaryIndex == 1099 && (weaponIndex != meleeIndex) || inflict == secondary) {		// Tide Turner
+				float meter = GetEntPropFloat(attacker, Prop_Send,"m_flChargeMeter");
+				if (meter + 75.0 > 100) meter = 100.0;
+				else meter += 75.0;
+
+				if (inflict == secondary) {		// We have to handle shield bash kills on a different frame, otherwise the charge breaking immediately undoes everything
+					DataPack pack = new DataPack();
+					pack.Reset();
+					pack.WriteCell(attacker);
+					pack.WriteFloat(meter);
+					RequestFrame(updateShield,pack);
+				}
+
+				SetEntPropFloat(attacker, Prop_Send, "m_flChargeMeter", meter);		// Updates charge meter
 			}
 		}
 	}
+	return Plugin_Continue;
 }
+
+public void updateShield(DataPack pack) {
+	pack.Reset();
+	int iClient = pack.ReadCell();
+	float fMeter = pack.ReadFloat();
+	
+	SetEntPropFloat(iClient, Prop_Send, "m_flChargeMeter", fMeter);
+}
+
 
 	// -={ Iterates every frame }=-
 		// > Detects when shots are fired
@@ -301,10 +344,9 @@ public void OnGameFrame() {
 						}
 					}
 				}
-				players[iClient].fHitscan_Accuracy -= 0.015;
-				
-				// Reserve Shooter cleanup
-				players[iClient].fJuggle_Timer -= 0.015;
+				if (players[iClient].fJuggle_Timer > 0.0) {
+					players[iClient].fJuggle_Timer -= 0.015;
+				}
 				
 				// Demoman
 				if (TF2_GetPlayerClass(iClient) == TFClass_DemoMan) {
@@ -386,14 +428,21 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 	
 	// Reserve Shooter
 	if ((damage_type & DMG_BLAST) && (TF2_GetClientTeam(victim) != TF2_GetClientTeam(attacker))) {
-		players[victim].fJuggle_Timer == 1.5;		// 1.5 second timer
+		players[victim].fJuggle_Timer = 1.5;		// 1.5 second timer
 	}
 	
-	if (secondaryIndex == 415) {		
-		if (!(GetEntityFlags(victim) & FL_ONGROUND)) {
-			damage *= 1.1;
-			if (players[victim].fJuggle_Timer > 0.0) {		// If our target has been launched into the air by an explosive, apply a Mini-Crit
-				TF2_AddCondition(victim, TFCond_MarkedForDeathSilent, 0.015);
+	if (weapon > 0) {		// Prevents us attempting to process data from e.g. Sentry Guns and causing errors
+		char class[64];
+		GetEntityClassname(weapon, class, sizeof(class));		// Retrieve the weapon
+		if (GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") == 415) {
+			if (!(GetEntityFlags(victim) & FL_ONGROUND)) {
+				PrintToChatAll("Before Damage: %f", damage); 
+				damage *= 1.11;
+				PrintToChatAll("After Damage: %f", damage); 
+				if (players[victim].fJuggle_Timer > 0.0) {		// If our target has been launched into the air by an explosive, apply a Mini-Crit
+					TF2_AddCondition(victim, TFCond_MarkedForDeathSilent, 0.001, 0);	
+					PrintToChatAll("Mini-Crit");
+				}
 			}
 			return Plugin_Changed;
 		}
@@ -423,56 +472,6 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 		}
 	}
 	return Plugin_Continue;
-}
-
-
-	// -={ Restores charge on Tide on kills with non-melees }=-
-
-public Action Event_PlayerDeath(Event event, const char[] cName, bool dontBroadcast) {
-	int attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
-
-	int victim = event.GetInt("victim_entindex");
-	int weaponIndex = event.GetInt("weapon_def_index");
-	int inflict = event.GetInt("inflictor_entindex");
-
-	if (attacker > 0 && attacker <= MaxClients && IsClientInGame(attacker)) {		// Check that we have good data
-		if (victim != attacker) {		// Make sure if wasn't a finish off or feign
-			int secondary = TF2Util_GetPlayerLoadoutEntity(attacker, TFWeaponSlot_Secondary, true);
-			int secondaryIndex = -1;
-			if (secondary >= 0) {
-				secondaryIndex = GetEntProp(secondary, Prop_Send, "m_iItemDefinitionIndex");
-			}
-			int melee = TF2Util_GetPlayerLoadoutEntity(attacker, TFWeaponSlot_Melee, true);		// Exclude melee weapons since this is already handled by the game
-			int meleeIndex = -1;
-			if(melee >= 0) meleeIndex = GetEntProp(melee, Prop_Send, "m_iItemDefinitionIndex");
-			
-			// Tide Turner
-			if (secondaryIndex == 1099 && (weaponIndex != meleeIndex) || inflict == secondary) {		// Tide Turner
-				float meter = GetEntPropFloat(attacker, Prop_Send,"m_flChargeMeter");
-				if (meter + 75.0 > 100) meter = 100.0;
-				else meter += 75.0;
-
-				if (inflict == secondary) {		// We have to handle shield bash kills on a different frame, otherwise the charge breaking immediately undoes everything
-					DataPack pack = new DataPack();
-					pack.Reset();
-					pack.WriteCell(attacker);
-					pack.WriteFloat(meter);
-					RequestFrame(updateShield,pack);
-				}
-
-				SetEntPropFloat(attacker, Prop_Send, "m_flChargeMeter", meter);		// Updates charge meter
-			}
-		}
-	}
-	return Plugin_Continue;
-}
-
-public void updateShield(DataPack pack) {
-	pack.Reset();
-	int iClient = pack.ReadCell();
-	float fMeter = pack.ReadFloat();
-	
-	SetEntPropFloat(iClient, Prop_Send, "m_flChargeMeter", fMeter);
 }
 
 
