@@ -11,11 +11,19 @@
 
 #pragma newdecls required
 
+#define DMG_MELEE DMG_BLAST_SURFACE		// Used for the Atomizer
 #define TF_DMG_CUSTOM_BACKSTAB 2		// Used for detecting backstabs
 
 
 	// -={ Stock functions -- taken from Valve themselves }=-
 	// https://github.com/ValveSoftware/source-sdk-2013/blob/master/sp/src/public/mathlib/mathlib.h#L648s
+
+float SimpleSpline(float value) {		// Takes a value from 0-1 and modifies it using the ramp-up-fall-off function
+	float valueSquared = value * value;
+
+	// Spline curve -- equation y = 3x^2 - 2x^3
+	return (3 * valueSquared - 2 * valueSquared * value);
+}
 
 float clamp(float val, float minVal, float maxVal) {		// Used in the following function to clamp values for SimpleSpline
 	if (maxVal < minVal) {return maxVal;}
@@ -33,6 +41,22 @@ float RemapValClamped( float val, float A, float B, float C, float D)		// Remaps
 	cVal = clamp(cVal, 0.0, 1.0);
 
 	return C + (D - C) * cVal;
+}
+
+float SimpleSplineRemapValClamped(float val, float A, float B, float C, float D) {		// Remaps val from the A-B range to the C-D range, and applies SimpleSpline
+	if (A == B) {
+		return val >= B ? D : C;
+	}
+	float cVal = (val - A) / (B - A);
+	cVal = clamp( cVal, 0.0, 1.0 );
+	return C + (D - C) * SimpleSpline(cVal);
+}
+
+
+	// -={ Precaches audio }=-
+
+public void OnMapStart() {
+	PrecacheSound("misc/banana_slip.wav", true);
 }
 
 
@@ -59,6 +83,15 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
 		TF2Items_SetNumAttributes(item1, 1);
 		TF2Items_SetAttribute(item1, 0, 106, 0.7); // weapon spread bonus
+	}
+	
+	if (index == 450) {	// Atomizer
+		item1 = TF2Items_CreateItem(0);
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 3);
+		TF2Items_SetAttribute(item1, 0, 1, 1.0); // damage penalty (removed)
+		TF2Items_SetAttribute(item1, 1, 250, 0.0); // air dash count (disabled; we're handling this manually)
+		TF2Items_SetAttribute(item1, 2, 773, 1.0); // single wep deploy time increased (removed)
 	}
 	
 	// Demoman
@@ -150,6 +183,7 @@ enum struct Player {
 	int iHitscan_Ammo;				// Tracks ammo changeon hitscan weapons so we can determine when a shot is fired
 	float fCrit_Status;			// Timer that counts down Crit status after a charge
 	float fJuggle_Timer;			// Timer that counts down after taking explosive damage so we can (hopefully) tell when a player is launched airborne
+	int iAirdash_Count;			// Tracks the number of double jumps performed by an Atomizer-wielder
 }
 
 Player players[MAXPLAYERS+1];
@@ -220,7 +254,7 @@ public Action Event_PlayerDeath(Event event, const char[] cName, bool dontBroadc
 	int victim = event.GetInt("victim_entindex");
 	int weaponIndex = event.GetInt("weapon_def_index");
 	int inflict = event.GetInt("inflictor_entindex");
-	int iCritType = event.GetInt("crit_type");
+	//int iCritType = event.GetInt("crit_type");
 
 	if (attacker > 0 && attacker <= MaxClients && IsClientInGame(attacker)) {		// Check that we have good data
 		if (victim != attacker) {		// Make sure if wasn't a finish off or feign
@@ -234,7 +268,7 @@ public Action Event_PlayerDeath(Event event, const char[] cName, bool dontBroadc
 			if(melee >= 0) meleeIndex = GetEntProp(melee, Prop_Send, "m_iItemDefinitionIndex");
 			
 			// Reserve Shooter
-			if ((attacker != victim) && (iCritType == 1)) {		// Mini-Crit kill on another player
+			if ((attacker != victim) && (players[victim].fJuggle_Timer > 0.0)) {		// Mini-Crit kill on another player
 				if (weaponIndex == 415) {
 					TF2Util_TakeHealth(attacker, 50.0);		// Heal on kill
 				}
@@ -294,6 +328,8 @@ public void OnGameFrame() {
 				if(iSecondary > 0) secondaryIndex = GetEntProp(iSecondary, Prop_Send, "m_iItemDefinitionIndex");
 				
 				int melee = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Melee, true);
+				int meleeIndex = -1;
+				if(melee > 0) meleeIndex = GetEntProp(melee, Prop_Send, "m_iItemDefinitionIndex");
 				
 				int iWatch = TF2Util_GetPlayerLoadoutEntity(iClient, 6, true);
 				int watchIndex = -1;
@@ -346,6 +382,42 @@ public void OnGameFrame() {
 				}
 				if (players[iClient].fJuggle_Timer > 0.0) {
 					players[iClient].fJuggle_Timer -= 0.015;
+				}
+				
+				// Scout
+				if (TF2_GetPlayerClass(iClient) == TFClass_Scout) {
+					// Atomizer
+					if (meleeIndex == 450) {
+					
+						int airdash_value = GetEntProp(iClient, Prop_Send, "m_iAirDash");
+						if (airdash_value > 0) {		// Did we double jump this frame?
+							
+							players[iClient].iAirdash_Count++;		// Count the double jump
+							
+							if (players[iClient].iAirdash_Count >= 1) {
+								EmitSoundToAll("misc/banana_slip.wav", iClient, SNDCHAN_AUTO, 30, (SND_CHANGEVOL|SND_CHANGEPITCH), 1.0, 100);
+								if (players[iClient].iAirdash_Count == 1) {		// Deal damage to us when double jumping
+									SDKHooks_TakeDamage(iClient, iClient, iClient, 18.0, (DMG_MELEE|DMG_PREVENT_PHYSICS_FORCE), melee, NULL_VECTOR, NULL_VECTOR);	// This does 15 damage (no, I don't know why)
+								}
+							}
+						}
+						
+						else {
+							if ((GetEntityFlags(iClient) & FL_ONGROUND) != 0) {		// Reset the jump count when grounded
+								players[iClient].iAirdash_Count = 0;
+							}
+						}
+						
+						if (airdash_value >= 1) {		// Reset the double jump variable to 0 if we haven't maxed out our double jumps yet
+							if (players[iClient].iAirdash_Count < 2) {
+								airdash_value = 0;
+							}
+						}
+						
+						if (airdash_value != GetEntProp(iClient, Prop_Send, "m_iAirDash")) {
+							SetEntProp(iClient, Prop_Send, "m_iAirDash", airdash_value);
+						}
+					}
 				}
 				
 				// Demoman
@@ -436,12 +508,24 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 		GetEntityClassname(weapon, class, sizeof(class));		// Retrieve the weapon
 		if (GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") == 415) {
 			if (!(GetEntityFlags(victim) & FL_ONGROUND)) {
-				PrintToChatAll("Before Damage: %f", damage); 
-				damage *= 1.11;
-				PrintToChatAll("After Damage: %f", damage); 
+				//PrintToChatAll("Before Damage: %f", damage); 
+				//damage *= 1.11;
+				
+				// We're doing this awfulness in the hopes that it makes the Mini-Crit actually work
+				float vecAttacker[3];
+				float vecVictim[3];
+				float fDmgMod;
+				GetEntPropVector(attacker, Prop_Send, "m_vecOrigin", vecAttacker);		// Gets attacker position
+				GetEntPropVector(victim, Prop_Send, "m_vecOrigin", vecVictim);		// Gets defender position
+				float fDistance = GetVectorDistance(vecAttacker, vecVictim, false);		// Distance calculation
+				fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);		// Gives us our distance multiplier
+				damage = damage * fDmgMod * 1.1;
+				damage_type |= DMG_CRIT;
+				
+				//PrintToChatAll("After Damage: %f", damage); 
 				if (players[victim].fJuggle_Timer > 0.0) {		// If our target has been launched into the air by an explosive, apply a Mini-Crit
 					TF2_AddCondition(victim, TFCond_MarkedForDeathSilent, 0.001, 0);	
-					PrintToChatAll("Mini-Crit");
+					//PrintToChatAll("Mini-Crit");
 				}
 			}
 			return Plugin_Changed;
