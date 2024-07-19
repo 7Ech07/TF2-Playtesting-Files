@@ -87,7 +87,7 @@ public void OnMapStart() {
 
 	// -={ Modifies attributes without needing to go through another plugin }=-
 
-public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Handle& item) {
+public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Handle& item) {
 	Handle item1;
 	
 	// Multi-class
@@ -856,24 +856,24 @@ public void OnGameFrame() {
 
 	// -={ Preps Airblast jump and backpack reloads }=-
 
-public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3], float angles[3], int& weapon, int& subtype, int& cmdnum, int& tickcount, int& seed, int mouse[2]) {
-	if (client >= 1 && client <= MaxClients) {
+public Action OnPlayerRunCmd(int iClient, int& buttons, int& impulse, float vel[3], float angles[3], int& weapon, int& subtype, int& cmdnum, int& tickcount, int& seed, int mouse[2]) {
+	if (iClient >= 1 && iClient <= MaxClients) {
 		bool buttonsModified = false;
 		if (weapon > 0) {
 			
-			int iPrimary = TF2Util_GetPlayerLoadoutEntity(client, TFWeaponSlot_Primary, true);		// Retrieve the primary weapon
+			int iPrimary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);		// Retrieve the primary weapon
 			int primaryIndex = -1;
 			if(iPrimary >= 0) primaryIndex = GetEntProp(iPrimary, Prop_Send, "m_iItemDefinitionIndex");		// Retrieve the primary weapon index for later
 			
-			int iSecondary = TF2Util_GetPlayerLoadoutEntity(client, TFWeaponSlot_Secondary, true);		// Retrieve the secondary weapon
+			int iSecondary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Secondary, true);		// Retrieve the secondary weapon
 			int secondaryIndex = -1;
 			if(iSecondary >= 0) secondaryIndex = GetEntProp(iSecondary, Prop_Send, "m_iItemDefinitionIndex");		// Retrieve the primary weapon index for later
 			
-			int iActive = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");		// Retrieve the active weapon
-			int clientFlags = GetEntityFlags(client);
+			int iActive = GetEntPropEnt(iClient, Prop_Send, "m_hActiveWeapon");		// Retrieve the active weapon
+			int iClientFlags = GetEntityFlags(iClient);
 			
 			// Pyro
-			if (TF2_GetPlayerClass(client) == TFClass_Pyro) {
+			if (TF2_GetPlayerClass(iClient) == TFClass_Pyro) {
 
 				char class[64];
 				GetEntityClassname(iPrimary, class, sizeof(class));		// Retrieve the weapon
@@ -881,29 +881,29 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 				if ((StrEqual(class, "tf_weapon_flamethrower")) || (StrEqual(class, "tf_weapon_rocketlauncher_fireball"))) {		// Are we holding an Airblast-capable weapon?
 					int weaponState = GetEntProp(iPrimary, Prop_Send, "m_iWeaponState");
 					float vecVel[3];
-					GetEntPropVector(client, Prop_Data, "m_vecVelocity", vecVel);		// Retrieve existing velocity
+					GetEntPropVector(iClient, Prop_Data, "m_vecVelocity", vecVel);		// Retrieve existing velocity
 					if (weaponState == 3) {		// Did we do an Airblast? (FT_STATE_SECONDARY = 3)
 						if (primaryIndex == 30474 || primaryIndex == 741) {		// Nostromo Napalmer
-							if (players[client].fPressure >= 1.0) {
-								players[client].fPressure = 0.0;
+							if (players[iClient].fPressure >= 1.0) {
+								players[iClient].fPressure = 0.0;
 							}
 						}
 						else if (primaryIndex != 1178) {		// Not Napalmer or Dragon's Fury
-							if (players[client].fPressure < 1.0) {		// If we don't have enough pressure, cancel
-								g_TrueLastButtons[client] = buttons;
+							if (players[iClient].fPressure < 1.0) {		// If we don't have enough pressure, cancel
+								g_TrueLastButtons[iClient] = buttons;
 								buttonsModified = true;
 								buttons &= ~IN_ATTACK2;
 							}
 							else {
-								players[client].fPressure -= 1.0;
-								players[client].fPressureCD = 0.75;
+								players[iClient].fPressure -= 1.0;
+								players[iClient].fPressureCD = 0.75;
 							}
 						}
 					
-						if ((vecVel[2] != 0 && !(clientFlags & FL_ONGROUND))) {		// Are we airborne?
-							if (players[client].AirblastJumpCD == true) {
-								AirblastJump(client);
-								players[client].AirblastJumpCD = false;		// Prevent Airblast jump from triggering multiple times in one Airblast
+						if ((vecVel[2] != 0 && !(iClientFlags & FL_ONGROUND))) {		// Are we airborne?
+							if (players[iClient].AirblastJumpCD == true) {
+								AirblastJump(iClient);
+								players[iClient].AirblastJumpCD = false;		// Prevent Airblast jump from triggering multiple times in one Airblast
 							}
 						}
 					}
@@ -911,7 +911,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 			}
 			
 			// Sniper
-			else if (TF2_GetPlayerClass(client) == TFClass_Sniper) {
+			else if (TF2_GetPlayerClass(iClient) == TFClass_Sniper) {
 				//PrintToChatAll("Sniper");
 				
 				// Huntsman passive reload
@@ -923,10 +923,10 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 							int clip = GetEntData(iPrimary, iAmmoTable, 4);		// Retrieve the loaded ammo of our primary
 							
 							int primaryAmmo = GetEntProp(iPrimary, Prop_Send, "m_iPrimaryAmmoType");
-							int ammoCount = GetEntProp(client, Prop_Data, "m_iAmmo", _, primaryAmmo);		// Retrieve the reserve primary ammo
+							int ammoCount = GetEntProp(iClient, Prop_Data, "m_iAmmo", _, primaryAmmo);		// Retrieve the reserve primary ammo
 							
 							if (clip == 0 && ammoCount > 0 && weapon != 0 && weapon != iPrimary) {		// weapon is the weapon we swap to; check if we're swapping to something other than the bow
-								SetEntProp(client, Prop_Data, "m_iAmmo", ammoCount-1 , _, primaryAmmo);		// Subtract reserve ammo
+								SetEntProp(iClient, Prop_Data, "m_iAmmo", ammoCount-1 , _, primaryAmmo);		// Subtract reserve ammo
 								SetEntData(iPrimary, iAmmoTable, 1, 4, true);		// Add loaded ammo
 							}
 						}
@@ -942,10 +942,10 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 						int clip = GetEntData(iPrimary, iAmmoTable, 4);		// Retrieve the loaded ammo of our primary
 						
 						int primaryAmmo = GetEntProp(iPrimary, Prop_Send, "m_iPrimaryAmmoType");
-						int ammoCount = GetEntProp(client, Prop_Data, "m_iAmmo", _, primaryAmmo);		// Retrieve the reserve primary ammo
+						int ammoCount = GetEntProp(iClient, Prop_Data, "m_iAmmo", _, primaryAmmo);		// Retrieve the reserve primary ammo
 						
 						if (clip < 25 && ammoCount > 0) {		// weapon is the weapon we swap to; check if we're swapping to something other than the PA
-							CreateTimer(1.6, AutoreloadSyringe, client);
+							CreateTimer(1.6, AutoreloadSyringe, iClient);
 						}
 					}
 					if (iActive != iPrimary) {		// Are we holding our primary?
@@ -953,10 +953,10 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 						int clip = GetEntData(iPrimary, iAmmoTable, 4);		// Retrieve the loaded ammo of our primary
 						
 						int primaryAmmo = GetEntProp(iPrimary, Prop_Send, "m_iPrimaryAmmoType");
-						int ammoCount = GetEntProp(client, Prop_Data, "m_iAmmo", _, primaryAmmo);		// Retrieve the reserve primary ammo
+						int ammoCount = GetEntProp(iClient, Prop_Data, "m_iAmmo", _, primaryAmmo);		// Retrieve the reserve primary ammo
 						
 						if (clip < 25 && ammoCount > 0) {		// weapon is the weapon we swap to; check if we're swapping to something other than the PA
-							CreateTimer(1.6, AutoreloadSyringe, client);
+							CreateTimer(1.6, AutoreloadSyringe, iClient);
 						}
 					}
 				}
@@ -970,10 +970,10 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 						int clip = GetEntData(iSecondary, iAmmoTable, 4);		// Retrieve the loaded ammo of our secondary
 						
 						int primaryAmmo = GetEntProp(iSecondary, Prop_Send, "m_iPrimaryAmmoType");
-						int ammoCount = GetEntProp(client, Prop_Data, "m_iAmmo", _, primaryAmmo);		// Retrieve the reserve secondary ammo
+						int ammoCount = GetEntProp(iClient, Prop_Data, "m_iAmmo", _, primaryAmmo);		// Retrieve the reserve secondary ammo
 						
 						if (clip < 2 && ammoCount > 0) {
-							CreateTimer(2.0, AutoreloadSecondary, client);
+							CreateTimer(2.0, AutoreloadSecondary, iClient);
 						}
 					}
 					if (iActive != iSecondary) {		// Are we holding our secondary?
@@ -981,10 +981,10 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 						int clip = GetEntData(iSecondary, iAmmoTable, 4);		// Retrieve the loaded ammo of our secondary
 						
 						int primaryAmmo = GetEntProp(iSecondary, Prop_Send, "m_iPrimaryAmmoType");
-						int ammoCount = GetEntProp(client, Prop_Data, "m_iAmmo", _, primaryAmmo);		// Retrieve the reserve secondary ammo
+						int ammoCount = GetEntProp(iClient, Prop_Data, "m_iAmmo", _, primaryAmmo);		// Retrieve the reserve secondary ammo
 						
 						if (clip < 2 && ammoCount > 0) {
-							CreateTimer(2.0, AutoreloadSecondary, client);
+							CreateTimer(2.0, AutoreloadSecondary, iClient);
 						}
 					}
 				}
@@ -996,10 +996,10 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 						int clip = GetEntData(iPrimary, iAmmoTable, 4);		// Retrieve the loaded ammo of our primary
 						
 						int primaryAmmo = GetEntProp(iPrimary, Prop_Send, "m_iPrimaryAmmoType");
-						int ammoCount = GetEntProp(client, Prop_Data, "m_iAmmo", _, primaryAmmo);		// Retrieve the reserve primary ammo
+						int ammoCount = GetEntProp(iClient, Prop_Data, "m_iAmmo", _, primaryAmmo);		// Retrieve the reserve primary ammo
 						
 						if (clip < 2 && ammoCount > 0) {		// weapon is the weapon we swap to; check if we're swapping to something other than the PA
-							CreateTimer(2.0, AutoreloadPrimary, client);
+							CreateTimer(2.0, AutoreloadPrimary, iClient);
 						}
 					}
 					if (iActive != iPrimary) {		// Are we holding our primary?
@@ -1007,17 +1007,17 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 						int clip = GetEntData(iPrimary, iAmmoTable, 4);		// Retrieve the loaded ammo of our primary
 						
 						int primaryAmmo = GetEntProp(iPrimary, Prop_Send, "m_iPrimaryAmmoType");
-						int ammoCount = GetEntProp(client, Prop_Data, "m_iAmmo", _, primaryAmmo);		// Retrieve the reserve primary ammo
+						int ammoCount = GetEntProp(iClient, Prop_Data, "m_iAmmo", _, primaryAmmo);		// Retrieve the reserve primary ammo
 						
 						if (clip < 2 && ammoCount > 0) {		// weapon is the weapon we swap to; check if we're swapping to something other than the PA
-							CreateTimer(2.0, AutoreloadPrimary, client);
+							CreateTimer(2.0, AutoreloadPrimary, iClient);
 						}
 					}
 				}
 			}
 		}
-		g_LastButtons[client] = buttons;
-		if(!buttonsModified) g_TrueLastButtons[client] = buttons;
+		g_LastButtons[iClient] = buttons;
+		if(!buttonsModified) g_TrueLastButtons[iClient] = buttons;
 	}
 	
 	return Plugin_Continue;
@@ -1026,11 +1026,11 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 
 	// -={ Performs the Airblast jump }=-
 
-void AirblastJump(int client) {
+void AirblastJump(int iClient) {
 	//PrintToChatAll("jump successful");
 	float vecAngle[3], vecVel[3], fRedirect, fBuffer, vecBuffer[3];
-	GetClientEyeAngles(client, vecAngle);		// Identify where we're looking
-	GetEntPropVector(client, Prop_Data, "m_vecVelocity", vecVel);		// Retrieve existing velocity
+	GetClientEyeAngles(iClient, vecAngle);		// Identify where we're looking
+	GetEntPropVector(iClient, Prop_Data, "m_vecVelocity", vecVel);		// Retrieve existing velocity
 	
 	float vecForce[3];
 	vecForce[0] = -Cosine(vecAngle[1] * 0.01745329) * Cosine(vecAngle[0] * 0.01745329);		// We are facing straight down the X axis when pitch and yaw are both 0; Cos(0) is 1
@@ -1060,7 +1060,7 @@ void AirblastJump(int client) {
 	AddVectors(vecVel, vecForce, vecForce);		// Add the Airblast push force to our velocity
 	//AddVectors(vecProjection, vecForce, vecForce); This bit is terrible
 	
-	TeleportEntity(client, NULL_VECTOR, NULL_VECTOR, vecForce);		// Sets the Pyro's momentum to the appropriate value
+	TeleportEntity(iClient, NULL_VECTOR, NULL_VECTOR, vecForce);		// Sets the Pyro's momentum to the appropriate value
 
 	return;
 }
@@ -1234,9 +1234,9 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 }
 
 
-Action AutoreloadSyringe(Handle timer, int client) {
-	int iActive = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");		// Recheck everything so we don't perform the autoreload if the weapon is out
-	int iPrimary = TF2Util_GetPlayerLoadoutEntity(client, TFWeaponSlot_Primary, true);
+Action AutoreloadSyringe(Handle timer, int iClient) {
+	int iActive = GetEntPropEnt(iClient, Prop_Send, "m_hActiveWeapon");		// Recheck everything so we don't perform the autoreload if the weapon is out
+	int iPrimary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
 	
 	if (iActive == iPrimary) {
 		return Plugin_Handled;
@@ -1246,12 +1246,12 @@ Action AutoreloadSyringe(Handle timer, int client) {
 	int clip = GetEntData(iPrimary, iAmmoTable, 4);
 	
 	int primaryAmmo = GetEntProp(iPrimary, Prop_Send, "m_iPrimaryAmmoType");
-	int ammoCount = GetEntProp(client, Prop_Data, "m_iAmmo", _, primaryAmmo);
+	int ammoCount = GetEntProp(iClient, Prop_Data, "m_iAmmo", _, primaryAmmo);
 	
 	if (clip < 25 && ammoCount > 0) {
-		SetEntProp(client, Prop_Data, "m_iAmmo", ammoCount - (25 - clip) , _, primaryAmmo);
+		SetEntProp(iClient, Prop_Data, "m_iAmmo", ammoCount - (25 - clip) , _, primaryAmmo);
 		SetEntData(iPrimary, iAmmoTable, 25, 4, true);
-		EmitSoundToClient(client, "weapons/widow_maker_pump_action_back.wav");
+		EmitSoundToClient(iClient, "weapons/widow_maker_pump_action_back.wav");
 	}
 	return Plugin_Handled;
 }
@@ -1259,9 +1259,9 @@ Action AutoreloadSyringe(Handle timer, int client) {
 
 	// -={ Panic Attack passive autoreload }=-
 
-Action AutoreloadPrimary(Handle timer, int client) {
-	int iActive = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");		// Recheck everything so we don't perform the autoreload if the PA is out
-	int iPrimary = TF2Util_GetPlayerLoadoutEntity(client, TFWeaponSlot_Primary, true);
+Action AutoreloadPrimary(Handle timer, int iClient) {
+	int iActive = GetEntPropEnt(iClient, Prop_Send, "m_hActiveWeapon");		// Recheck everything so we don't perform the autoreload if the PA is out
+	int iPrimary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
 	
 	if (iActive == iPrimary) {
 		return Plugin_Handled;
@@ -1271,19 +1271,19 @@ Action AutoreloadPrimary(Handle timer, int client) {
 	int clip = GetEntData(iPrimary, iAmmoTable, 4);
 	
 	int primaryAmmo = GetEntProp(iPrimary, Prop_Send, "m_iPrimaryAmmoType");
-	int ammoCount = GetEntProp(client, Prop_Data, "m_iAmmo", _, primaryAmmo);
+	int ammoCount = GetEntProp(iClient, Prop_Data, "m_iAmmo", _, primaryAmmo);
 	
 	if (clip < 2 && ammoCount > 0) {
-		SetEntProp(client, Prop_Data, "m_iAmmo", ammoCount - 2 , _, primaryAmmo);
+		SetEntProp(iClient, Prop_Data, "m_iAmmo", ammoCount - 2 , _, primaryAmmo);
 		SetEntData(iPrimary, iAmmoTable, 2, 4, true);
-		EmitSoundToClient(client, "weapons/widow_maker_pump_action_back.wav");
+		EmitSoundToClient(iClient, "weapons/widow_maker_pump_action_back.wav");
 	}
 	return Plugin_Handled;
 }
 
-Action AutoreloadSecondary(Handle timer, int client) {
-	int iActive = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
-	int iSecondary = TF2Util_GetPlayerLoadoutEntity(client, TFWeaponSlot_Secondary, true);
+Action AutoreloadSecondary(Handle timer, int iClient) {
+	int iActive = GetEntPropEnt(iClient, Prop_Send, "m_hActiveWeapon");
+	int iSecondary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Secondary, true);
 	
 	if (iActive == iSecondary) {
 		return Plugin_Handled;
@@ -1293,12 +1293,12 @@ Action AutoreloadSecondary(Handle timer, int client) {
 	int clip = GetEntData(iSecondary, iAmmoTable, 4);
 	
 	int primaryAmmo = GetEntProp(iSecondary, Prop_Send, "m_iPrimaryAmmoType");
-	int ammoCount = GetEntProp(client, Prop_Data, "m_iAmmo", _, primaryAmmo);
+	int ammoCount = GetEntProp(iClient, Prop_Data, "m_iAmmo", _, primaryAmmo);
 	
 	if (clip < 2 && ammoCount > 0) {
-		SetEntProp(client, Prop_Data, "m_iAmmo", ammoCount - 2 , _, primaryAmmo);
+		SetEntProp(iClient, Prop_Data, "m_iAmmo", ammoCount - 2 , _, primaryAmmo);
 		SetEntData(iSecondary, iAmmoTable, 2, 4, true);
-		EmitSoundToClient(client, "weapons/widow_maker_pump_action_back.wav");
+		EmitSoundToClient(iClient, "weapons/widow_maker_pump_action_back.wav");
 	}
 	return Plugin_Handled;
 }
@@ -1564,9 +1564,9 @@ bool isMiniKritzed(int client,int victim=-1) {
 }
 
 
-stock bool IsValidClient(int client, bool replaycheck = true) {
-	if (client <= 0 || client > MaxClients) return false;
-	if (!IsClientInGame(client)) return false;
+stock bool IsValidClient(int iClient, bool replaycheck = true) {
+	if (iClient <= 0 || iClient > MaxClients) return false;
+	if (!IsClientInGame(iClient)) return false;
 	return true;
 }
 

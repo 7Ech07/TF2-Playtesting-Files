@@ -76,11 +76,11 @@ public void OnPluginStart() {
 }
 
 
-public void OnClientPutInServer(int client) {
-	SDKHook(client, SDKHook_OnTakeDamage, OnTakeDamage);
-	SDKHook(client, SDKHook_TraceAttack, TraceAttack);
+public void OnClientPutInServer(int iClient) {
+	SDKHook(iClient, SDKHook_OnTakeDamage, OnTakeDamage);
+	SDKHook(iClient, SDKHook_TraceAttack, TraceAttack);
 	
-	players[client].iHeads  = 0;
+	players[iClient].iHeads  = 0;
 }
 
 
@@ -91,7 +91,7 @@ public void OnMapStart() {
 
 	// -={ Modifies attributes }=-
 
-public Action TF2Items_OnGiveNamedItem(int client, char[] class, int index, Handle& item) {
+public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Handle& item) {
 	Handle item1;
 	
 	// Scout
@@ -342,25 +342,25 @@ Action TraceAttack(int victim, int& attacker, int& inflictor, float& damage, int
 	// -={ Resets variables on death; sets Spy's collision hull }=-
 	
 Action OnGameEvent(Event event, const char[] name, bool dontbroadcast) {
-	int client;
+	int iClient;
 	
 	if (StrEqual(name, "player_spawn")) {
-		client = GetClientOfUserId(GetEventInt(event, "userid"));
-		if (IsPlayerAlive(client)) {
+		iClient = GetClientOfUserId(GetEventInt(event, "userid"));
+		if (IsPlayerAlive(iClient)) {
 			
-			players[client].iHeads = 0;
-			players[client].fBleed_Timer = 0.0;
-			players[client].fBoosting = 0.0;
+			players[iClient].iHeads = 0;
+			players[iClient].fBleed_Timer = 0.0;
+			players[iClient].fBoosting = 0.0;
 			
-			if (TF2_GetPlayerClass(client) == TFClass_Spy) {		// Shrink Spy's colision hull
+			if (TF2_GetPlayerClass(iClient) == TFClass_Spy) {		// Shrink Spy's colision hull
 				// Normal collision hull dimensions are 49, 49 83
 				// Or mins { -24.5, -24.5, 0.0 } maxs { 24.5, 24.5, 83.0 }
-				SetEntPropVector(client, Prop_Send, "m_vecSpecifiedSurroundingMins", {-18.375, -18.375, 0.0});
-				SetEntPropVector(client, Prop_Send, "m_vecSpecifiedSurroundingMaxs", {18.375, 18.375, 83.0});
+				SetEntPropVector(iClient, Prop_Send, "m_vecSpecifiedSurroundingMins", {-18.375, -18.375, 0.0});
+				SetEntPropVector(iClient, Prop_Send, "m_vecSpecifiedSurroundingMaxs", {18.375, 18.375, 83.0});
 			}
 			else {
-				SetEntPropVector(client, Prop_Send, "m_vecSpecifiedSurroundingMins", {-24.5, -24.5, 0.0});
-				SetEntPropVector(client, Prop_Send, "m_vecSpecifiedSurroundingMaxs", {24.5, 24.5, 83.0});
+				SetEntPropVector(iClient, Prop_Send, "m_vecSpecifiedSurroundingMins", {-24.5, -24.5, 0.0});
+				SetEntPropVector(iClient, Prop_Send, "m_vecSpecifiedSurroundingMaxs", {24.5, 24.5, 83.0});
 			}
 		}
 	}
@@ -623,9 +623,9 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 
 	// -={ SMG Autoreload }=-
 
-void SMG_Autoreload(int client) {
+void SMG_Autoreload(int iClient) {
 	
-	int iSecondary = TF2Util_GetPlayerLoadoutEntity(client, TFWeaponSlot_Secondary, true);		// Retrieve the seconadry weapon
+	int iSecondary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Secondary, true);		// Retrieve the seconadry weapon
 	
 	char class[64];
 	GetEntityClassname(iSecondary, class, sizeof(class));		// Retrieve the weapon
@@ -636,13 +636,13 @@ void SMG_Autoreload(int client) {
 		int ammoSubtract = 25 - clip;		// Don't take away more ammo than is nessesary
 		
 		int secondaryAmmo = GetEntProp(iSecondary, Prop_Send, "m_iPrimaryAmmoType");
-		int ammoCount = GetEntProp(client, Prop_Data, "m_iAmmo", _, secondaryAmmo);		// Retrieve the reserve secondary ammo
+		int ammoCount = GetEntProp(iClient, Prop_Data, "m_iAmmo", _, secondaryAmmo);		// Retrieve the reserve secondary ammo
 		
 		if (clip < 25 && ammoCount > 0) {
 			if (ammoCount < 25) {		// Don't take away more ammo than we actually have
 				ammoSubtract = ammoCount;
 			}
-			SetEntProp(client, Prop_Data, "m_iAmmo", ammoCount - ammoSubtract, _, secondaryAmmo);		// Subtract reserve ammo
+			SetEntProp(iClient, Prop_Data, "m_iAmmo", ammoCount - ammoSubtract, _, secondaryAmmo);		// Subtract reserve ammo
 			SetEntData(iSecondary, iAmmoTable, 25, 4, true);		// Add loaded ammo
 		}
 	}
