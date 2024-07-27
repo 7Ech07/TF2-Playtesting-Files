@@ -237,9 +237,21 @@ public Action PlayerSpawn(Handle timer, DataPack dPack) {
 		
 		int melee = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Melee, true);
 
-		if (secondaryIndex == 406) {		// Splendid Screen
+		if (secondaryIndex == 131) {		// Splendid Screen
 			TF2Attrib_SetByDefIndex(primary, 6, 0.85); // fire rate bonus (15%)
 			TF2Attrib_SetByDefIndex(melee, 6, 0.85); // fire rate bonus (15%)
+			TF2Attrib_SetByDefIndex(secondary, 205, 0.85); // ranged resist
+			TF2Attrib_SetByDefIndex(secondary, 206, 0.85); // melee resist
+		}
+		
+		if (secondaryIndex == 406) {		// Chargin' Targe
+			TF2Attrib_SetByDefIndex(secondary, 205, 0.75); // ranged resist
+			TF2Attrib_SetByDefIndex(secondary, 206, 0.75); // melee resist
+		}
+		
+		if (secondaryIndex == 1099) {		// Tide Turner
+			TF2Attrib_SetByDefIndex(secondary, 205, 0.90); // ranged resist
+			TF2Attrib_SetByDefIndex(secondary, 206, 0.90); // melee resist
 		}
 	}
 	return Plugin_Changed;
@@ -492,7 +504,7 @@ public void OnGameFrame() {
 
 public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damage_type, int &weapon, float damageForce[3], float damagePosition[3], int damagecustom) {
 	
-	if (IsClientInGame(attacker) && IsPlayerAlive(attacker) && IsClientInGame(victim) && IsPlayerAlive(victim)) {
+	if (IsClientInGame(attacker) && IsPlayerAlive(attacker) && IsClientInGame(victim)) {
 	
 		int iSecondary = TF2Util_GetPlayerLoadoutEntity(attacker, TFWeaponSlot_Secondary, true);
 		int secondaryIndex = -1;
@@ -557,6 +569,8 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 		}
 		return Plugin_Continue;
 	}
+	
+	return Plugin_Continue;
 }
 
 
