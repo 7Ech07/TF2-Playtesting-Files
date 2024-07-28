@@ -158,7 +158,7 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 	if (index == 59) {	// Dead Ringer
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 3);
+		TF2Items_SetNumAttributes(item1, 5);
 		TF2Items_SetAttribute(item1, 0, 33, 0.00); // set cloak is feign death (removed)
 		TF2Items_SetAttribute(item1, 1, 83, 1.00); // cloak consume rate decreased (removed)
 		TF2Items_SetAttribute(item1, 2, 84, 1.00); // cloak regen rate increased (removed)
