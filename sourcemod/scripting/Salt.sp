@@ -158,12 +158,12 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 	if (index == 59) {	// Dead Ringer
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 5);
+		TF2Items_SetNumAttributes(item1, 4);
 		TF2Items_SetAttribute(item1, 0, 33, 0.00); // set cloak is feign death (removed)
 		TF2Items_SetAttribute(item1, 1, 83, 1.00); // cloak consume rate decreased (removed)
 		TF2Items_SetAttribute(item1, 2, 84, 1.00); // cloak regen rate increased (removed)
 		TF2Items_SetAttribute(item1, 3, 726, 0.00); // cloak_consume_on_feign_death_activate (removed)
-		TF2Items_SetAttribute(item1, 4, 728, 1.00); // NoCloakWhenCloaked (added; this prevents cloak from ammo while active)
+		TF2Items_SetAttribute(item1, 4, 810, 0.00); // NoCloakWhenCloaked (added; this prevents cloak from ammo while active)
 	}
 
 	
@@ -462,10 +462,12 @@ public void OnGameFrame() {
 				if (watchIndex == 59) {
 					if (TF2_IsPlayerInCondition(iClient, TFCond_Cloaked) == true) {
 						TF2_AddCondition(iClient, TFCond_SpeedBuffAlly, 0.015, 0);		// Repeatedly adds a 1-frame speed buff while cloaked (this is a hackjob, but hopefully it works)
+						TF2Attrib_SetByDefIndex(iWatch, 726, 1.00);
 						TF2Attrib_AddCustomPlayerAttribute(iClient, "dmg from ranged reduced", 0.75);		// Add resistance (25% resist stacks with cloak base 20% to give 40%)
 						TF2Attrib_AddCustomPlayerAttribute(iClient, "dmg from melee increased", 0.75);		// Ranged and melee resistances added separately
 					}
 					else {
+						TF2Attrib_SetByDefIndex(iWatch, 726, 0.00);
 						TF2Attrib_AddCustomPlayerAttribute(iClient, "dmg from ranged reduced", 1.0);		// Remove resistance
 						TF2Attrib_AddCustomPlayerAttribute(iClient, "dmg from melee increased", 1.0);
 					}
