@@ -163,7 +163,7 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 		TF2Items_SetAttribute(item1, 1, 83, 1.00); // cloak consume rate decreased (removed)
 		TF2Items_SetAttribute(item1, 2, 84, 1.00); // cloak regen rate increased (removed)
 		TF2Items_SetAttribute(item1, 3, 726, 0.00); // cloak_consume_on_feign_death_activate (removed)
-		TF2Items_SetAttribute(item1, 4, 810, 0.00); // NoCloakWhenCloaked (added; this prevents cloak from ammo while active)
+		TF2Items_SetAttribute(item1, 4, 810, 0); // NoCloakWhenCloaked (added; this prevents cloak from ammo while active)
 	}
 
 	
