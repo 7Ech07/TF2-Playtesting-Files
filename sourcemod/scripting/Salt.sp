@@ -94,6 +94,19 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 		TF2Items_SetAttribute(item1, 2, 773, 1.0); // single wep deploy time increased (removed)
 	}
 	
+	// Soldier
+	if (index == 414) {	// Liberty Launcher
+		item1 = TF2Items_CreateItem(0);
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 4);
+		TF2Items_SetAttribute(item1, 0, 1, 0.8); // damage penalty (20%)
+		TF2Items_SetAttribute(item1, 1, 4, 1.0); // clip size penalty (removed)
+		TF2Items_SetAttribute(item1, 2, 199, 0.8); // switch from wep deploy time decreased (20%)
+		TF2Items_SetAttribute(item1, 3, 58, 1.25); // self dmg push force increased
+		TF2Items_SetAttribute(item1, 4, 103, 1.0); // projectile speed increased (removed)
+		TF2Items_SetAttribute(item1, 5, 135, 0.67); // rocket jump damage reduction (33%)
+	}
+	
 	// Demoman
 	if (index == 405 || index == 608) {	// Ali Baba's Wee Booties (& Bootlegger)
 		item1 = TF2Items_CreateItem(0);
@@ -239,12 +252,18 @@ public Action PlayerSpawn(Handle timer, DataPack dPack) {
 
 	if (iClient >= 1 && iClient <= MaxClients) {
 		int primary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
+		int primaryIndex = -1;
+		if(primary > 0) primaryIndex = GetEntProp(primary, Prop_Send, "m_iItemDefinitionIndex");
 		
 		int secondary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Secondary, true);
 		int secondaryIndex = -1;
 		if(secondary > 0) secondaryIndex = GetEntProp(secondary, Prop_Send, "m_iItemDefinitionIndex");
 		
 		int melee = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Melee, true);
+
+		if (primaryIndex == 414) {		// Liberty Launcher
+			TF2Attrib_SetByDefIndex(secondary, 319, 1.2); // increase buff duration
+		}
 
 		if (secondaryIndex == 131) {		// Splendid Screen
 			TF2Attrib_SetByDefIndex(primary, 6, 0.85); // fire rate bonus (15%)
@@ -554,6 +573,13 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 						//PrintToChatAll("Mini-Crit");
 					}
 				}
+				return Plugin_Changed;
+			}
+			
+			// Liberty Launcher
+			else if (GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") == 414) {
+				damageForce *= 1.2
+				
 				return Plugin_Changed;
 			}
 		}
