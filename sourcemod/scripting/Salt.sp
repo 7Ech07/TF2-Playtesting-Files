@@ -155,15 +155,23 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 		TF2Items_SetAttribute(item1, 1, 296, 0.00); // sapper kills collect crits (removed)
 	}
 	
-	if (index == 59) {	// Dead Ringer
+	/*if (index == 59) {	// Dead Ringer
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 4);
+		TF2Items_SetNumAttributes(item1, 5);
 		TF2Items_SetAttribute(item1, 0, 33, 0.00); // set cloak is feign death (removed)
 		TF2Items_SetAttribute(item1, 1, 83, 1.00); // cloak consume rate decreased (removed)
 		TF2Items_SetAttribute(item1, 2, 84, 1.00); // cloak regen rate increased (removed)
 		TF2Items_SetAttribute(item1, 3, 726, 0.00); // cloak_consume_on_feign_death_activate (removed)
 		TF2Items_SetAttribute(item1, 4, 810, 0); // NoCloakWhenCloaked (added; this prevents cloak from ammo while active)
+	}*/
+
+	if (index == 59) {	// Dead Ringer
+		item1 = TF2Items_CreateItem(0);
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 2);
+		TF2Items_SetAttribute(item1, 0, 728, 1.00); // NoCloakWhenCloaked (added; this prevents cloak from ammo while active)
+		TF2Items_SetAttribute(item1, 1, 83, 0.67); // NoCloakWhenCloaked (added; this prevents cloak from ammo while active)
 	}
 
 	
@@ -184,6 +192,7 @@ enum struct Player {
 	float fCrit_Status;			// Timer that counts down Crit status after a charge
 	float fJuggle_Timer;			// Timer that counts down after taking explosive damage so we can (hopefully) tell when a player is launched airborne
 	int iAirdash_Count;			// Tracks the number of double jumps performed by an Atomizer-wielder
+	float fDR_Timer;			// Prevents the DR from accidentally draining 75% cloak
 }
 
 Player players[MAXPLAYERS+1];
@@ -394,6 +403,9 @@ public void OnGameFrame() {
 			if (players[iClient].fJuggle_Timer > 0.0) {
 				players[iClient].fJuggle_Timer -= 0.015;
 			}
+			if (players[iClient].fDR_Timer > 0.0) {
+				players[iClient].fDR_Timer -= 0.015;
+			}
 			
 			// Scout
 			if (TF2_GetPlayerClass(iClient) == TFClass_Scout) {
@@ -462,12 +474,12 @@ public void OnGameFrame() {
 				if (watchIndex == 59) {
 					if (TF2_IsPlayerInCondition(iClient, TFCond_Cloaked) == true) {
 						TF2_AddCondition(iClient, TFCond_SpeedBuffAlly, 0.015, 0);		// Repeatedly adds a 1-frame speed buff while cloaked (this is a hackjob, but hopefully it works)
-						TF2Attrib_SetByDefIndex(iWatch, 726, 1.00);
+						//TF2Attrib_SetByDefIndex(iWatch, 726, 1.00);
 						TF2Attrib_AddCustomPlayerAttribute(iClient, "dmg from ranged reduced", 0.75);		// Add resistance (25% resist stacks with cloak base 20% to give 40%)
 						TF2Attrib_AddCustomPlayerAttribute(iClient, "dmg from melee increased", 0.75);		// Ranged and melee resistances added separately
 					}
 					else {
-						TF2Attrib_SetByDefIndex(iWatch, 726, 0.00);
+						//TF2Attrib_SetByDefIndex(iWatch, 726, 0.00);
 						TF2Attrib_AddCustomPlayerAttribute(iClient, "dmg from ranged reduced", 1.0);		// Remove resistance
 						TF2Attrib_AddCustomPlayerAttribute(iClient, "dmg from melee increased", 1.0);
 					}
@@ -587,9 +599,10 @@ public void TF2_OnConditionAdded(int iClient, TFCond Condition) {
 	if(iWatch > 0) watchIndex = GetEntProp(iWatch, Prop_Send, "m_iItemDefinitionIndex");
 	
 	if (watchIndex == 59) {
-		if (TF2_IsPlayerInCondition(iClient, TFCond_Cloaked)) {
+		if (TF2_IsPlayerInCondition(iClient, TFCond_Cloaked) && players[iClient].fDR_Timer == 0.0) {
 			fCloak = GetEntPropFloat(iClient, Prop_Send, "m_flCloakMeter");
 			SetEntPropFloat(iClient, Prop_Send, "m_flCloakMeter", fCloak / 2);
+			players[iClient].fDR_Timer = 1.005;		// Put a 1-second 'cooldown' on this effect just in case
 		}
 	}
 }
