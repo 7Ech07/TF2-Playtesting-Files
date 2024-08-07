@@ -241,6 +241,23 @@ public Action Event_PlayerSpawn(Handle hEvent, const char[] cName, bool dontBroa
 	SetCommandFlags("r_screenoverlay", GetCommandFlags("r_screenoverlay") & ~FCVAR_CHEAT);
 	ClientCommand(iClient, "r_screenoverlay \"\"");
 	SetCommandFlags("r_screenoverlay", GetCommandFlags("r_screenoverlay") | FCVAR_CHEAT);
+	
+	// Dead Ringer
+	// We're including this in here because this function triggers when we touch a cabinet, and we want to prevent an exploit
+	if (TF2_GetPlayerClass(iClient) == TFClass_Spy) {
+
+		int iWatch = TF2Util_GetPlayerLoadoutEntity(iClient, 6, true);
+		int watchIndex = -1;
+		if(iWatch > 0) watchIndex = GetEntProp(iWatch, Prop_Send, "m_iItemDefinitionIndex");
+		
+		if (watchIndex == 59) {
+			if (TF2_IsPlayerInCondition(iClient, TFCond_Cloaked)) {
+				SetEntPropFloat(iClient, Prop_Send, "m_flCloakMeter", 50.0);
+				players[iClient].fDR_Timer = 1.005;		// Reset the timer on the proper cloak drain function just in case
+			}
+		}	
+	}
+	
 	return Plugin_Changed;
 }
 
@@ -308,7 +325,7 @@ public Action Event_PlayerDeath(Event event, const char[] cName, bool dontBroadc
 			if(melee >= 0) meleeIndex = GetEntProp(melee, Prop_Send, "m_iItemDefinitionIndex");
 			
 			// Reserve Shooter
-			if ((attacker != victim) && (players[victim].fJuggle_Timer > 0.0)) {		// Mini-Crit kill on another player
+			if ((attacker != victim) && (players[victim].fJuggle_Timer > 0.0)) {		// Kill on juggled player
 				if (weaponIndex == 415) {
 					TF2Util_TakeHealth(attacker, 50.0);		// Heal on kill
 				}
@@ -335,7 +352,7 @@ public Action Event_PlayerDeath(Event event, const char[] cName, bool dontBroadc
 	return Plugin_Continue;
 }
 
-public void updateShield(DataPack pack) {
+public void updateShield(DataPack pack) {		// Recives the datapack from the Tide Turner function and evalutates
 	pack.Reset();
 	int iClient = pack.ReadCell();
 	float fMeter = pack.ReadFloat();
@@ -420,7 +437,13 @@ public void OnGameFrame() {
 				}
 			}
 			if (players[iClient].fJuggle_Timer > 0.0) {
-				players[iClient].fJuggle_Timer -= 0.015;
+				if ((GetEntityFlags(iClient) & FL_ONGROUND) != 0) {		// Reset this when grounded for increased accuracy and reduced computational load
+					players[iClient].fJuggle_Timer = 0.0;
+				}
+				
+				else {
+					players[iClient].fJuggle_Timer -= 0.015;
+				}
 			}
 			if (players[iClient].fDR_Timer > 0.0) {
 				players[iClient].fDR_Timer -= 0.015;
@@ -545,7 +568,7 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 		
 		// Reserve Shooter
 		if ((damage_type & DMG_BLAST) && (TF2_GetClientTeam(victim) != TF2_GetClientTeam(attacker))) {
-			players[victim].fJuggle_Timer = 1.5;		// 1.5 second timer
+			players[victim].fJuggle_Timer = 3.0;		// 3.0 second timer (overcompensatingly long, but we want to catch any possible edge cases)
 		}
 		
 		if (weapon > 0) {		// Prevents us attempting to process data from e.g. Sentry Guns and causing errors
