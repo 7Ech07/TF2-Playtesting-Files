@@ -383,9 +383,9 @@ public void OnGameFrame() {
 	for (iClient = 1; iClient <= MaxClients; iClient++) {
 		if (IsClientInGame(iClient) && IsPlayerAlive(iClient)) {
 				
-			int primary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
+			int iPrimary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
 			int primaryIndex = -1;
-			if(primary > 0) primaryIndex = GetEntProp(primary, Prop_Send, "m_iItemDefinitionIndex");
+			if(iPrimary > 0) primaryIndex = GetEntProp(iPrimary, Prop_Send, "m_iItemDefinitionIndex");
 			
 			int iSecondary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Secondary, true);
 			int secondaryIndex = -1;
@@ -625,8 +625,10 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 			}
 			
 			// Liberty Launcher
-			else if (GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") == 414) {
-				damageForce *= 1.2
+			else if (GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") == 414) {		// Increased knockback
+				damageForce[0] *= 1.2;
+				damageForce[1] *= 1.2;
+				damageForce[2] *= 1.2;
 				
 				return Plugin_Changed;
 			}
@@ -693,7 +695,6 @@ public void OnEntityCreated(int iEnt, const char[] classname) {
 }
 
 Action ManglerSpawn(int iEnt) {
-	char class[64];
 	int iClient;
 	int iPrimary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);		// Retrieve the primary weapon
 	int primaryIndex = -1;
