@@ -106,11 +106,15 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 		TF2Items_SetAttribute(item1, 4, 208, 1.0); // Set DamageType Ignite (afterburn duration not configurable)
 	}
 	
-	if (index == 441) {
+	if (index == 441) {	// Cow Mangler 5000
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
 		TF2Items_SetNumAttributes(item1, 4);
-		TF2Items_SetAttribute(item1, 0, 1, 0.8); // damage penalty (20%)
+		TF2Items_SetAttribute(item1, 0, 282, 0.0); // energy weapon charged shot (disabled)
+		TF2Items_SetAttribute(item1, 1, 284, 1.0); // energy weappn no hurt buildings (disabled)
+		TF2Items_SetAttribute(item1, 2, 6, 0.1125); // fire rate bonus (0.09 firing interval when not charged)
+		TF2Items_SetAttribute(item1, 3, 775, 0.5); // dmg penalty vs buildings (50%)
+		TF2Items_SetAttribute(item1, 4, 208, 1.0); // Set DamageType Ignite (afterburn duration not configurable)
 	}
 	
 	// Demoman
