@@ -9,6 +9,8 @@
 #include <tf2utils>
 #include <tf2attributes>
 
+#include <dhooks>
+
 #pragma newdecls required
 
 #define DMG_MELEE DMG_BLAST_SURFACE		// Used for the Atomizer
@@ -57,6 +59,7 @@ float SimpleSplineRemapValClamped(float val, float A, float B, float C, float D)
 
 public void OnMapStart() {
 	PrecacheSound("misc/banana_slip.wav", true);
+	PrecacheSound("weapons/widow_maker_pump_action_back.wav", true);
 }
 
 
@@ -98,21 +101,22 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 	if (index == 414) {	// Liberty Launcher
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 3);
-		TF2Items_SetAttribute(item1, 0, 282, 0.0); // energy weapon charged shot (disabled)
-		TF2Items_SetAttribute(item1, 1, 284, 1.0); // energy weappn no hurt buildings (disabled)
-		TF2Items_SetAttribute(item1, 2, 6, 0.1125); // fire rate bonus (0.09 firing interval when not charged)
-		TF2Items_SetAttribute(item1, 3, 775, 0.5); // dmg penalty vs buildings (50%)
-		TF2Items_SetAttribute(item1, 4, 208, 1.0); // Set DamageType Ignite (afterburn duration not configurable)
+		TF2Items_SetNumAttributes(item1, 6);
+		TF2Items_SetAttribute(item1, 0, 1, 0.8); // damage penalty (20%)
+		TF2Items_SetAttribute(item1, 1, 4, 1.0); // clip size penalty (removed)
+		TF2Items_SetAttribute(item1, 2, 199, 0.8); // switch from wep deploy time decreased (20%)
+		TF2Items_SetAttribute(item1, 3, 58, 1.25); // self dmg push force increased
+		TF2Items_SetAttribute(item1, 4, 103, 1.0); // projectile speed increased (removed)
+		TF2Items_SetAttribute(item1, 5, 135, 0.67); // rocket jump damage reduction (33%)
 	}
 	
 	if (index == 441) {	// Cow Mangler 5000
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 4);
+		TF2Items_SetNumAttributes(item1, 5);
 		TF2Items_SetAttribute(item1, 0, 282, 0.0); // energy weapon charged shot (disabled)
 		TF2Items_SetAttribute(item1, 1, 284, 1.0); // energy weappn no hurt buildings (disabled)
-		TF2Items_SetAttribute(item1, 2, 6, 0.1125); // fire rate bonus (0.09 firing interval when not charged)
+		TF2Items_SetAttribute(item1, 2, 6, 0.125); // fire rate bonus (0.09 firing interval when not charged)
 		TF2Items_SetAttribute(item1, 3, 775, 0.5); // dmg penalty vs buildings (50%)
 		TF2Items_SetAttribute(item1, 4, 208, 1.0); // Set DamageType Ignite (afterburn duration not configurable)
 	}
@@ -499,18 +503,24 @@ public void OnGameFrame() {
 			
 			// Soldier
 			if (TF2_GetPlayerClass(iClient) == TFClass_Soldier) {
-				if (players[iClient].fMangler_Charge_Expiry > 0.0) {		// After we fire the Mangler, count down the 1-second timer
-					players[iClient].fMangler_Charge_Expiry -= 0.015;
-				}
-				else if (players[iClient].fMangler_Charge_Expiry < 0.0) {	// When the timer has just hit 0...
-					players[iClient].fMangler_Charge = 0.5;				// Reset charge
-				}
 				
-				if (players[iClient].fMangler_Charge == 0.0) {		// When the Mangler is charged...
-					TF2Attrib_SetByDefIndex(iPrimary, 106, 1.0);		// Reset firing speed to normal value
-				}
-				else {
-					TF2Attrib_SetByDefIndex(iPrimary, 106, 0.1125);		// Significantly increase firing speed when not charged (0.09 firing interval -- every 6 frames)
+				if (primaryIndex == 441) {
+					SetHudTextParams(-0.1, -0.16, 0.5, 255, 255, 255, 255);
+					ShowHudText(iClient, 1, "Charge: %.0f", players[iClient].fMangler_Charge);
+						
+					if (players[iClient].fMangler_Charge_Expiry > 0.0) {		// After we fire the Mangler, count down the 1-second timer
+						players[iClient].fMangler_Charge_Expiry -= 0.015;
+					}
+					else if (players[iClient].fMangler_Charge_Expiry < 0.0) {	// When the timer has just hit 0...
+						players[iClient].fMangler_Charge = 0;				// Reset charge
+					}
+					
+					if (players[iClient].fMangler_Charge > 99.0) {		// When the Mangler is charged...
+						TF2Attrib_SetByDefIndex(iPrimary, 6, 1.0);		// Reset firing speed to normal value
+					}
+					else {
+						TF2Attrib_SetByDefIndex(iPrimary, 6, 0.125);		// Significantly increase firing speed when not charged (0.09 firing interval -- every 6 frames)
+					}
 				}
 			}
 			
@@ -668,6 +678,24 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 }
 
 
+MRESReturn OnSecondaryAttackPre(int iWeapon) {
+	int weaponIndex = -1;
+	if (iWeapon >= 0) weaponIndex = GetEntProp(iWeapon, Prop_Send, "m_iItemDefinitionIndex");		// Retrieve the primary weapon index for later
+	
+	if (weaponIndex == ) {		// Vita-saw
+		int iClient;
+		iClient = GetEntPropEnt(iWeapon, Prop_Send, "m_hOwnerEntity");
+		
+		int iSecondary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Secondary, true);		// Retrieve the secondary weapon
+		int secondaryIndex = -1;
+		if(iSecondary >= 0) secondaryIndex = GetEntProp(iSecondary, Prop_Send, "m_iItemDefinitionIndex");		// Retrieve the primary weapon index for later
+		
+		float fUber = GetEntPropFloat(iSecondary, Prop_Send, "m_flChargeLevel");
+		SetEntPropFloat(iSecondary, Prop_Send, "m_flChargeLevel", fUber + 20.0);
+	}
+}
+
+
 	// -={ Dead Ringer cloak drain on use }=-
 
 public void TF2_OnConditionAdded(int iClient, TFCond Condition) {
@@ -692,7 +720,7 @@ public void TF2_OnConditionAdded(int iClient, TFCond Condition) {
 
 public void OnEntityCreated(int iEnt, const char[] classname) {
 	if(IsValidEdict(iEnt)) {
-		if(StrEqual(classname,"tf_projectile_rocket")) {
+		if(StrEqual(classname,"tf_projectile_energy_ball")) {
 			SDKHook(iEnt, SDKHook_SpawnPost, ManglerSpawn);
 		}
 	}
@@ -700,19 +728,21 @@ public void OnEntityCreated(int iEnt, const char[] classname) {
 
 Action ManglerSpawn(int iEnt) {
 	int iClient;
+	iClient = GetEntPropEnt(iEnt, Prop_Send, "m_hOwnerEntity");
 	int iPrimary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);		// Retrieve the primary weapon
 	int primaryIndex = -1;
 	if (iPrimary >= 0) primaryIndex = GetEntProp(iPrimary, Prop_Send, "m_iItemDefinitionIndex");		// Retrieve the primary weapon index for later
 	
-	if (GetEntProp(primaryIndex, Prop_Send, "m_iItemDefinitionIndex") == 441) {		// Test for Mangler equipped
-		if (players[iClient].fMangler_Charge > 0.0) {		// If we shouldn't be allowed to fire yet...
-			AcceptEntityInput(iEnt, "KillHierarchy");		// Instantly delete the flare
-			players[iClient].fMangler_Charge -= 0.009 ;		// Lower charge
-			SetEntPropFloat(iPrimary, Prop_Send, "m_flEnergy", 0.0);		// Refund energy to the gun
+	if (primaryIndex == 441) {		// Test for Mangler equipped
+		players[iClient].fMangler_Charge_Expiry = 1.0;		// Set a 1-second timer before we take the charge away
+		if (players[iClient].fMangler_Charge < 100.0) {		// If we shouldn't be allowed to fire yet...
+			AcceptEntityInput(iEnt, "KillHierarchy");		// Instantly delete the rocket
+			players[iClient].fMangler_Charge += 10.0 ;		// Lower charge
+			float fEnergy = GetEntPropFloat(iPrimary, Prop_Send, "m_flEnergy");
+			SetEntPropFloat(iPrimary, Prop_Send, "m_flEnergy", fEnergy + 5.0);		// Refund energy to the gun
 			
 			return Plugin_Handled;
 		}
-		players[iClient].fMangler_Charge_Expiry = 1.0;		// Set a 1-second timer before we take the charge away
 	}
 	return Plugin_Continue;
 }
