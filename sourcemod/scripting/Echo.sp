@@ -910,6 +910,41 @@ public Action OnPlayerRunCmd(int iClient, int& buttons, int& impulse, float vel[
 				}
 			}
 			
+			// Heavy
+			if (TF2_GetPlayerClass(iClient) == TFClass_Heavy) {
+				// Minigun holster while spun
+				if (iPrimary != -1) {
+					int weaponState = GetEntProp(iPrimary, Prop_Send, "m_iWeaponState");
+					int view = GetEntPropEnt(iClient, Prop_Send, "m_hViewModel");
+					int sequence = GetEntProp(view, Prop_Send, "m_nSequence");
+					
+					if(sequence == 23 && weaponState == 0) {
+						if(weapon > 0) {
+							if (weapon == iSecondary) {
+								bool bReady = true;
+								char wep[64];
+								GetEntityClassname(iSecondary, wep, 64);
+								if(StrContains(wep,"lunchbox") != -1) {		// Are we holding a non-Lunchbox (i.e. a Shotgun)?
+									int secondaryAmmo = GetEntProp(iSecondary, Prop_Send, "m_iPrimaryAmmoType");
+									int ammo = GetEntProp(iClient, Prop_Data, "m_iAmmo", _, secondaryAmmo);
+									if(ammo == 0) {		// Don't let us swap to the Shotgun if it's out of ammo
+										bReady = false;
+									}
+								}
+								if(bReady) {
+									SetEntPropFloat(iPrimary, Prop_Send, "m_flTimeWeaponIdle", GetGameTime() - 1.0);
+									RequestFrame(SwitchSecondary, iClient);
+								}
+							}
+							if (weapon == iMelee) {
+								SetEntPropFloat(iPrimary, Prop_Send, "m_flTimeWeaponIdle", GetGameTime() - 1.0);
+								RequestFrame(SwitchMelee, iClient);
+							}
+						}
+					}
+				}
+			}
+			
 			// Sniper
 			else if (TF2_GetPlayerClass(iClient) == TFClass_Sniper) {
 				//PrintToChatAll("Sniper");
@@ -1021,6 +1056,15 @@ public Action OnPlayerRunCmd(int iClient, int& buttons, int& impulse, float vel[
 	}
 	
 	return Plugin_Continue;
+}
+
+	// Process the switch-from-Minigun here
+public void SwitchSecondary(int iClient) {
+	ClientCommand(iClient, "slot2");
+}
+
+public void SwitchMelee(int iClient) {
+	ClientCommand(iClient, "slot3");
 }
 
 
