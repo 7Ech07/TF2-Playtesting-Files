@@ -231,6 +231,7 @@ public void OnClientPutInServer (int iClient) {
 	SDKHook(iClient, SDKHook_OnTakeDamageAlive, OnTakeDamage);
 }
 
+Handle g_DHookSecondaryAttack;
 
 public void OnPluginStart() {
 	// Catalogue of game events
@@ -238,6 +239,15 @@ public void OnPluginStart() {
 	HookEvent("player_spawn", Event_PlayerSpawn);
 	HookEvent("post_inventory_application", Event_PlayerSpawn);
 	HookEvent("player_death", Event_PlayerDeath);
+	
+	// DHooks
+	Handle hGameConf;
+	hGameConf = LoadGameConfigFile("Ech0");
+	if (hGameConf == null) SetFailState("Failed to load conf");
+	
+	g_DHookSecondaryAttack = DHookCreateFromConf(hGameConf, "CBaseCombatWeapon::SecondaryAttack()");		// Hooks secondary fire
+	
+	if (g_DHookSecondaryAttack == null) SetFailState("Failed to create g_DHookSecondaryAttack");
 }
 
 
@@ -680,11 +690,15 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 
 MRESReturn OnSecondaryAttackPre(int iWeapon) {
 	int weaponIndex = -1;
+	PrintToChatAll("Altfire");
 	if (iWeapon >= 0) weaponIndex = GetEntProp(iWeapon, Prop_Send, "m_iItemDefinitionIndex");		// Retrieve the primary weapon index for later
 	
-	if (weaponIndex == ) {		// Vita-saw
+	if (weaponIndex == 173) {		// Vita-saw
 		int iClient;
 		iClient = GetEntPropEnt(iWeapon, Prop_Send, "m_hOwnerEntity");
+		if (iClient < 1 || iClient > MaxClients) {		// Filters bad data
+			return MRES_Ignored;
+		}
 		
 		int iSecondary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Secondary, true);		// Retrieve the secondary weapon
 		int secondaryIndex = -1;
@@ -692,6 +706,9 @@ MRESReturn OnSecondaryAttackPre(int iWeapon) {
 		
 		float fUber = GetEntPropFloat(iSecondary, Prop_Send, "m_flChargeLevel");
 		SetEntPropFloat(iSecondary, Prop_Send, "m_flChargeLevel", fUber + 20.0);
+		TF2_AddCondition(iClient, TFCond_MarkedForDeathSilent, 10.0);
+		
+		return MRES_Handled;
 	}
 }
 
