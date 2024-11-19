@@ -58,6 +58,13 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 		TF2Items_SetAttribute(item1, 5, 37, 0.7); // ammo (-30%)
 	}
 	
+		if (index == 441) {	// Cow Mangler 5000
+		item1 = TF2Items_CreateItem(0);
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 1);
+		TF2Items_SetAttribute(item1, 0, 4, 0.5); // clip size penalty (removed)
+	}
+	
 	if (item1 != null) {
 		item = item1;
 		return Plugin_Changed;
@@ -74,6 +81,8 @@ public void OnGameFrame() {
 		if (IsClientInGame(iClient) && IsPlayerAlive(iClient)) {
 			
 			int primary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
+			int primaryIndex = -1;
+			if(primary > 0) primaryIndex = GetEntProp(primary, Prop_Send, "m_iItemDefinitionIndex");
 			//PrintToChatAll("fRev: %f", players[iClient].fRev);
 			//PrintToChatAll("fSpeed: %f", players[iClient].fSpeed);
 			// Heavy
@@ -134,6 +143,19 @@ public void OnGameFrame() {
 				TF2Attrib_SetByDefIndex(primary, 106, RemapValClamped(players[iClient].fRev, 0.0, 1.005, 1.2, 0.8));		// spread bonus
 				TF2Attrib_SetByDefIndex(primary, 2, RemapValClamped(players[iClient].fRev, 0.0, 1.005, 2.0, 1.0));		// damage bonus
 				TF2Attrib_AddCustomPlayerAttribute(iClient, "aiming movespeed increased", RemapValClamped(players[iClient].fSpeed, 0.0, 1.005, 0.5, 1.0));	// Speed
+			}
+			
+						// Soldier
+			if (TF2_GetPlayerClass(iClient) == TFClass_Soldier) {
+				
+				if (primaryIndex == 441) {
+					SetHudTextParams(-0.1, -0.16, 0.5, 255, 255, 255, 255);
+					
+					float fEnergy = GetEntPropFloat(primary, Prop_Send, "m_flEnergy");
+					//ShowHudText(iClient, 1, "Charge: %.0f", players[iClient].fMangler_Charge);
+					ShowHudText(iClient, 1, "Charge: %.0f", fEnergy);
+					
+				}
 			}
 		}
 	}
