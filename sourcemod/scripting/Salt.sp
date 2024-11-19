@@ -115,9 +115,9 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
 		TF2Items_SetNumAttributes(item1, 5);
 		TF2Items_SetAttribute(item1, 0, 282, 0.0); // energy weapon charged shot (disabled)
-		TF2Items_SetAttribute(item1, 1, 284, 1.0); // energy weappn no hurt buildings (disabled)
-		TF2Items_SetAttribute(item1, 2, 6, 0.125); // fire rate bonus (0.09 firing interval when not charged)
-		TF2Items_SetAttribute(item1, 3, 775, 0.5); // dmg penalty vs buildings (50%)
+		TF2Items_SetAttribute(item1, 1, 284, 0.0); // energy weappn no hurt buildings (disabled)
+		TF2Items_SetAttribute(item1, 2, 6, 0.125); // fire rate bonus (0.1 firing interval when not charged)
+		TF2Items_SetAttribute(item1, 3, 775, 1.0); // dmg penalty vs buildings (50%)
 		TF2Items_SetAttribute(item1, 4, 208, 1.0); // Set DamageType Ignite (afterburn duration not configurable)
 	}
 	
@@ -516,6 +516,7 @@ public void OnGameFrame() {
 				
 				if (primaryIndex == 441) {
 					SetHudTextParams(-0.1, -0.16, 0.5, 255, 255, 255, 255);
+					
 					ShowHudText(iClient, 1, "Charge: %.0f", players[iClient].fMangler_Charge);
 						
 					if (players[iClient].fMangler_Charge_Expiry > 0.0) {		// After we fire the Mangler, count down the 1-second timer
@@ -753,8 +754,9 @@ Action ManglerSpawn(int iEnt) {
 	if (primaryIndex == 441) {		// Test for Mangler equipped
 		players[iClient].fMangler_Charge_Expiry = 1.0;		// Set a 1-second timer before we take the charge away
 		if (players[iClient].fMangler_Charge < 100.0) {		// If we shouldn't be allowed to fire yet...
+			players[iClient].fMangler_Charge_Expiry = 0.11;
 			AcceptEntityInput(iEnt, "KillHierarchy");		// Instantly delete the rocket
-			players[iClient].fMangler_Charge += 10.0 ;		// Lower charge
+			players[iClient].fMangler_Charge += 10.0 ;		// Raise charge
 			float fEnergy = GetEntPropFloat(iPrimary, Prop_Send, "m_flEnergy");
 			SetEntPropFloat(iPrimary, Prop_Send, "m_flEnergy", fEnergy + 5.0);		// Refund energy to the gun
 			
