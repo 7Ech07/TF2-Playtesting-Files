@@ -36,7 +36,7 @@ float RemapValClamped( float val, float A, float B, float C, float D)		// Remaps
 
 enum struct Player {
 	float fRev;		// Tracks how long we've been revved for the purposes of undoing the L&W nerf
-	float fSpeed;		// Tracks how long we've been revved for the purposes of undoing the L&W nerf
+	float fSpeed;		// Tracks how long we've been firing for the purposes of modifying Heavy's speed and reverting the JI buff
 }
 
 Player players[MAXPLAYERS+1];
@@ -49,20 +49,11 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 	if (StrEqual(class, "tf_weapon_minigun")) {	// All Miniguns
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 5);
-		TF2Items_SetAttribute(item1, 0, 1, 0.85); // damage penalty (15%)
-		TF2Items_SetAttribute(item1, 1, 106, 0.8); // weapon spread bonus (20%)
-		TF2Items_SetAttribute(item1, 2, 125, -50.0); // max health additive penalty (20%)
-		TF2Items_SetAttribute(item1, 3, 45, 0.75); // bullets per shot bonus (-25%)
-		TF2Items_SetAttribute(item1, 4, 75, 1.6); // speed
-		TF2Items_SetAttribute(item1, 5, 37, 0.7); // ammo (-30%)
-	}
-	
-		if (index == 441) {	// Cow Mangler 5000
-		item1 = TF2Items_CreateItem(0);
-		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 1);
-		TF2Items_SetAttribute(item1, 0, 4, 0.5); // clip size penalty (removed)
+		TF2Items_SetNumAttributes(item1, 4);
+		TF2Items_SetAttribute(item1, 0, 125, -50.0); // max health additive penalty (20%)
+		TF2Items_SetAttribute(item1, 1, 45, 0.75); // bullets per shot bonus (-25%)
+		TF2Items_SetAttribute(item1, 2, 75, 1.6); // speed
+		TF2Items_SetAttribute(item1, 3, 37, 0.7); // ammo (-30%)
 	}
 	
 	if (item1 != null) {
@@ -80,19 +71,18 @@ public void OnGameFrame() {
 	for (int iClient = 1; iClient <= MaxClients; iClient++) {		// Caps Afterburn at 6 and handles Temperature
 		if (IsClientInGame(iClient) && IsPlayerAlive(iClient)) {
 			
-			int primary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
-			int primaryIndex = -1;
-			if(primary > 0) primaryIndex = GetEntProp(primary, Prop_Send, "m_iItemDefinitionIndex");
-			//PrintToChatAll("fRev: %f", players[iClient].fRev);
-			//PrintToChatAll("fSpeed: %f", players[iClient].fSpeed);
+			int iPrimary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
+			//int iPrimaryIndex = -1;
+			//if(iPrimary > 0) iPrimaryIndex = GetEntProp(iPrimary, Prop_Send, "m_iItemDefinitionIndex");
+			
 			// Heavy
 			// Counteracts the L&W nerf by dynamically adjusting damage and accuracy
 			if (TF2_GetPlayerClass(iClient) == TFClass_Heavy) {
 			
-				float fDmgMult = 1.0;		// Default values -- for stock, and in case of emergency
-				float fAccMult = 0.8;
+				//float fDmgMult = 1.0;		// Default values -- for stock, and in case of emergency
+				//float fAccMult = 0.8;
 				
-				int weaponState = GetEntProp(primary, Prop_Send, "m_iWeaponState");
+				int weaponState = GetEntProp(iPrimary, Prop_Send, "m_iWeaponState");
 				int view = GetEntPropEnt(iClient, Prop_Send, "m_hViewModel");
 				int sequence = GetEntProp(view, Prop_Send, "m_nSequence");		// We use viewmodel animation as an additional check for being unrevved for Natascha
 				float cycle = GetEntPropFloat(view, Prop_Data, "m_flCycle");
@@ -108,24 +98,17 @@ public void OnGameFrame() {
 					players[iClient].fRev = 1.005;		// This is our rev meter; it's a measure of how close we are to being free of the L&W nerf
 				}
 				
-				else if ((weaponState == 2 || weaponState == 3) && players[iClient].fRev > 0.0) {		// If we're revved but the rev meter isn't empty...
+				else if ((weaponState == 2 || weaponState == 3) && players[iClient].fRev > 0.0) {		// If we're revved (or firing) but the rev meter isn't empty...
 					players[iClient].fRev = players[iClient].fRev - 0.015;		// It takes us 67 frames (1 second) to fully deplete the rev meter
-					int time = RoundFloat(players[iClient].fRev * 1000);
-					if (time%90 == 0) {		// Only adjust the damage every so often
-						float factor = 1.0 + time/990.0;		// We increase damage and accuracy over time proportional to the rev meter
-						TF2Attrib_SetByDefIndex(primary, 106, fAccMult * 1.0/factor);		// Spread bonus
-						TF2Attrib_SetByDefIndex(primary, 2, fDmgMult * 1.0 * factor);		// Damage bonus
-					}
 				}
 				
 				else if (weaponState == 0 && sequence == 23) {		// Are we unrevving?
 					if(cycle < 0.6) {
-						SetEntPropFloat(primary, Prop_Send, "m_flTimeWeaponIdle", GetGameTime() + 0.8);
+						SetEntPropFloat(iPrimary, Prop_Send, "m_flTimeWeaponIdle", GetGameTime() + 0.8);
 					}
 					float speed = 1.66;
 					SetEntPropFloat(view, Prop_Send, "m_flPlaybackRate", speed); //speed up animation
 					TF2Attrib_AddCustomPlayerAttribute(iClient, "switch from wep deploy time decreased", 0.25, 0.2);		// Temporary faster Minigun holster
-					//TF2Attrib_SetByDefIndex(primary, 3, 0.33)
 				}
 				
 				if ((weaponState == 2) && players[iClient].fSpeed > 0.0) {		// If we're firing but the speed meter isn't empty...
@@ -139,23 +122,9 @@ public void OnGameFrame() {
 					}
 				}
 				
-				//TF2Attrib_SetByDefIndex(primary, 75, RemapValClamped(players[iClient].fSpeed, 0.0, 1.005, 0.75, 0.925));		// Speed while deployed
-				TF2Attrib_SetByDefIndex(primary, 106, RemapValClamped(players[iClient].fRev, 0.0, 1.005, 1.2, 0.8));		// spread bonus
-				TF2Attrib_SetByDefIndex(primary, 2, RemapValClamped(players[iClient].fRev, 0.0, 1.005, 2.0, 1.0));		// damage bonus
+				TF2Attrib_SetByDefIndex(iPrimary, 106, RemapValClamped(players[iClient].fRev, 0.0, 1.005, 1.0, 2.0) * RemapValClamped(players[iClient].fSpeed, 0.0, 1.005, 1.0, 1.5));		// spread bonus
+				TF2Attrib_SetByDefIndex(iPrimary, 2, RemapValClamped(players[iClient].fRev, 0.0, 1.005, 1.0, 2.0) * RemapValClamped(players[iClient].fSpeed, 0.0, 1.005, 1.0, 0.666666));		// damage bonus
 				TF2Attrib_AddCustomPlayerAttribute(iClient, "aiming movespeed increased", RemapValClamped(players[iClient].fSpeed, 0.0, 1.005, 0.5, 1.0));	// Speed
-			}
-			
-						// Soldier
-			if (TF2_GetPlayerClass(iClient) == TFClass_Soldier) {
-				
-				if (primaryIndex == 441) {
-					SetHudTextParams(-0.1, -0.16, 0.5, 255, 255, 255, 255);
-					
-					float fEnergy = GetEntPropFloat(primary, Prop_Send, "m_flEnergy");
-					//ShowHudText(iClient, 1, "Charge: %.0f", players[iClient].fMangler_Charge);
-					ShowHudText(iClient, 1, "Charge: %.0f", fEnergy);
-					
-				}
 			}
 		}
 	}
@@ -169,7 +138,7 @@ public Action OnPlayerRunCmd(int iClient, int &buttons, int &impulse, float vel[
 		TFClassType tfClientClass = TF2_GetPlayerClass(iClient);
 		float position[3];
 		GetEntPropVector(iClient, Prop_Send, "m_vecOrigin", position);
-		int primary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
+		int iPrimary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
 
 	
 		switch(tfClientClass)
@@ -177,9 +146,9 @@ public Action OnPlayerRunCmd(int iClient, int &buttons, int &impulse, float vel[
 			case TFClass_Heavy:	
 			{
 				//allow holster in minigun spindown
-				if(primary != -1)
+				if(iPrimary != -1)
 				{
-					int weaponState = GetEntProp(primary, Prop_Send, "m_iWeaponState");
+					int weaponState = GetEntProp(iPrimary, Prop_Send, "m_iWeaponState");
 					int view = GetEntPropEnt(iClient, Prop_Send, "m_hViewModel");
 					int sequence = GetEntProp(view, Prop_Send, "m_nSequence");
 					float cycle = GetEntPropFloat(view, Prop_Data, "m_flCycle");
@@ -189,10 +158,10 @@ public Action OnPlayerRunCmd(int iClient, int &buttons, int &impulse, float vel[
 						if (done == 0) SetEntProp(view, Prop_Data, "m_bSequenceFinished", true, .size = 1);
 
 						float idle = 0.0;
-						// if(primaryIndex == 298) idle = 1.0;
+						// if(iPrimaryIndex == 298) idle = 1.0;
 						if(cycle < 0.2 && idle > 0) //set idle time faster
 						{
-							SetEntPropFloat(primary, Prop_Send, "m_flTimeWeaponIdle",GetGameTime()+idle);
+							SetEntPropFloat(iPrimary, Prop_Send, "m_flTimeWeaponIdle",GetGameTime()+idle);
 						}
 					}
 					
