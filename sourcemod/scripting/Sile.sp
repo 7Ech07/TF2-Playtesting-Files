@@ -42,7 +42,6 @@ enum struct Player {
 Player players[MAXPLAYERS+1];
 
 	// -={ Modifies attributes without needing to go through another plugin }=-
-
 public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Handle& item) {
 	Handle item1;
 	// Heavy
@@ -76,12 +75,8 @@ public void OnGameFrame() {
 			//if(iPrimary > 0) iPrimaryIndex = GetEntProp(iPrimary, Prop_Send, "m_iItemDefinitionIndex");
 			
 			// Heavy
-			// Counteracts the L&W nerf by dynamically adjusting damage and accuracy
 			if (TF2_GetPlayerClass(iClient) == TFClass_Heavy) {
 			
-				//float fDmgMult = 1.0;		// Default values -- for stock, and in case of emergency
-				//float fAccMult = 0.8;
-				
 				int weaponState = GetEntProp(iPrimary, Prop_Send, "m_iWeaponState");
 				int view = GetEntPropEnt(iClient, Prop_Send, "m_hViewModel");
 				int sequence = GetEntProp(view, Prop_Send, "m_nSequence");		// We use viewmodel animation as an additional check for being unrevved for Natascha
@@ -94,6 +89,8 @@ public void OnGameFrame() {
 					3 = Revved but not firing
 				*/
 				
+				
+				// Counteracts the L&W nerf by dynamically adjusting damage and accuracy
 				if (weaponState == 1) {		// Are we revving up?
 					players[iClient].fRev = 1.005;		// This is our rev meter; it's a measure of how close we are to being free of the L&W nerf
 				}
@@ -111,20 +108,24 @@ public void OnGameFrame() {
 					TF2Attrib_AddCustomPlayerAttribute(iClient, "switch from wep deploy time decreased", 0.25, 0.2);		// Temporary faster Minigun holster
 				}
 				
-				if ((weaponState == 2) && players[iClient].fSpeed > 0.0) {		// If we're firing but the speed meter isn't empty...
-					players[iClient].fSpeed = players[iClient].fSpeed - 0.015;		// It takes us 67 frames (1 second) to fully deplete the rev meter
-				}
 				
-				else {
-					players[iClient].fSpeed = players[iClient].fSpeed + 0.015;
-					if (players[iClient].fSpeed > 1.005) {
-						players[iClient].fSpeed = 1.005;
+				// Adjust damage, accuracy and movement speed dynamically as we shoot
+				if (weaponState == 2) {
+					if (players[iClient].fSpeed > 0.0) {		// If we're firing but the speed meter isn't empty...
+						players[iClient].fSpeed = players[iClient].fSpeed - 0.015;		// It takes us 67 frames (1 second) to fully deplete the meter
 					}
 				}
 				
-				TF2Attrib_SetByDefIndex(iPrimary, 106, RemapValClamped(players[iClient].fRev, 0.0, 1.005, 1.0, 2.0) * RemapValClamped(players[iClient].fSpeed, 0.0, 1.005, 1.0, 1.5));		// spread bonus
-				TF2Attrib_SetByDefIndex(iPrimary, 2, RemapValClamped(players[iClient].fRev, 0.0, 1.005, 1.0, 2.0) * RemapValClamped(players[iClient].fSpeed, 0.0, 1.005, 1.0, 0.666666));		// damage bonus
-				TF2Attrib_AddCustomPlayerAttribute(iClient, "aiming movespeed increased", RemapValClamped(players[iClient].fSpeed, 0.0, 1.005, 0.5, 1.0));	// Speed
+				else {	// If we're not firing...
+					if (players[iClient].fSpeed < 1.005) {
+						players[iClient].fSpeed = players[iClient].fSpeed + 0.015;		// Unlike fRev, fSpeed regenerates back up slowly
+					}
+				}
+				
+				
+				TF2Attrib_SetByDefIndex(iPrimary, 106, RemapValClamped(players[iClient].fRev, 0.0, 1.005, 1.0, 2.0) * RemapValClamped(players[iClient].fSpeed, 0.0, 1.005, 1.0, 1.5));		// Spread bonus
+				TF2Attrib_SetByDefIndex(iPrimary, 2, RemapValClamped(players[iClient].fRev, 0.0, 1.005, 1.0, 2.0) * RemapValClamped(players[iClient].fSpeed, 0.0, 1.005, 1.0, 0.666666));		// Damage bonus
+				TF2Attrib_SetByDefIndex(iClient, 54, RemapValClamped(players[iClient].fSpeed, 0.0, 1.005, 0.5, 1.0));	// Speed
 			}
 		}
 	}
