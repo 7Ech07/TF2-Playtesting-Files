@@ -869,6 +869,10 @@ public Action OnPlayerRunCmd(int iClient, int& buttons, int& impulse, float vel[
 			int secondaryIndex = -1;
 			if(iSecondary >= 0) secondaryIndex = GetEntProp(iSecondary, Prop_Send, "m_iItemDefinitionIndex");		// Retrieve the primary weapon index for later
 			
+			int iMelee = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Melee, true);
+			int iMeleeIndex = -1;
+			if(iMelee > 0) iMeleeIndex = GetEntProp(iMelee, Prop_Send, "m_iItemDefinitionIndex");
+			
 			int iActive = GetEntPropEnt(iClient, Prop_Send, "m_hActiveWeapon");		// Retrieve the active weapon
 			int iClientFlags = GetEntityFlags(iClient);
 			
