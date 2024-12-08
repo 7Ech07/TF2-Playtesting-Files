@@ -92,7 +92,7 @@ enum struct Player {
 	float fTHREAT;		// THREAT
 	float fTHREAT_Timer;	// Timer when after building THREAT we start to get rid of it
 	float fHeal_Penalty;		// Tracks how long after taking damage we restore our incoming healing to normal
-	bool bFirst_Reload;		// Tracks when we firefor the purpose of identifying the first-shot portion of the reload on certain weapons
+	int bFirst_Reload;		// Tracks when we firefor the purpose of identifying the first-shot portion of the reload on certain weapons
 	
 	// Scout
 	float fAirjump;		// Tracks damage taken while airborne
@@ -429,28 +429,13 @@ public void OnGameFrame() {
 					ShowHudText(iClient, 2, "");		// By having a message with nothing in it, we make the other messages load in faster
 				}
 				
-				// Scattergun first-shot reload
-				GetEntProp(iPrimary, Prop_Send, "m_iClip1");
-				int iAmmoTable = FindSendPropInfo("CTFWeaponBase", "m_iClip1");
-				int iClip = GetEntData(iPrimary, iAmmoTable, 4);	// We can detect shots by checking ammo changes
-				if (iClip == (players[iClient].iAmmo - 1)) {		// We update iHitscan_Ammo after this check, so iClip will always be 1 lower on frames in which we fire a shot
-					players[iClient].bFirst_Reload = true;
-					PrintToChatAll("Fire");
-				}
-				else if (iClip == (players[iClient].iAmmo + 1)) {		// Detect reloads in the same way
-					players[iClient].bFirst_Reload = false;
-				}
-				players[iClient].iHitscan_Ammo = iClip;
+				// Scattergun first-shot reload				
+				int view = GetEntPropEnt(iClient, Prop_Send, "m_hViewModel");
+				int sequence = GetEntProp(view, Prop_Send, "m_nSequence");
 				
-				if (players[iClient].bFirst_Reload == true) {
-					TF2Attrib_SetByDefIndex(iPrimary, 96, 2.0);		// Jack this way up for debug purposes
+				if (sequence == 28 && iActive == iPrimary) {		// This animation plays at the start of our first-shot reload
+					SetEntPropFloat(view, Prop_Send, "m_flPlaybackRate", 0.540541);		// Make this a little longer (0.7 to 0.87 sec)
 				}
-				else {
-					TF2Attrib_SetByDefIndex(iPrimary, 96, 1.0);		// Reload time increased
-				}
-				
-				SetHudTextParams(-0.1, -0.43, 0.5, 255, 255, 255, 255);
-				ShowHudText(iClient, 3, "FirstReload %i", players[iClient].bFirst_Reload);
 			}
 			
 			// Pyro
@@ -472,39 +457,23 @@ public void OnGameFrame() {
 					int ammoCount = GetEntProp(iClient, Prop_Data, "m_iAmmo", _, Ammo);		// Only fire the beam on frames where the ammo changes
 					if (ammoCount == (players[iClient].iAmmo - 1)) {		// We update iAmmo after this check, so clip will always be 1 lower on frames in which we fire a shot
 						
-						float vecPos[3], vecAng[3];
+						float vecPos[3], vecAng[3], vecEnd[3];
 						
 						GetClientEyePosition(iClient, vecPos);
 						GetClientEyeAngles(iClient, vecAng);
 						
 						GetAngleVectors(vecAng, vecAng, NULL_VECTOR, NULL_VECTOR);
-						ScaleVector(vecAng, 350.0);		// Scales this vector 512 HU out
+						ScaleVector(vecAng, 350.0);		// Scales this vector 350 HU out
 						AddVectors(vecPos, vecAng, vecAng);		// Add this vector to the position vector so the game can aim it better
 						
 						TR_TraceRayFilter(vecPos, vecAng, MASK_SOLID, RayType_EndPoint, TraceFilter_ExcludeSingle, iClient);		// Create a trace that starts at us and ends 512 HU forward
-						
-						/*while (TR_DidHit()) {
-							int iEntity = TR_GetEntityIndex();
-							if (iEntity >= 1 && iEntity <= MaxClients && GetClientTeam(iEntity) != GetClientTeam(iClient)) {
-								float vecVictim[3], fDmgMod, fDmgModTHREAT;
-								GetEntPropVector(iEntity, Prop_Send, "m_vecOrigin", vecVictim);
-								float fDistance = GetVectorDistance(vecPos, vecVictim, false);
-								
-								fDmgMod = RemapValClamped(fDistance, 0.0, 350.0, 1.5, 1.0);
-								fDmgModTHREAT = RemapValClamped(players[iClient].fTHREAT, 0.0, 350.0, 1.0, 1.5);
-								SDKHooks_TakeDamage(iEntity, iPrimary, iClient, (8.0 * fDmgMod * fDmgModTHREAT), DMG_SHOCK, iPrimary, NULL_VECTOR, vecVictim);	
-							}
-
-							// Update the trace to continue beyond the first hit
-							TR_GetEndPosition(vecPos);  // Get the endpoint of the current trace
-							TR_TraceRayFilter(vecPos, vecAng, MASK_SOLID, RayType_EndPoint, TraceFilter_ExcludeSingle, iClient);
-						}*/
+						TR_GetEndPosition(vecEnd);
 						
 						if (TR_DidHit()) {
 							int iEntity = TR_GetEntityIndex();		// This is the ID of the thing we hit
 							
 							if (iEntity >= 1 && iEntity <= MaxClients && GetClientTeam(iEntity) != GetClientTeam(iClient)) {		// Did we hit an enemy?
-								//PrintToChatAll("Hit");
+								AttachParticle(iPrimary, "projectile_fireball", iEntity);
 								
 								float vecVictim[3], fDmgMod;
 								GetEntPropVector(iEntity, Prop_Send, "m_vecOrigin", vecVictim);		// Gets defender position
@@ -555,6 +524,14 @@ public void OnGameFrame() {
 					if (iClipGrenade != iClipSticky) {		// If our two launchers have different ammo...
 						SetEntData(iSecondary, iAmmoTable, iClipGrenade, 4, true);	// Set the unequipped one to have the same ammo as the equipped
 						SetEntProp(iClient, Prop_Data, "m_iAmmo", iPrimaryReserves, _, iSecondaryAmmo);
+					}
+					
+					// Grenade Launcher first-shot reload
+					int view = GetEntPropEnt(iClient, Prop_Send, "m_hViewModel");
+					int sequence = GetEntProp(view, Prop_Send, "m_nSequence");
+					
+					if (sequence == 28 && iActive == iPrimary) {		// This animation plays at the start of our first-shot reload
+						SetEntPropFloat(view, Prop_Send, "m_flPlaybackRate", 1.9375);		// Make this a little shorter (1.24 to 1.0 sec)
 					}
 				}
 				
@@ -1166,24 +1143,26 @@ Action AutoreloadPistol(Handle timer, int iClient) {
 }
 
 Action AutoreloadSyringe(Handle timer, int iClient) {
-	int iActive = GetEntPropEnt(iClient, Prop_Send, "m_hActiveWeapon");		// Recheck everything so we don't perform the autoreload if the weapon is out
-	int iPrimary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
-	
-	if (iActive == iPrimary) {
+	if (IsClientInGame(iClient) && IsPlayerAlive(iClient)) {
+		int iActive = GetEntPropEnt(iClient, Prop_Send, "m_hActiveWeapon");		// Recheck everything so we don't perform the autoreload if the weapon is out
+		int iPrimary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
+		
+		if (iActive == iPrimary) {
+			return Plugin_Handled;
+		}
+		
+		int iAmmoTable = FindSendPropInfo("CTFWeaponBase", "m_iClip1");
+		int clip = GetEntData(iPrimary, iAmmoTable, 4);
+		
+		int primaryAmmo = GetEntProp(iPrimary, Prop_Send, "m_iPrimaryAmmoType");
+		int ammoCount = GetEntProp(iClient, Prop_Data, "m_iAmmo", _, primaryAmmo);
+		
+		if (clip < 50 && ammoCount > 0) {
+			SetEntProp(iClient, Prop_Data, "m_iAmmo", ammoCount - (50 - clip) , _, primaryAmmo);
+			SetEntData(iPrimary, iAmmoTable, 50, 4, true);
+		}
 		return Plugin_Handled;
 	}
-	
-	int iAmmoTable = FindSendPropInfo("CTFWeaponBase", "m_iClip1");
-	int clip = GetEntData(iPrimary, iAmmoTable, 4);
-	
-	int primaryAmmo = GetEntProp(iPrimary, Prop_Send, "m_iPrimaryAmmoType");
-	int ammoCount = GetEntProp(iClient, Prop_Data, "m_iAmmo", _, primaryAmmo);
-	
-	if (clip < 50 && ammoCount > 0) {
-		SetEntProp(iClient, Prop_Data, "m_iAmmo", ammoCount - (50 - clip) , _, primaryAmmo);
-		SetEntData(iPrimary, iAmmoTable, 50, 4, true);
-	}
-	return Plugin_Handled;
 }
 
 
@@ -1199,7 +1178,7 @@ public void OnEntityCreated(int iEnt, const char[] classname) {
 		}
 		
 		else if(StrEqual(classname, "tf_projectile_syringe")) {
-			//SDKHook(iEnt, SDKHook_SpawnPost, needleSpawn);
+			SDKHook(iEnt, SDKHook_SpawnPost, needleSpawn);
 		}
 	}
 }
@@ -1234,6 +1213,8 @@ public void Syringe_PrimaryAttack(int iClient, int iPrimary, float vecAng[3]) {
 		SetEntProp(iSyringe, Prop_Send, "m_nSkin", team - 2);
 		SetEntPropVector(iSyringe, Prop_Data, "m_angRotation", vecAng);		// Orientation of model
 		SetEntityModel(iSyringe, "models/weapons/w_models/w_syringe_proj.mdl"); // Model
+		SetEntPropFloat(iSyringe, Prop_Data, "m_flGravity", 0.3);
+		SetEntPropFloat(iSyringe, Prop_Data, "m_flRadius", 0.3);
 		SetEntPropFloat(iSyringe, Prop_Send, "m_flModelScale", 1.5);
 		
 		DispatchSpawn(iSyringe);
@@ -1257,10 +1238,10 @@ Action ProjectileTouch(int iProjectile, int other) {
 		if (other == 0) {		// If we hit the ground
 			int iProjTeam = GetEntProp(iProjectile, Prop_Data, "m_iTeamNum");
 			float vecRocketPos[3];
-            GetEntPropVector(iProjectile, Prop_Send, "m_vecOrigin", vecRocketPos);
+			GetEntPropVector(iProjectile, Prop_Send, "m_vecOrigin", vecRocketPos);
 			
 			// Iterate through all entities
-            for (int iEnt = 0; iEnt < GetMaxEntities(); iEnt++) {
+			for (int iEnt = 0; iEnt < GetMaxEntities(); iEnt++) {
                 if (!IsValidEntity(iEnt)) continue; // Skip invalid entities
 
                 // Check if the entity is a sticky bomb
@@ -1286,34 +1267,32 @@ Action ProjectileTouch(int iProjectile, int other) {
 }
 
 
-/*void needleSpawn(int entity)
-{
-	int weapon = GetEntPropEnt(entity, Prop_Send, "m_hLauncher");
-	int wepIndex = -1;
-	if (weapon != -1) wepIndex = GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex");
-	
+void needleSpawn(int entity) {
 	int owner = GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity");
-	bool kritzed = isKritzed(owner);
-	SetEntPropFloat(entity, Prop_Data, "m_flGravity", 0.3);
-	SetEntPropFloat(entity, Prop_Data, "m_flRadius", 0.3);
-	if(wepIndex==36) SetEntityModel(entity, "models/weapons/c_models/c_leechgun/c_leech_proj.mdl");
-	else SetEntityModel(entity, "models/weapons/w_models/w_syringe_proj.mdl");
-
 	int team = GetEntProp(entity, Prop_Send, "m_iTeamNum");
 	float ang[3];
 	GetEntPropVector(entity, Prop_Data, "m_angRotation", ang);
 	ang[0] = DegToRad(ang[0]); ang[1] = DegToRad(ang[1]); ang[2] = DegToRad(ang[2]);
+	
 	if (team == 2) {
-		if (kritzed) CreateParticle(entity,"nailtrails_medic_red_crit",1.0,ang[0],ang[1],_,_,_,_,_,false);
-		else CreateParticle(entity,"nailtrails_medic_red",1.0,ang[0],ang[1],_,_,_,_,_,false);
+		if (isKritzed(owner)) {
+			CreateParticle(entity,"nailtrails_medic_red_crit",1.0,ang[0],ang[1],_,_,_,_,_,false);
+		}
+		else {
+			CreateParticle(entity,"nailtrails_medic_red",1.0,ang[0],ang[1],_,_,_,_,_,false);
+		}
 	}
 	if (team == 3) {
-		if (kritzed) CreateParticle(entity,"nailtrails_medic_blue_crit",1.0,ang[0],ang[1],_,_,_,_,_,false);
-		else CreateParticle(entity,"nailtrails_medic_blue",1.0,ang[0],ang[1],_,_,_,_,_,false);
+		if (isKritzed(owner)) {
+			CreateParticle(entity,"nailtrails_medic_blue_crit",1.0,ang[0],ang[1],_,_,_,_,_,false);
+		}
+		else {
+			CreateParticle(entity,"nailtrails_medic_blue",1.0,ang[0],ang[1],_,_,_,_,_,false);
+		}
 	}
 
 	//SDKHook(entity, SDKHook_StartTouch, needleTouch);
-}*/
+}
 
 /*Action needleTouch(int entity, int other) {
 	int weapon = GetEntPropEnt(entity, Prop_Send, "m_hLauncher");
@@ -1492,8 +1471,8 @@ Action BuildingThink(int building, int client) {
 
 public Action OnBuildingDestroyed(Event event, const char[] name, bool broadcast) {
     int iClient = event.GetInt("userid");        // User ID of the player who owned the building
-   // int iObjectType = event.GetInt("object");   // Type of building (e.g., sentry, dispenser, etc.)
-    //int iAttacker = event.GetInt("attacker");   // User ID of the player who destroyed the building (may be 0 if no attacker)
+	// int iObjectType = event.GetInt("object");   // Type of building (e.g., sentry, dispenser, etc.)
+	//int iAttacker = event.GetInt("attacker");   // User ID of the player who destroyed the building (may be 0 if no attacker)
 	TFObjectType building = view_as<TFObjectType>(event.GetInt("objecttype"));
 	
 	if (building == TFObject_Dispenser) {		// Dispenser
@@ -1512,6 +1491,52 @@ public Action OnBuildingDestroyed(Event event, const char[] name, bool broadcast
 	// ==={{ Do not touch anything below this point }}===
 
 	// -={ Displays particles (taken from ShSilver) }=-
+	
+	// -={ Particle stuff below }=-
+
+void AttachParticle(int ent, const char[] particleType ,int controlpoint, float time=3.0)
+{
+	int particle  = CreateEntityByName("info_particle_system");
+	int particle2 = CreateEntityByName("info_particle_system");
+	if (IsValidEdict(particle)) {
+		float pos[3]; 
+		GetEntPropVector(ent, Prop_Send, "m_vecOrigin", pos);
+		pos[2] = pos[2] + 45.0;  
+		TeleportEntity(particle, pos, NULL_VECTOR, NULL_VECTOR);
+		
+		GetEntPropVector(controlpoint, Prop_Send, "m_vecOrigin", pos);
+		pos[2] = pos[2] + 45.0;  
+		TeleportEntity(particle2, pos, NULL_VECTOR, NULL_VECTOR);
+		
+		char tName[128];
+		Format(tName, sizeof(tName), "target%i", ent);
+		DispatchKeyValue(ent, "targetname", tName);
+		
+		char cpName[128];
+		Format(cpName, sizeof(cpName), "Xtarget%i", controlpoint);
+		
+		DispatchKeyValue(particle2, "targetname", cpName);
+		
+		DispatchKeyValue(particle, "targetname", "tf2particle");
+		DispatchKeyValue(particle, "parentname", tName);
+		DispatchKeyValue(particle, "effect_name", particleType);
+		DispatchKeyValue(particle, "cpoint1", cpName);
+		
+		DispatchSpawn(particle);
+		SetVariantString(tName);
+		AcceptEntityInput(particle, "SetParent", particle, particle, 0);
+		
+		
+		SetVariantString("flag");
+		AcceptEntityInput(particle, "SetParentAttachment", particle, particle, 0);
+		
+		ActivateEntity(particle);
+		AcceptEntityInput(particle, "start");
+		
+		CreateTimer(time, DeleteParticle, particle);
+		CreateTimer(time, DeleteParticle, particle2);
+	}
+} 
 
 stock int CreateParticle(int ent, char[] particleType, float time,float angleX=0.0,float angleY=0.0,float Xoffset=0.0,float Yoffset=0.0,float Zoffset=0.0,float size=1.0,bool update=true,bool parent=true,bool attach=false,float angleZ=0.0,int owner=-1) {
 	int particle = CreateEntityByName("info_particle_system");
