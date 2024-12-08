@@ -16,7 +16,7 @@ public Plugin myinfo =
 	name = "Sile's Team Synergy 2 Mini-mod",
 	author = "Ech0",
 	description = "Contains stock weapon changes from Sile's document",
-	version = "0.1",
+	version = "0.1.1",
 	url = ""
 };
 
@@ -104,12 +104,6 @@ enum struct Player {
 	float fRev;		// Tracks how long we've been revved for the purposes of undoing the L&W nerf
 	float fSpeed;		// Tracks how long we've been firing for the purposes of modifying Heavy's speed and reverting the JI buff
 	
-	// Engineer
-	// TODO: optimise this somehow
-	int iSentry_Level;		// Tracks the level of the player's Sentry (we do it like this because level briefly resets when redeploying and we want to stop max health from decreasing)
-	int iDispenser_Level;
-	int iTeleporter_Level;
-	
 	// Medic
 	int iSyringe_Ammo;		// Tracks loaded syringes for the purposes of determining when we fire a shot
 	
@@ -122,7 +116,15 @@ enum struct Player {
 	float fCloak_Timer;			// Tracks how long we've been cloaked (so we can disable cloak drain during the cloaking animation)
 }
 
+enum struct Entity {
+	float fConstruction_Health;
+	int iLevel;		// Stores building level for the purpose of identifying when it changes
+}
+
 Player players[MAXPLAYERS+1];
+Entity entities[2048];
+
+Handle g_hSDKFinishBuilding;
 
 
 public void OnPluginStart() {
@@ -130,8 +132,14 @@ public void OnPluginStart() {
 	HookEvent("player_spawn", OnGameEvent, EventHookMode_Post);
 	// This detects healing we do
 	HookEvent("player_healed", OnPlayerHealed);
-	// This tracks when our buildings die
-	HookEvent("object_destroyed", OnBuildingDestroyed);
+	GameData data = new GameData("buildings");
+	if (!data) {
+		SetFailState("Failed to open gamedata.buildings.txt. Unable to load plugin");
+	}
+	
+	StartPrepSDKCall(SDKCall_Entity);
+	PrepSDKCall_SetFromConf(data, SDKConf_Virtual, "CBaseObject::FinishedBuilding");
+	g_hSDKFinishBuilding = EndPrepSDKCall();
 }
 
 
@@ -194,12 +202,24 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 	else if (StrEqual(class, "tf_weapon_flamethrower")) {		// All Flamethrowers
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 10);
+		TF2Items_SetNumAttributes(item1, 12);
+		//TF2Items_SetAttribute(item1, 0, 1, 0.0); // damage penalty (100%; prevents damage from flame particles)
+		//TF2Items_SetAttribute(item1, 1, 174, 1.333333); // flame_ammopersec_increased (33%)
+		//TF2Items_SetAttribute(item1, 2, 844, 0.0); // flame_speed (nil)
+		//TF2Items_SetAttribute(item1, 3, 862, 0.0); // flame_lifetime (nil)
+		//TF2Items_SetAttribute(item1, 4, 828, -7.5); // weapon burn time reduced (turns off Afterburn)
 		TF2Items_SetAttribute(item1, 0, 1, 0.0); // damage penalty (100%; prevents damage from flame particles)
 		TF2Items_SetAttribute(item1, 1, 174, 1.333333); // flame_ammopersec_increased (33%)
-		TF2Items_SetAttribute(item1, 2, 844, 0.0); // flame_speed (nil)
-		TF2Items_SetAttribute(item1, 3, 862, 0.0); // flame_lifetime (nil)
+		TF2Items_SetAttribute(item1, 2, 844, 3500.0); // flame_speed (nil)
+		TF2Items_SetAttribute(item1, 3, 862, 0.1); // flame_lifetime (nil)
 		TF2Items_SetAttribute(item1, 4, 828, -7.5); // weapon burn time reduced (turns off Afterburn)
+		TF2Items_SetAttribute(item1, 5, 839, 0.0); // flame_spread_degree (none)
+		TF2Items_SetAttribute(item1, 6, 841, 0.0); // flame_gravity (none)
+		TF2Items_SetAttribute(item1, 7, 843, 0.0); // flame_drag (none)
+		TF2Items_SetAttribute(item1, 8, 865, 0.0); // flame_up_speed (removed)
+		TF2Items_SetAttribute(item1, 9, 843, 0.0); // flame_drag (none)
+		TF2Items_SetAttribute(item1, 10, 863, 0.0); // flame_random_lifetime_offset (none)
+		TF2Items_SetAttribute(item1, 11, 72, 0.0); // weapon brn dmg reduced (nil)
 	}
 	else if (StrEqual(class, "tf_weapon_flaregun")) {	// All Flare Guns
 		item1 = TF2Items_CreateItem(0);
@@ -341,7 +361,34 @@ Action OnGameEvent(Event event, const char[] name, bool dontbroadcast) {
 
 	// -={ Iterates every frame }=-
 
-public void OnGameFrame() {	
+public void OnGameFrame() {
+	for (int iEnt = 0; iEnt < GetMaxEntities(); iEnt++) {		// When the building associated with this ID goes down, reset its level
+	
+		if (!IsValidEdict(iEnt)) {
+			entities[iEnt].iLevel = 0;
+		}
+		else {
+			char class[64];
+			GetEntityClassname(iEnt, class, 64);
+			if (StrEqual(class,"obj_sentrygun") || StrEqual(class,"obj_teleporter") || StrEqual(class,"obj_dispenser")) {
+				
+				if (entities[iEnt].iLevel == 1) {
+					SetEntProp(iEnt, Prop_Data, "m_iMaxHealth", 130);
+				}
+				else if (entities[iEnt].iLevel == 2) {
+					SetEntProp(iEnt, Prop_Data, "m_iMaxHealth", 160);
+				}	
+				else if (entities[iEnt].iLevel == 3) {
+					SetEntProp(iEnt, Prop_Data, "m_iMaxHealth", 200);
+				}
+				
+				if (GetEntProp(iEnt, Prop_Data, "m_iHealth") > GetEntProp(iEnt, Prop_Data, "m_iMaxHealth")) {		// Lowering of current health as nessesary
+					SetEntProp(iEnt, Prop_Data, "m_iHealth", GetEntProp(iEnt, Prop_Data, "m_iMaxHealth"));
+				}
+			}
+		}
+	}
+	
 	for (int iClient = 1; iClient <= MaxClients; iClient++) {
 		if (IsClientInGame(iClient) && IsPlayerAlive(iClient)) {
 			
@@ -401,8 +448,7 @@ public void OnGameFrame() {
 			else {
 				TF2Attrib_AddCustomPlayerAttribute(iClient, "health from healers reduced", 0.5);
 			}
-			//PrintToChat(iClient, "Heal penalty removed"); 
-	
+			
 			
 			// Scout
 			if (TF2_GetPlayerClass(iClient) == TFClass_Scout) {
@@ -436,6 +482,13 @@ public void OnGameFrame() {
 				if (sequence == 28 && iActive == iPrimary) {		// This animation plays at the start of our first-shot reload
 					SetEntPropFloat(view, Prop_Send, "m_flPlaybackRate", 0.540541);		// Make this a little longer (0.7 to 0.87 sec)
 				}
+				
+				// Disable Medic speed matching (this is awkward, but it's the best I've got)
+				/*if (TF2_IsPlayerInCondition(iClient, TFCond_Healing)) {
+					int iHealer = TF2Util_GetPlayerConditionProvider(iClient, TFCond_Healing);
+					TF2Attrib_SetByDefIndex(iHealer, 54, 0.8);		// Speed
+					//PrintToChatAll("Slowdown");
+				}*/
 			}
 			
 			// Pyro
@@ -469,11 +522,16 @@ public void OnGameFrame() {
 						TR_TraceRayFilter(vecPos, vecAng, MASK_SOLID, RayType_EndPoint, TraceFilter_ExcludeSingle, iClient);		// Create a trace that starts at us and ends 512 HU forward
 						TR_GetEndPosition(vecEnd);
 						
+						//float angle = vecAng[1]*0.01745329;
+						//float Xoffset = (80-FloatAbs(vecAng[0])) * Cosine(angle);
+						//float Yoffset = (80-FloatAbs(vecAng[0])) * Sine(angle);
+						//float Zoffset = 50.0 - vecAng[0];
+						
+						//CreateParticle(iPrimary, "new_flame", 0.1, _, _, _,  _, _, 5.7);
+						
 						if (TR_DidHit()) {
 							int iEntity = TR_GetEntityIndex();		// This is the ID of the thing we hit
-							
 							if (iEntity >= 1 && iEntity <= MaxClients && GetClientTeam(iEntity) != GetClientTeam(iClient)) {		// Did we hit an enemy?
-								AttachParticle(iPrimary, "projectile_fireball", iEntity);
 								
 								float vecVictim[3], fDmgMod;
 								GetEntPropVector(iEntity, Prop_Send, "m_vecOrigin", vecVictim);		// Gets defender position
@@ -501,6 +559,22 @@ public void OnGameFrame() {
 									players[iClient].fTHREAT = 1000.0;
 								}
 								players[iClient].fTHREAT_Timer += fDamage;		// Adds damage to the DPS counter we have to exceed to block THREAT drain
+							}
+							else if(IsValidEdict(iEntity)) {		// Handles building damage
+								char class[64];
+								GetEntityClassname(iEntity, class,64);
+								if (StrEqual(class,"obj_sentrygun") || StrEqual(class,"obj_teleporter") || StrEqual(class,"obj_dispenser")) {
+									float vecVictim[3], fDmgMod;
+									GetEntPropVector(iEntity, Prop_Send, "m_vecOrigin", vecVictim);		// Gets defender position
+									float fDistance = GetVectorDistance(vecPos, vecVictim, false);		// Distance calculation
+									fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 350.0, 1.5, 1.0);		// Gives us our distance multiplier
+									float fDmgModTHREAT = RemapValClamped(players[iClient].fTHREAT, 0.0, 350.0, 1.0, 1.5);
+									
+									float fDamage = 8.0 * fDmgMod * fDmgModTHREAT;
+									int iDamagetype = DMG_SHOCK;
+									
+									SDKHooks_TakeDamage(iEntity, iPrimary, iClient, fDamage, iDamagetype, iPrimary, NULL_VECTOR, vecVictim);		// Deal damage (credited to the Phlog)
+								}
 							}
 						}
 					}
@@ -758,6 +832,24 @@ bool TraceFilter_ExcludeSingle(int entity, int contentsmask, any data) {
 }
 
 
+public void OnEntityCreated(int iEnt, const char[] classname) {
+	if(IsValidEdict(iEnt)) {
+		if (StrEqual(classname,"obj_sentrygun") || StrEqual(classname,"obj_dispenser") || StrEqual(classname,"obj_teleporter")) {
+			entities[iEnt].fConstruction_Health = 0.0;
+			SDKHook(iEnt, SDKHook_SetTransmit, BuildingThink);
+			SDKHook(iEnt, SDKHook_OnTakeDamage, BuildingDamage);
+		}
+		
+		else if(StrEqual(classname, "tf_projectile_rocket")) {
+			SDKHook(iEnt, SDKHook_StartTouch, ProjectileTouch);
+		}
+		
+		else if(StrEqual(classname, "tf_projectile_syringe")) {
+			SDKHook(iEnt, SDKHook_SpawnPost, needleSpawn);
+		}
+	}
+}
+
 	// -={ Sniper Rifle headshot hit registration }=-
 
 Action TraceAttack(int victim, int& attacker, int& inflictor, float& damage, int& damage_type, int& ammo_type, int hitbox, int hitgroup) {		// Need this for noscope headshot hitreg
@@ -886,10 +978,10 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 				}
 			}
 			
-			if (isKritzed(attacker) && StrEqual(class, "tf_weapon_syringegun_medic")) {	// No modified ramp-up for Crits (ignore Syringe Gun as we've already handled it)
+			if (isKritzed(attacker) && !StrEqual(class, "tf_weapon_syringegun_medic")) {	// No modified ramp-up for Crits (ignore Syringe Gun as we've already handled it)
 				fDmgMod = 1.0;
 			}
-			else if (isMiniKritzed(attacker, victim) && StrEqual(class, "tf_weapon_syringegun_medic")) {
+			else if (isMiniKritzed(attacker, victim) && !StrEqual(class, "tf_weapon_syringegun_medic")) {
 				if (fDmgMod < 1.0) {		// Remove fall-off on Mini-Crits
 					fDmgMod = 1.0;
 				}
@@ -1049,7 +1141,7 @@ public Action OnPlayerHealed(Event event, const char[] name, bool dontBroadcast)
 		int iSecondaryIndex = -1;
 		if(iSecondary > 0) iSecondaryIndex = GetEntProp(iSecondary, Prop_Send, "m_iItemDefinitionIndex");
 		
-		float fUber = GetEntPropFloat(iSecondary, Prop_Send, "m_flChargeLevel");
+		float fUber = GetEntPropFloat(iSecondary, Prop_Send, "m_flChargeLevel");//TODO: add a check to make sure we only check this for Medic (not Engie)
 		if (iSecondaryIndex == 35) {		// Kritzkreig
 			fUber += iHealing * 0.00125;		// Add this to our Uber amount (multiply by 0.001 as 1 HP -> 1%, and Uber is stored as a 0 - 1 proportion)
 		}
@@ -1161,26 +1253,8 @@ Action AutoreloadSyringe(Handle timer, int iClient) {
 			SetEntProp(iClient, Prop_Data, "m_iAmmo", ammoCount - (50 - clip) , _, primaryAmmo);
 			SetEntData(iPrimary, iAmmoTable, 50, 4, true);
 		}
-		return Plugin_Handled;
 	}
-}
-
-
-public void OnEntityCreated(int iEnt, const char[] classname) {
-	if(IsValidEdict(iEnt)) {
-		if (StrEqual(classname,"obj_sentrygun") || StrEqual(classname,"obj_dispenser") || StrEqual(classname,"obj_teleporter")) {
-			SDKHook(iEnt, SDKHook_SetTransmit, BuildingThink);
-			SDKHook(iEnt, SDKHook_OnTakeDamage, BuildingDamage);
-		}
-		
-		else if(StrEqual(classname, "tf_projectile_rocket")) {
-			SDKHook(iEnt, SDKHook_StartTouch, ProjectileTouch);
-		}
-		
-		else if(StrEqual(classname, "tf_projectile_syringe")) {
-			SDKHook(iEnt, SDKHook_SpawnPost, needleSpawn);
-		}
-	}
+	return Plugin_Handled;
 }
 
 public void Syringe_PrimaryAttack(int iClient, int iPrimary, float vecAng[3]) {
@@ -1294,38 +1368,6 @@ void needleSpawn(int entity) {
 	//SDKHook(entity, SDKHook_StartTouch, needleTouch);
 }
 
-/*Action needleTouch(int entity, int other) {
-	int weapon = GetEntPropEnt(entity, Prop_Send, "m_hLauncher");
-	int wepIndex = -1;
-	if (weapon != -1) wepIndex = GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex");
-	switch(wepIndex)
-	{
-		case 17,204,36,412:
-		{
-			int owner = GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity");
-			if(IsValidClient(owner))
-			{
-				if (other != owner && other >= 1 && other <= MaxClients)
-				{
-					TFTeam team = TF2_GetClientTeam(other);
-					if(TF2_GetClientTeam(owner) != team)
-						//syringe aim punch
-						g_syringeHit[other] = 10.0;
-						SDKHooks_TakeDamage(other,owner,owner,10.0,DMG_BULLET,weapon,_,_,false);
-					}
-					return Plugin_Stop;
-				}
-				else if (other == 0)
-				{
-					CreateParticle(entity,"impact_metal",1.0,_,_,_,_,_,_,false);
-				}
-			}
-		}
-	}
-	return Plugin_Continue;
-}*/
-
-
 Action BuildingDamage (int building, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3]) {
 	char class[64];
 	
@@ -1389,6 +1431,13 @@ Action BuildingDamage (int building, int &attacker, int &inflictor, float &damag
 			damage *= fDmgMod;
 			//PrintToChat(attacker, "Damage: %f", damage); 
 		}
+		
+		int seq = GetEntProp(building, Prop_Send, "m_nSequence");
+		//reduce building health while constructing
+		if(seq == 1)
+		{
+			entities[building].fConstruction_Health -= damage;
+		}
 	}
 	return Plugin_Changed;
 }
@@ -1397,146 +1446,91 @@ Action BuildingDamage (int building, int &attacker, int &inflictor, float &damag
 Action BuildingThink(int building, int client) {
 	char class[64];
 	GetEntityClassname(building, class, 64);
-	int iBuilder = GetEntPropEnt(building, Prop_Send, "m_hBuilder");
+	//int iBuilder = GetEntPropEnt(building, Prop_Send, "m_hBuilder");
 	
-	if (StrEqual(class,"obj_sentrygun")) {
-		if (GetEntProp(building, Prop_Send, "m_iUpgradeLevel") == 1) {
-			if (players[iBuilder].iSentry_Level <= 1) {
-				SetEntProp(building, Prop_Data, "m_iMaxHealth", 130);
-				players[iBuilder].iSentry_Level = 1;
+	int sequence = GetEntProp(building, Prop_Send, "m_nSequence");
+	
+	// update animation speeds for building construction
+	//int sequence = GetEntProp(building, Prop_Send, "m_nSequence");
+	float rate = RoundToFloor(GetEntPropFloat(building, Prop_Data, "m_flPlaybackRate") * 100) / 100.0;
+
+	if (rate > 0) {
+		if ((StrEqual(class,"obj_teleporter") || StrEqual(class,"obj_dispenser")) && sequence == 1) {
+			float cycle = GetEntPropFloat(building, Prop_Send, "m_flCycle");
+			float cons = GetEntPropFloat(building, Prop_Send, "m_flPercentageConstructed");
+			int maxHealth = GetEntProp(building, Prop_Send, "m_iMaxHealth");
+			switch(rate) {
+				case 0.50: { rate = 1.00; SetEntPropFloat(building, Prop_Send, "m_flPlaybackRate", 1.00);  } //not boosted
+				case 1.25: { rate = 2.50; SetEntPropFloat(building, Prop_Send, "m_flPlaybackRate", 2.50);  } //wrench boost
+				case 1.47: { rate = 2.94; SetEntPropFloat(building, Prop_Send, "m_flPlaybackRate", 2.94); } //jag boost
+				case 0.87: { rate = 1.74; SetEntPropFloat(building, Prop_Send, "m_flPlaybackRate", 1.74); } //EE boost
+				case 2.00: { rate = 4.00; SetEntPropFloat(building, Prop_Send, "m_flPlaybackRate", 4.00);  } //redeploy no boost
+				case 2.75: { rate = 5.50; SetEntPropFloat(building, Prop_Send, "m_flPlaybackRate", 5.50);  } //redeploy boosted
 			}
-		}
-		else if (GetEntProp(building, Prop_Send, "m_iUpgradeLevel") == 2) {
-			if (players[iBuilder].iSentry_Level <= 2) {
-				SetEntProp(building, Prop_Data, "m_iMaxHealth", 160);
-				players[iBuilder].iSentry_Level = 2;
+			if (rate != 3.60 || rate != 4.95) {	// if not redeployed
+				if(GetEntProp(building, Prop_Send, "m_iHealth") < RoundFloat(entities[building].fConstruction_Health)) {
+					SetVariantInt(1);
+					AcceptEntityInput(building, "AddHealth");
+				}
 			}
-		}
-		else if (GetEntProp(building, Prop_Send, "m_iUpgradeLevel") == 3) {
-			if (players[iBuilder].iSentry_Level <= 3) {
-				SetEntProp(building, Prop_Data, "m_iMaxHealth", 200);
-				players[iBuilder].iSentry_Level = 3;
+			SetEntPropFloat(building, Prop_Send, "m_flPercentageConstructed",cycle*1.70 > 1.0 ? 1.0 : cycle*1.70);
+			if (cons >= 1.00) {
+				if (rate != 3.60 || rate != 4.95) SetEntProp(building, Prop_Send, "m_iHealth", maxHealth);
+				SDKCall(g_hSDKFinishBuilding, building);
+				RequestFrame(healBuild, building);
 			}
-		}
-	}
-	else if (StrEqual(class,"obj_dispenser")) {
-		if (GetEntProp(building, Prop_Send, "m_iUpgradeLevel") == 1) {
-			if (players[iBuilder].iDispenser_Level <= 1) {
-				SetEntProp(building, Prop_Data, "m_iMaxHealth", 130);
-				players[iBuilder].iDispenser_Level = 1;
-			}
-		}
-		else if (GetEntProp(building, Prop_Send, "m_iUpgradeLevel") == 2) {
-			if (players[iBuilder].iDispenser_Level <= 2) {
-				SetEntProp(building, Prop_Data, "m_iMaxHealth", 160);
-				players[iBuilder].iDispenser_Level = 2;
-			}
-		}
-		else if (GetEntProp(building, Prop_Send, "m_iUpgradeLevel") == 3) {
-			if (players[iBuilder].iDispenser_Level <= 3) {
-				SetEntProp(building, Prop_Data, "m_iMaxHealth", 200);
-				players[iBuilder].iDispenser_Level = 3;
-			}
+			entities[building].fConstruction_Health += rate / 4.75;
 		}
 	}
-	else if (StrEqual(class,"obj_teleporter")) {
-		if (GetEntProp(building, Prop_Send, "m_iUpgradeLevel") == 1) {
-			if (players[iBuilder].iTeleporter_Level <= 1) {
-				SetEntProp(building, Prop_Data, "m_iMaxHealth", 130);
-				players[iBuilder].iTeleporter_Level = 1;
-			}
+	
+	if (GetEntProp(building, Prop_Send, "m_iUpgradeLevel") == 1 && entities[building].iLevel <= 1) {
+		if (entities[building].iLevel < 1) {
+			entities[building].iLevel = 1;
 		}
-		else if (GetEntProp(building, Prop_Send, "m_iUpgradeLevel") == 2) {
-			if (players[iBuilder].iTeleporter_Level <= 2) {
-				SetEntProp(building, Prop_Data, "m_iMaxHealth", 160);
-				players[iBuilder].iTeleporter_Level = 2;
-			}
+	}
+	else if (GetEntProp(building, Prop_Send, "m_iUpgradeLevel") == 2 && entities[building].iLevel <= 2) {
+		if (entities[building].iLevel < 2) {
+			entities[building].iLevel = 2;
 		}
-		else if (GetEntProp(building, Prop_Send, "m_iUpgradeLevel") == 3) {
-			if (players[iBuilder].iTeleporter_Level <= 3) {
-				SetEntProp(building, Prop_Data, "m_iMaxHealth", 200);
-				players[iBuilder].iTeleporter_Level = 3;
-			}
+	}
+	else if (GetEntProp(building, Prop_Send, "m_iUpgradeLevel") == 3) {
+		if (entities[building].iLevel < 3) {
+			entities[building].iLevel = 3;
 		}
+	}
+	
+	/*if (entities[building].iLevel == 1) {
+		SetEntProp(building, Prop_Data, "m_iMaxHealth", 130);
+	}
+	else if (entities[building].iLevel == 2) {
+		SetEntProp(building, Prop_Data, "m_iMaxHealth", 160);
+	}	
+	else if (entities[building].iLevel == 3) {
+		SetEntProp(building, Prop_Data, "m_iMaxHealth", 200);
 	}
 	
 	if (GetEntProp(building, Prop_Data, "m_iHealth") > GetEntProp(building, Prop_Data, "m_iMaxHealth")) {		// Lowering of current health as nessesary
 		SetEntProp(building, Prop_Data, "m_iHealth", GetEntProp(building, Prop_Data, "m_iMaxHealth"));
+	}*/
+	
+	if (entities[building].iLevel < GetEntProp(building, Prop_Send, "m_iUpgradeLevel")) {
+		entities[building].iLevel = GetEntProp(building, Prop_Send, "m_iUpgradeLevel");
 	}
 	return Plugin_Continue;
 }
 
-
-	// -={ Tracks when buildings die so we can reset the variable that tracks their level }=-
-
-public Action OnBuildingDestroyed(Event event, const char[] name, bool broadcast) {
-    int iClient = event.GetInt("userid");        // User ID of the player who owned the building
-	// int iObjectType = event.GetInt("object");   // Type of building (e.g., sentry, dispenser, etc.)
-	//int iAttacker = event.GetInt("attacker");   // User ID of the player who destroyed the building (may be 0 if no attacker)
-	TFObjectType building = view_as<TFObjectType>(event.GetInt("objecttype"));
-	
-	if (building == TFObject_Dispenser) {		// Dispenser
-		players[iClient].iDispenser_Level = 0;
-	}
-	else if (building == TFObject_Teleporter) {	// Teleporter
-		players[iClient].iTeleporter_Level = 0;
-	}
-	else if (building == TFObject_Sentry) {		// Sentry Gun
-		players[iClient].iSentry_Level = 0;
-	}
-	
-	return Plugin_Continue;
+void healBuild(int building)
+{
+	SetVariantInt(10);
+	AcceptEntityInput(building,"AddHealth");
 }
+
 
 	// ==={{ Do not touch anything below this point }}===
 
 	// -={ Displays particles (taken from ShSilver) }=-
 	
 	// -={ Particle stuff below }=-
-
-void AttachParticle(int ent, const char[] particleType ,int controlpoint, float time=3.0)
-{
-	int particle  = CreateEntityByName("info_particle_system");
-	int particle2 = CreateEntityByName("info_particle_system");
-	if (IsValidEdict(particle)) {
-		float pos[3]; 
-		GetEntPropVector(ent, Prop_Send, "m_vecOrigin", pos);
-		pos[2] = pos[2] + 45.0;  
-		TeleportEntity(particle, pos, NULL_VECTOR, NULL_VECTOR);
-		
-		GetEntPropVector(controlpoint, Prop_Send, "m_vecOrigin", pos);
-		pos[2] = pos[2] + 45.0;  
-		TeleportEntity(particle2, pos, NULL_VECTOR, NULL_VECTOR);
-		
-		char tName[128];
-		Format(tName, sizeof(tName), "target%i", ent);
-		DispatchKeyValue(ent, "targetname", tName);
-		
-		char cpName[128];
-		Format(cpName, sizeof(cpName), "Xtarget%i", controlpoint);
-		
-		DispatchKeyValue(particle2, "targetname", cpName);
-		
-		DispatchKeyValue(particle, "targetname", "tf2particle");
-		DispatchKeyValue(particle, "parentname", tName);
-		DispatchKeyValue(particle, "effect_name", particleType);
-		DispatchKeyValue(particle, "cpoint1", cpName);
-		
-		DispatchSpawn(particle);
-		SetVariantString(tName);
-		AcceptEntityInput(particle, "SetParent", particle, particle, 0);
-		
-		
-		SetVariantString("flag");
-		AcceptEntityInput(particle, "SetParentAttachment", particle, particle, 0);
-		
-		ActivateEntity(particle);
-		AcceptEntityInput(particle, "start");
-		
-		CreateTimer(time, DeleteParticle, particle);
-		CreateTimer(time, DeleteParticle, particle2);
-	}
-} 
 
 stock int CreateParticle(int ent, char[] particleType, float time,float angleX=0.0,float angleY=0.0,float Xoffset=0.0,float Yoffset=0.0,float Zoffset=0.0,float size=1.0,bool update=true,bool parent=true,bool attach=false,float angleZ=0.0,int owner=-1) {
 	int particle = CreateEntityByName("info_particle_system");
