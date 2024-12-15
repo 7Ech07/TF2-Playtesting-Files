@@ -93,6 +93,7 @@ enum struct Player {
 	float fTHREAT_Timer;	// Timer when after building THREAT we start to get rid of it
 	float fHeal_Penalty;		// Tracks how long after taking damage we restore our incoming healing to normal
 	int bFirst_Reload;		// Tracks when we firefor the purpose of identifying the first-shot portion of the reload on certain weapons
+	float fAfterburn;		// Tracks Afterburn diration
 	
 	// Scout
 	float fAirjump;		// Tracks damage taken while airborne
@@ -203,14 +204,9 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
 		TF2Items_SetNumAttributes(item1, 12);
-		//TF2Items_SetAttribute(item1, 0, 1, 0.0); // damage penalty (100%; prevents damage from flame particles)
-		//TF2Items_SetAttribute(item1, 1, 174, 1.333333); // flame_ammopersec_increased (33%)
-		//TF2Items_SetAttribute(item1, 2, 844, 0.0); // flame_speed (nil)
-		//TF2Items_SetAttribute(item1, 3, 862, 0.0); // flame_lifetime (nil)
-		//TF2Items_SetAttribute(item1, 4, 828, -7.5); // weapon burn time reduced (turns off Afterburn)
 		TF2Items_SetAttribute(item1, 0, 1, 0.0); // damage penalty (100%; prevents damage from flame particles)
 		TF2Items_SetAttribute(item1, 1, 174, 1.333333); // flame_ammopersec_increased (33%)
-		TF2Items_SetAttribute(item1, 2, 844, 3500.0); // flame_speed (nil)
+		TF2Items_SetAttribute(item1, 2, 844, 3380.0); // flame_speed (enough to travel 350 HU from out centre in 0.1 sec)
 		TF2Items_SetAttribute(item1, 3, 862, 0.1); // flame_lifetime (nil)
 		TF2Items_SetAttribute(item1, 4, 828, -7.5); // weapon burn time reduced (turns off Afterburn)
 		TF2Items_SetAttribute(item1, 5, 839, 0.0); // flame_spread_degree (none)
@@ -219,13 +215,14 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 		TF2Items_SetAttribute(item1, 8, 865, 0.0); // flame_up_speed (removed)
 		TF2Items_SetAttribute(item1, 9, 843, 0.0); // flame_drag (none)
 		TF2Items_SetAttribute(item1, 10, 863, 0.0); // flame_random_lifetime_offset (none)
-		TF2Items_SetAttribute(item1, 11, 72, 0.0); // weapon brn dmg reduced (nil)
+		TF2Items_SetAttribute(item1, 11, 72, 0.0); // weapon burn dmg reduced (nil)
 	}
 	else if (StrEqual(class, "tf_weapon_flaregun")) {	// All Flare Guns
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 1);
-		TF2Items_SetAttribute(item1, 0, 318, 0.625); // faster reload rate (1.25 sec)
+		TF2Items_SetNumAttributes(item1, 2);
+		TF2Items_SetAttribute(item1, 0, 72, 0.0); // weapon burn dmg reduced (nil)
+		TF2Items_SetAttribute(item1, 1, 318, 0.625); // faster reload rate (1.25 sec)
 	}
 	
 	// Demoman
@@ -363,13 +360,25 @@ Action OnGameEvent(Event event, const char[] name, bool dontbroadcast) {
 
 public void OnGameFrame() {
 	for (int iEnt = 0; iEnt < GetMaxEntities(); iEnt++) {		// When the building associated with this ID goes down, reset its level
-	
+		char class[64];
+		GetEntityClassname(iEnt, class, 64);
+		
 		if (!IsValidEdict(iEnt)) {
 			entities[iEnt].iLevel = 0;
+			if (StrEqual(class,"obj_teleporter")) {		// If a Teleporter dies, find the other half and reset its level
+				int iOwner = GetEntPropEnt(iEnt, Prop_Send, "m_hBuilder");
+				if (iOwner != -1) {
+					for (int iEnt2 = 0; iEnt2 < GetMaxEntities(); iEnt2++) {
+						char class2[64];
+						GetEntityClassname(iEnt2, class2, 64);
+						if (StrEqual(class,"obj_teleporter") && iOwner == GetEntPropEnt(iEnt2, Prop_Send, "m_hBuilder")) {
+							entities[iEnt2].iLevel = 1;
+						}
+					}
+				}
+			}
 		}
 		else {
-			char class[64];
-			GetEntityClassname(iEnt, class, 64);
 			if (StrEqual(class,"obj_sentrygun") || StrEqual(class,"obj_teleporter") || StrEqual(class,"obj_dispenser")) {
 				
 				if (entities[iEnt].iLevel == 1) {
@@ -450,6 +459,25 @@ public void OnGameFrame() {
 			}
 			
 			
+			// Afterburn
+			if (TF2Util_GetPlayerBurnDuration(iClient) > 6.0) {
+				TF2Util_SetPlayerBurnDuration(iClient, 6.0);
+				int MaxHP = GetEntProp(iClient, Prop_Send, "m_iMaxHealth");
+				players[iClient].fAfterburn += maxHP / 20.0;		// Adds 5% of the victim's max health to this value
+				if (players[iClient].fAfterburn > MaxHP / 5.0) {
+					players[iClient].fAfterburn = MaxHP / 5.0;		// Clamping
+				}
+			}
+			if (TF2Util_GetPlayerBurnDuration(iClient) > 0.0) {
+				TF2Util_GetPlayerBurnDuration(iClient) -= 0.015;
+			}
+			else if (TF2Util_GetPlayerBurnDuration(iClient) <= 0.0) {
+				TF2Util_GetPlayerBurnDuration(iClient) = 0.0;
+				players[iClient].fAfterburn -= maxHP / 10.0;
+			}
+			TF2Attrib_AddCustomPlayerAttribute(iClient, "max health additive penalty", -players[iClient].fAfterburn);
+			
+			
 			// Scout
 			if (TF2_GetPlayerClass(iClient) == TFClass_Scout) {
 				// Removes double jump when taking daamge while airborne
@@ -484,11 +512,15 @@ public void OnGameFrame() {
 				}
 				
 				// Disable Medic speed matching (this is awkward, but it's the best I've got)
-				/*if (TF2_IsPlayerInCondition(iClient, TFCond_Healing)) {
+				if (TF2_IsPlayerInCondition(iClient, TFCond_Healing)) {
 					int iHealer = TF2Util_GetPlayerConditionProvider(iClient, TFCond_Healing);
-					TF2Attrib_SetByDefIndex(iHealer, 54, 0.8);		// Speed
-					//PrintToChatAll("Slowdown");
-				}*/
+					if (IsClientInGame(iHealer) && IsPlayerAlive(iHealer))  {
+						if (TF2_GetPlayerClass(iHealer) == TFClass_Medic) {
+							TF2Attrib_SetByDefIndex(iHealer, 54, 0.8);		// Speed
+							//PrintToChatAll("Slowdown");
+						}
+					}
+				}
 			}
 			
 			// Pyro
@@ -758,11 +790,14 @@ public void OnGameFrame() {
 					players[iClient].fCloak_Timer += 0.015;
 					if (players[iClient].fCloak_Timer > 1.0) {
 						players[iClient].fCloak_Timer = 1.0;
+						SetEntPropFloat(iClient, Prop_Send, "m_flCloakMeter", fCloak + 0.149254);		// This is how much cloak we normally drain per frame
 					}
 				}
 				else {
 					players[iClient].fCloak_Timer = 0.0;
 				}
+				
+				float fCloak = GetEntPropFloat(iClient, Prop_Send, "m_flCloakMeter");
 				
 				// Cloak debuff resistance
 				if (players[iClient].fCloak_Timer >= 1.0) {
@@ -788,14 +823,8 @@ public void OnGameFrame() {
 					}
 					
 					if (debuffed == true) {
-						TF2Attrib_SetByDefIndex(iWatch, 34, 2.0);	// mult cloak meter consume rate (doubled)
+						SetEntPropFloat(iClient, Prop_Send, "m_flCloakMeter", fCloak - 0.149254);	// mult cloak meter consume rate (doubled)
 					}
-					else {
-						TF2Attrib_SetByDefIndex(iWatch, 34, 1.0);	// clears attribute
-					}
-				}
-				else {
-					TF2Attrib_SetByDefIndex(iWatch, 34, 0.001);
 				}
 			
 				// Hitscan accuracy
@@ -1116,7 +1145,6 @@ public void OnTakeDamagePost(int victim, int attacker, int inflictor, float dama
 			// Reduce Medi-Gun healing on victim
 			players[victim].fHeal_Penalty = 5.0;
 			TF2Attrib_AddCustomPlayerAttribute(victim, "health from healers reduced", 0.5);
-			//PrintToChat(victim, "Heal penalty applied"); 
 			
 			// Scout
 			if (TF2_GetPlayerClass(victim) == TFClass_Scout) {
@@ -1137,22 +1165,24 @@ public Action OnPlayerHealed(Event event, const char[] name, bool dontBroadcast)
 	int iHealing = event.GetInt("amount");
 
 	if (iPatient >= 1 && iPatient <= MaxClients && iHealer >= 1 && iHealer <= MaxClients && iPatient != iHealer) {
-		int iSecondary = TF2Util_GetPlayerLoadoutEntity(iHealer, TFWeaponSlot_Secondary, true);
-		int iSecondaryIndex = -1;
-		if(iSecondary > 0) iSecondaryIndex = GetEntProp(iSecondary, Prop_Send, "m_iItemDefinitionIndex");
-		
-		float fUber = GetEntPropFloat(iSecondary, Prop_Send, "m_flChargeLevel");//TODO: add a check to make sure we only check this for Medic (not Engie)
-		if (iSecondaryIndex == 35) {		// Kritzkreig
-			fUber += iHealing * 0.00125;		// Add this to our Uber amount (multiply by 0.001 as 1 HP -> 1%, and Uber is stored as a 0 - 1 proportion)
-		}
-		else {
-			fUber += iHealing * 0.001;
-		}
-		if (fUber > 1.0) {
-			SetEntPropFloat(iSecondary, Prop_Send, "m_flChargeLevel", 1.0);
-		}
-		else {
-			SetEntPropFloat(iSecondary, Prop_Send, "m_flChargeLevel", fUber);
+		if (TF2_GetPlayerClass(iHealer) == TFClass_Medic) {
+			int iSecondary = TF2Util_GetPlayerLoadoutEntity(iHealer, TFWeaponSlot_Secondary, true);
+			int iSecondaryIndex = -1;
+			if(iSecondary > 0) iSecondaryIndex = GetEntProp(iSecondary, Prop_Send, "m_iItemDefinitionIndex");
+			
+			float fUber = GetEntPropFloat(iSecondary, Prop_Send, "m_flChargeLevel");
+			if (iSecondaryIndex == 35) {		// Kritzkreig
+				fUber += iHealing * 0.00125;		// Add this to our Uber amount (multiply by 0.001 as 1 HP -> 1%, and Uber is stored as a 0 - 1 proportion)
+			}
+			else {
+				fUber += iHealing * 0.001;
+			}
+			if (fUber > 1.0) {
+				SetEntPropFloat(iSecondary, Prop_Send, "m_flChargeLevel", 1.0);
+			}
+			else {
+				SetEntPropFloat(iSecondary, Prop_Send, "m_flChargeLevel", fUber);
+			}
 		}
 	}
 
@@ -1382,54 +1412,177 @@ Action BuildingDamage (int building, int &attacker, int &inflictor, float &damag
 			float fDistance = GetVectorDistance(vecAttacker, vecBuilding, false);		// Distance calculation
 			float fDmgMod = 1.0;
 			
-			// Apply ramp-up and fall-off to incoming damage
-			if (		// List of all weapon archetypes with standard ramp-up/fall-off
-			// Multi-class
-			(StrEqual(class, "tf_weapon_shotgun")) ||
-			(StrEqual(class, "tf_weapon_pistol")) ||
+
 			// Scout
-			(StrEqual(class, "tf_weapon_scattergun")) ||
-			(StrEqual(class, "tf_weapon_soda_popper")) ||
-			(StrEqual(class, "tf_weapon_pep_brawler_blaster")) ||
-			(StrEqual(class, "tf_weapon_handgun_scout_primary")) ||
-			(StrEqual(class, "tf_weapon_handgun_scout_secondary")) ||
+			if (TF2_GetPlayerClass(attacker) == TFClass_Scout) {
+				if ((StrEqual(class, "tf_weapon_scattergun") || StrEqual(class, "tf_weapon_soda_popper") || StrEqual(class, "tf_weapon_pep_brawler_blaster")) && fDistance < 512.0) {
+					fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5) / SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.75, 0.25);		// Scale the ramp-up down to 150%
+				}
+			}
+
 			// Soldier
-			(StrEqual(class, "tf_weapon_rocketlauncher")) ||
-			(StrEqual(class, "tf_weapon_rocketlauncher_airstrike")) ||
-			(StrEqual(class, "tf_weapon_particle_cannon")) ||
-			(StrEqual(class, "tf_weapon_raygun")) ||
-			(StrEqual(class, "tf_weapon_shotgun_soldier")) ||
+			if (TF2_GetPlayerClass(attacker) == TFClass_Soldier) {
+				if ((StrEqual(class, "tf_weapon_rocketlauncher") || StrEqual(class, "tf_weapon_rocketlauncher_airstrike") || StrEqual(class, "tf_weapon_particle_cannon")) && fDistance < 512.0) {
+					fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5) / SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.25, 0.75);		// Scale the ramp-up up to 150%
+				}
+			}
+			
 			// Pyro
-			(StrEqual(class, "tf_weapon_shotgun_pyro")) ||
-			(StrEqual(class, "tf_weapon_flaregun")) ||
-			(StrEqual(class, "tf_weapon_flaregun_revenge")) ||
-			// Heavy
-			(StrEqual(class, "tf_weapon_minigun")) ||
-			(StrEqual(class, "tf_weapon_shotgun_hwg")) ||
-			// Engineer
-			(StrEqual(class, "tf_weapon_shotgun_primary")) ||
-			(StrEqual(class, "tf_weapon_sentry_revenge")) ||
-			(StrEqual(class, "tf_weapon_shotgun_building_rescue")) ||
-			(StrEqual(class, "tf_weapon_drg_pomson")) ||
+			if (TF2_GetPlayerClass(attacker) == TFClass_Pyro) {
+				if (StrEqual(class, "tf_weapon_flaregun") || StrEqual(class, "tf_weapon_flaregun_revenge")) {
+					fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);		// Gives us our ramp-up/fall-off multiplier
+				}
+			}
+			
+			// Demoman
+			if (TF2_GetPlayerClass(attacker) == TFClass_DemoMan) {
+				if (StrEqual(class, "tf_weapon_pipebomblauncher")) {
+					if (fDistance < 512.0) {
+						SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.4, 0.7) / SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.2, 0.8);		// Scale the ramp-up up to 140%
+					}
+					else {
+						SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.25, 0.75) / SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);		// Scale the fall-off up to 75%
+					}
+				}
+			}
+			
+			// Medic
+			if (TF2_GetPlayerClass(attacker) == TFClass_Medic) {
+				if (StrEqual(class, "tf_weapon_syringegun_medic")) {
+					fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.2, 0.8);		// Gives us our ramp-up/fall-off multiplier (+/- 20%)
+					fDmgMod *= 0.4;	// I don't know why, but syringes do way too much damage if we don't have this
+				}
+			}
+			
 			// Sniper
-			(StrEqual(class, "tf_weapon_sniperrifle")) ||
-			(StrEqual(class, "tf_weapon_smg"))) {
-				
-				fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);
+			if (TF2_GetPlayerClass(attacker) == TFClass_Sniper) {
+				// Rifle custom ramp-up/fall-off and Mini-Crit headshot damage
+				if (StrEqual(class, "tf_weapon_sniperrifle") || StrEqual(class, "tf_weapon_sniperrifle_decap") || StrEqual(class, "tf_weapon_sniperrifle_classic")) {
+					
+					damage = 50.0;		// We're overwriting the Rifle charge behaviour so we manually set the baseline damage here
+					float fCharge = GetEntPropFloat(weapon, Prop_Send, "m_flChargedDamage");
+					if (fCharge == 150.0) {		// Apply equivalent of two 50% damage bonuses when fully charged
+						damage = 113.0;
+					}
+					else {
+						fDmgMod = RemapValClamped(fCharge, 0.0, 150.0, 1.0, 1.5);		// Else, apply up to 50% bonus damage depending on charge
+						damage *= fDmgMod;
+					}
+					
+					fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);		// Gives us our ramp-up/fall-off multiplier
+				}
 			}
 			
-			if (StrEqual(class, "tf_weapon_minigun") && StrEqual(class,"obj_sentrygun")) {		// Remove Sentry building armour
-				if (GetEntProp(building, Prop_Send, "m_iUpgradeLevel") == 2) {		// 15% resist
-					fDmgMod *= 1.176471;
-				}
-				
-				else if (GetEntProp(building, Prop_Send, "m_iUpgradeLevel") == 3) {		// 20% resist
-					fDmgMod *= 1.25;
+			// Spy
+			if (TF2_GetPlayerClass(attacker) == TFClass_Spy) {
+				if (StrEqual(class, "tf_weapon_revolver") && fDistance < 512.0) {		// Scale ramp-up down to 120
+					fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.2, 0.8) / SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);
 				}
 			}
 			
-			damage *= fDmgMod;
-			//PrintToChat(attacker, "Damage: %f", damage); 
+			if (StrEqual(class, "tf_weapon_knife")) {
+				if (damagecustom == TF_CUSTOM_BACKSTAB) {	// If we get a backstab...
+					damage = GetEntProp(GetPlayerResourceEntity(), Prop_Send, "m_iMaxHealth", _, victim) * 1.25;		// Override damage to 125% of victim's max health
+				}
+			}
+			
+			damage *= fDmgMod;		// This applies *all* ramp-up/fall-off modifications for all classes
+			
+			// THREAT modifier
+			if (players[attacker].fTHREAT > 0.0 && !isKritzed(attacker)) {
+				// Apply THREAT modifiers
+				if (		// List of all weapon archetypes with standard ramp-up/fall-off
+				// Multi-class
+				StrEqual(class, "tf_weapon_shotgun") ||
+				StrEqual(class, "tf_weapon_pistol") ||
+				// Scout
+				StrEqual(class, "tf_weapon_scattergun") ||
+				StrEqual(class, "tf_weapon_soda_popper") ||
+				StrEqual(class, "tf_weapon_pep_brawler_blaster") ||
+				StrEqual(class, "tf_weapon_handgun_scout_primary") ||
+				StrEqual(class, "tf_weapon_handgun_scout_secondary") ||
+				// Soldier
+				StrEqual(class, "tf_weapon_rocketlauncher") ||
+				StrEqual(class, "tf_weapon_rocketlauncher_directhit") ||
+				StrEqual(class, "tf_weapon_rocketlauncher_airstrike") ||
+				StrEqual(class, "tf_weapon_particle_cannon") ||
+				StrEqual(class, "tf_weapon_raygun") ||
+				StrEqual(class, "tf_weapon_shotgun_soldier") ||
+				// Pyro
+				StrEqual(class, "tf_weapon_shotgun_pyro") ||
+				StrEqual(class, "tf_weapon_flaregun") ||
+				StrEqual(class, "tf_weapon_flaregun_revenge") ||
+				// Heavy
+				StrEqual(class, "tf_weapon_minigun") ||
+				StrEqual(class, "tf_weapon_shotgun_hwg") ||
+				// Engineer
+				StrEqual(class, "tf_weapon_shotgun_primary") ||
+				StrEqual(class, "tf_weapon_sentry_revenge") ||
+				StrEqual(class, "tf_weapon_shotgun_building_rescue") ||
+				StrEqual(class, "tf_weapon_drg_pomson") ||
+				// Sniper
+				StrEqual(class, "tf_weapon_sniperrifle") ||
+				StrEqual(class, "tf_weapon_smg")) {
+					
+					if (fDistance < 512.0) {
+						// The formula for this is (max_rampup_mult/rampup_falloff_mod - 1) * THREAT_proportion + 1
+						// First, we figure out what number we have to multiply the ramp-up multiplier for any given distance to give the max ramp-up amount. 
+						// Then, we subtract 1 to only get the extra damage. We scale the extra damage amount by the amount of THREAT we have. 
+						// Finally, we re-add 1 to get the multiplier.
+						// Simple!
+						fDmgModTHREAT = (1.5/SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5) -  1) * players[attacker].fTHREAT/1000 + 1;
+					}
+					
+					else {
+						// This is just a scaling linear multiplier
+						fDmgModTHREAT = RemapValClamped(fDistance, 512.0, 1024.0, 0.5, 0.0) * players[attacker].fTHREAT/1000 + 1.0;
+					}
+					
+					if (StrEqual(class, "tf_weapon_sniperrifle") && fDistance > 512.0 && players[attacker].iHeadshot_Frame == GetGameTickCount()) {	// Standardise the multiplier for headshots
+						fDmgModTHREAT = 0.5 * players[attacker].fTHREAT/1000 + 1;
+					}
+				}
+				
+				else if (		// List of all weapon archetypes with atypical ramp-up and/or fall-off
+				// Demoman
+				StrEqual(class, "tf_weapon_pipebomblauncher")) {	// +40
+					if (fDistance < 512.0) {
+						fDmgModTHREAT = (1.4/SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.4, 0.7) -  1) * players[attacker].fTHREAT/1000 + 1;
+					}
+					
+					else {
+						fDmgModTHREAT = RemapValClamped(fDistance, 512.0, 1024.0, 0.4, 0.0) * players[attacker].fTHREAT/1000 + 1.0;
+					}
+				}
+				else if (
+				// Soldier
+				StrEqual(class, "tf_weapon_rocketlauncher_directhit") ||	// +20
+				// Medic
+				StrEqual(class, "tf_weapon_syringegun_medic") ||
+				// Spy
+				StrEqual(class, "tf_weapon_revolver")) {
+					if (fDistance < 512.0) {
+						fDmgModTHREAT = (1.2/SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.2, 0.8) -  1) * players[attacker].fTHREAT/1000 + 1;
+					}
+					
+					else {
+						fDmgModTHREAT = RemapValClamped(fDistance, 512.0, 1024.0, 0.2, 0.0) * players[attacker].fTHREAT/1000 + 1.0;
+					}
+				}
+				
+				// Melee
+				else if ((damage_type & DMG_CLUB || damage_type & DMG_SLASH) && !StrEqual(class, "tf_weapon_knife")) {		// Handle melee damage (excluding knives)
+					fDmgModTHREAT = RemapValClamped(players[attacker].fTHREAT, 0.0, 1000.0, 1.0, 1.5);		// TODO: lower this for melees with intrinsic damage bonuses
+				}
+				
+				if (isMiniKritzed(attacker, victim)) {
+					if (fDistance > 512.0) {
+						fDmgModTHREAT = 0.5 * players[attacker].fTHREAT/1000 + 1;
+					}
+				}
+				
+				damage *= fDmgModTHREAT;
+			}
 		}
 		
 		int seq = GetEntProp(building, Prop_Send, "m_nSequence");
@@ -1439,6 +1592,18 @@ Action BuildingDamage (int building, int &attacker, int &inflictor, float &damag
 			entities[building].fConstruction_Health -= damage;
 		}
 	}
+	
+	// THREAT
+	if (weapon > 0) {		// Prevents us attempting to process data from e.g. Sentry Guns and causing errors
+		GetEntityClassname(weapon, class, sizeof(class));		// Retrieve the weapon
+		
+		// Add THREAT
+		players[attacker].fTHREAT += damage;		// Add THREAT
+		if (players[attacker].fTHREAT > 1000.0) {
+			players[attacker].fTHREAT = 1000.0;
+		}
+		players[attacker].fTHREAT_Timer += damage;		// Adds damage to the DPS counter we have to exceed to block THREAT drain
+	}
 	return Plugin_Changed;
 }
 
@@ -1446,13 +1611,10 @@ Action BuildingDamage (int building, int &attacker, int &inflictor, float &damag
 Action BuildingThink(int building, int client) {
 	char class[64];
 	GetEntityClassname(building, class, 64);
-	//int iBuilder = GetEntPropEnt(building, Prop_Send, "m_hBuilder");
-	
-	int sequence = GetEntProp(building, Prop_Send, "m_nSequence");
 	
 	// update animation speeds for building construction
-	//int sequence = GetEntProp(building, Prop_Send, "m_nSequence");
 	float rate = RoundToFloor(GetEntPropFloat(building, Prop_Data, "m_flPlaybackRate") * 100) / 100.0;
+	int sequence = GetEntProp(building, Prop_Send, "m_nSequence");
 
 	if (rate > 0) {
 		if ((StrEqual(class,"obj_teleporter") || StrEqual(class,"obj_dispenser")) && sequence == 1) {
@@ -1498,20 +1660,6 @@ Action BuildingThink(int building, int client) {
 			entities[building].iLevel = 3;
 		}
 	}
-	
-	/*if (entities[building].iLevel == 1) {
-		SetEntProp(building, Prop_Data, "m_iMaxHealth", 130);
-	}
-	else if (entities[building].iLevel == 2) {
-		SetEntProp(building, Prop_Data, "m_iMaxHealth", 160);
-	}	
-	else if (entities[building].iLevel == 3) {
-		SetEntProp(building, Prop_Data, "m_iMaxHealth", 200);
-	}
-	
-	if (GetEntProp(building, Prop_Data, "m_iHealth") > GetEntProp(building, Prop_Data, "m_iMaxHealth")) {		// Lowering of current health as nessesary
-		SetEntProp(building, Prop_Data, "m_iHealth", GetEntProp(building, Prop_Data, "m_iMaxHealth"));
-	}*/
 	
 	if (entities[building].iLevel < GetEntProp(building, Prop_Send, "m_iUpgradeLevel")) {
 		entities[building].iLevel = GetEntProp(building, Prop_Send, "m_iUpgradeLevel");
