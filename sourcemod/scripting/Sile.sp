@@ -413,7 +413,7 @@ public void OnGameFrame() {
 			//int iMeleeIndex = -1;
 			//if(iMelee > 0) iMeleeIndex = GetEntProp(iMelee, Prop_Send, "m_iItemDefinitionIndex");
 			
-			int iWatch = TF2Util_GetPlayerLoadoutEntity(iClient, 6, true);
+			//int iWatch = TF2Util_GetPlayerLoadoutEntity(iClient, 6, true);
 			//int iWatchIndex = -1;
 			//if(iWatch > 0) iWatchIndex = GetEntProp(iWatch, Prop_Send, "m_iItemDefinitionIndex");
 			
@@ -812,6 +812,7 @@ public void OnGameFrame() {
 					if (players[iClient].fCloak_Timer > 1.0) {
 						players[iClient].fCloak_Timer = 1.0;
 						SetEntPropFloat(iClient, Prop_Send, "m_flCloakMeter", fCloak + 0.149254);		// This is how much cloak we normally drain per frame
+						SetEntPropFloat(iClient, Prop_Send, "m_flCloakMeter", fCloak + 5.0);		// This is how much cloak we normally drain per frame
 					}
 				}
 				else {
