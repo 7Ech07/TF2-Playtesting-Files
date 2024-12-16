@@ -460,20 +460,22 @@ public void OnGameFrame() {
 			
 			
 			// Afterburn
+			int MaxHP = GetEntProp(iClient, Prop_Send, "m_iMaxHealth");
 			if (TF2Util_GetPlayerBurnDuration(iClient) > 6.0) {
 				TF2Util_SetPlayerBurnDuration(iClient, 6.0);
-				int MaxHP = GetEntProp(iClient, Prop_Send, "m_iMaxHealth");
-				players[iClient].fAfterburn += maxHP / 20.0;		// Adds 5% of the victim's max health to this value
+				players[iClient].fAfterburn += MaxHP / 20.0;		// Adds 5% of the victim's max health to this value
 				if (players[iClient].fAfterburn > MaxHP / 5.0) {
 					players[iClient].fAfterburn = MaxHP / 5.0;		// Clamping
 				}
 			}
 			if (TF2Util_GetPlayerBurnDuration(iClient) > 0.0) {
-				TF2Util_GetPlayerBurnDuration(iClient) -= 0.015;
+				players[iClient].fAfterburn -= 0.015;
+				if (players[iClient].fAfterburn < 0.0) {
+					players[iClient].fAfterburn = 0.0;
+				}
 			}
 			else if (TF2Util_GetPlayerBurnDuration(iClient) <= 0.0) {
-				TF2Util_GetPlayerBurnDuration(iClient) = 0.0;
-				players[iClient].fAfterburn -= maxHP / 10.0;
+				players[iClient].fAfterburn -= MaxHP / 10.0;
 			}
 			TF2Attrib_AddCustomPlayerAttribute(iClient, "max health additive penalty", -players[iClient].fAfterburn);
 			
@@ -785,6 +787,8 @@ public void OnGameFrame() {
 					}
 				}
 				
+				float fCloak = GetEntPropFloat(iClient, Prop_Send, "m_flCloakMeter");
+				
 				// Determines when we're in the cloaking animation
 				if (TF2_IsPlayerInCondition(iClient, TFCond_Cloaked)) {
 					players[iClient].fCloak_Timer += 0.015;
@@ -796,9 +800,7 @@ public void OnGameFrame() {
 				else {
 					players[iClient].fCloak_Timer = 0.0;
 				}
-				
-				float fCloak = GetEntPropFloat(iClient, Prop_Send, "m_flCloakMeter");
-				
+
 				// Cloak debuff resistance
 				if (players[iClient].fCloak_Timer >= 1.0) {
 					bool debuffed = false;
@@ -1398,7 +1400,7 @@ void needleSpawn(int entity) {
 	//SDKHook(entity, SDKHook_StartTouch, needleTouch);
 }
 
-Action BuildingDamage (int building, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3]) {
+Action BuildingDamage (int building, int &attacker, int &inflictor, float &damage, int &damage_type, int &weapon, float damageForce[3], float damagePosition[3]) {
 	char class[64];
 	
 	if (building >= 1 && IsValidEdict(building) && attacker >= 1 && attacker <= MaxClients) {		// Ensures we only go through damage dealt by other players
@@ -1410,7 +1412,8 @@ Action BuildingDamage (int building, int &attacker, int &inflictor, float &damag
 			GetEntPropVector(attacker, Prop_Send, "m_vecOrigin", vecAttacker);		// Gets attacker position
 			GetEntPropVector(building, Prop_Send, "m_vecOrigin", vecBuilding);		// Gets building position
 			float fDistance = GetVectorDistance(vecAttacker, vecBuilding, false);		// Distance calculation
-			float fDmgMod = 1.0;
+			float fDmgMod = 1.0;		// Distance mod
+			float fDmgModTHREAT = 1.0;	// THREAT mod
 			
 
 			// Scout
@@ -1477,12 +1480,6 @@ Action BuildingDamage (int building, int &attacker, int &inflictor, float &damag
 			if (TF2_GetPlayerClass(attacker) == TFClass_Spy) {
 				if (StrEqual(class, "tf_weapon_revolver") && fDistance < 512.0) {		// Scale ramp-up down to 120
 					fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.2, 0.8) / SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);
-				}
-			}
-			
-			if (StrEqual(class, "tf_weapon_knife")) {
-				if (damagecustom == TF_CUSTOM_BACKSTAB) {	// If we get a backstab...
-					damage = GetEntProp(GetPlayerResourceEntity(), Prop_Send, "m_iMaxHealth", _, victim) * 1.25;		// Override damage to 125% of victim's max health
 				}
 			}
 			
@@ -1573,12 +1570,6 @@ Action BuildingDamage (int building, int &attacker, int &inflictor, float &damag
 				// Melee
 				else if ((damage_type & DMG_CLUB || damage_type & DMG_SLASH) && !StrEqual(class, "tf_weapon_knife")) {		// Handle melee damage (excluding knives)
 					fDmgModTHREAT = RemapValClamped(players[attacker].fTHREAT, 0.0, 1000.0, 1.0, 1.5);		// TODO: lower this for melees with intrinsic damage bonuses
-				}
-				
-				if (isMiniKritzed(attacker, victim)) {
-					if (fDistance > 512.0) {
-						fDmgModTHREAT = 0.5 * players[attacker].fTHREAT/1000 + 1;
-					}
 				}
 				
 				damage *= fDmgModTHREAT;
