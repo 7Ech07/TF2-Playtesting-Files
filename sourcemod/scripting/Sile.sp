@@ -203,19 +203,18 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 	else if (StrEqual(class, "tf_weapon_flamethrower")) {		// All Flamethrowers
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 12);
+		TF2Items_SetNumAttributes(item1, 11);
 		TF2Items_SetAttribute(item1, 0, 1, 0.0); // damage penalty (100%; prevents damage from flame particles)
 		TF2Items_SetAttribute(item1, 1, 174, 1.333333); // flame_ammopersec_increased (33%)
-		TF2Items_SetAttribute(item1, 2, 844, 3380.0); // flame_speed (enough to travel 350 HU from out centre in 0.1 sec)
+		TF2Items_SetAttribute(item1, 2, 844, 2200.0); // flame_speed (enough to travel 350 HU from out centre in 0.1 sec)
 		TF2Items_SetAttribute(item1, 3, 862, 0.1); // flame_lifetime (nil)
-		TF2Items_SetAttribute(item1, 4, 828, -7.5); // weapon burn time reduced (turns off Afterburn)
+		TF2Items_SetAttribute(item1, 4, 72, 0.0); // weapon burn dmg reduced (nil)
 		TF2Items_SetAttribute(item1, 5, 839, 0.0); // flame_spread_degree (none)
 		TF2Items_SetAttribute(item1, 6, 841, 0.0); // flame_gravity (none)
 		TF2Items_SetAttribute(item1, 7, 843, 0.0); // flame_drag (none)
 		TF2Items_SetAttribute(item1, 8, 865, 0.0); // flame_up_speed (removed)
 		TF2Items_SetAttribute(item1, 9, 843, 0.0); // flame_drag (none)
 		TF2Items_SetAttribute(item1, 10, 863, 0.0); // flame_random_lifetime_offset (none)
-		TF2Items_SetAttribute(item1, 11, 72, 0.0); // weapon burn dmg reduced (nil)
 	}
 	else if (StrEqual(class, "tf_weapon_flaregun")) {	// All Flare Guns
 		item1 = TF2Items_CreateItem(0);
@@ -360,12 +359,9 @@ Action OnGameEvent(Event event, const char[] name, bool dontbroadcast) {
 
 public void OnGameFrame() {
 	for (int iEnt = 0; iEnt < GetMaxEntities(); iEnt++) {		// When the building associated with this ID goes down, reset its level
-		char class[64];
-		GetEntityClassname(iEnt, class, 64);
-		
 		if (!IsValidEdict(iEnt)) {
 			entities[iEnt].iLevel = 0;
-			if (StrEqual(class,"obj_teleporter")) {		// If a Teleporter dies, find the other half and reset its level
+			/*if (StrEqual(class,"obj_teleporter")) {		// If a Teleporter dies, find the other half and reset its level
 				int iOwner = GetEntPropEnt(iEnt, Prop_Send, "m_hBuilder");
 				if (iOwner != -1) {
 					for (int iEnt2 = 0; iEnt2 < GetMaxEntities(); iEnt2++) {
@@ -376,9 +372,11 @@ public void OnGameFrame() {
 						}
 					}
 				}
-			}
+			}*/
 		}
 		else {
+			char class[64];
+			GetEntityClassname(iEnt, class, 64);
 			if (StrEqual(class,"obj_sentrygun") || StrEqual(class,"obj_teleporter") || StrEqual(class,"obj_dispenser")) {
 				
 				if (entities[iEnt].iLevel == 1) {
@@ -448,7 +446,12 @@ public void OnGameFrame() {
 			//int B = B1 + (B2 - B1) * fThreatScale;
 
 			// Apply colour to the weapon
-			//SetEntityRenderColor(iActive, R, G, B, 0); // Set alpha to 0 or desired value
+			if (players[iClient].fTHREAT > 500.0) {
+				SetEntityRenderColor(iActive, 255, 255, 0, 200); // Set alpha to 0 or desired value
+			}
+			else {
+				SetEntityRenderColor(iActive, 255, 255, 255, 255);
+			}
 			
 			// In-combat healing penalty
 			if (players[iClient].fHeal_Penalty > 0.0) {
@@ -460,15 +463,15 @@ public void OnGameFrame() {
 			
 			
 			// Afterburn
-			int MaxHP = GetEntProp(iClient, Prop_Send, "m_iMaxHealth");
+			//int MaxHP = GetEntProp(iClient, Prop_Send, "m_iMaxHealth");
 			if (TF2Util_GetPlayerBurnDuration(iClient) > 6.0) {
 				TF2Util_SetPlayerBurnDuration(iClient, 6.0);
-				players[iClient].fAfterburn += MaxHP / 20.0;		// Adds 5% of the victim's max health to this value
+				/*players[iClient].fAfterburn += MaxHP / 20.0;		// Adds 5% of the victim's max health to this value
 				if (players[iClient].fAfterburn > MaxHP / 5.0) {
 					players[iClient].fAfterburn = MaxHP / 5.0;		// Clamping
-				}
+				}*/
 			}
-			if (TF2Util_GetPlayerBurnDuration(iClient) > 0.0) {
+			/*if (TF2Util_GetPlayerBurnDuration(iClient) > 0.0) {
 				players[iClient].fAfterburn -= 0.015;
 				if (players[iClient].fAfterburn < 0.0) {
 					players[iClient].fAfterburn = 0.0;
@@ -477,7 +480,7 @@ public void OnGameFrame() {
 			else if (TF2Util_GetPlayerBurnDuration(iClient) <= 0.0) {
 				players[iClient].fAfterburn -= MaxHP / 10.0;
 			}
-			TF2Attrib_AddCustomPlayerAttribute(iClient, "max health additive penalty", -players[iClient].fAfterburn);
+			TF2Attrib_AddCustomPlayerAttribute(iClient, "max health additive penalty", -players[iClient].fAfterburn);*/
 			
 			
 			// Scout
@@ -553,7 +556,7 @@ public void OnGameFrame() {
 						ScaleVector(vecAng, 350.0);		// Scales this vector 350 HU out
 						AddVectors(vecPos, vecAng, vecAng);		// Add this vector to the position vector so the game can aim it better
 						
-						TR_TraceRayFilter(vecPos, vecAng, MASK_SOLID, RayType_EndPoint, TraceFilter_ExcludeSingle, iClient);		// Create a trace that starts at us and ends 512 HU forward
+						Handle hndl = TR_TraceRayFilter(vecPos, vecAng, MASK_SOLID, RayType_EndPoint, TraceFilter_ExcludeSingle, iClient);		// Create a trace that starts at us and ends 512 HU forward
 						TR_GetEndPosition(vecEnd);
 						
 						//float angle = vecAng[1]*0.01745329;
@@ -574,8 +577,11 @@ public void OnGameFrame() {
 								float fDmgModTHREAT = RemapValClamped(players[iClient].fTHREAT, 0.0, 350.0, 1.0, 1.5);
 								// TODO: knockback equation
 								
+								int hit = TR_GetHitGroup(hndl);
+								PrintToChatAll("Hitgroup: %i", hit);
+								
 								float fDamage = 8.0 * fDmgMod * fDmgModTHREAT;
-								int iDamagetype = DMG_SHOCK;
+								int iDamagetype = DMG_IGNITE;
 								
 								if (isMiniKritzed(iClient, iEntity)) {
 									TF2_AddCondition(iEntity, TFCond_MarkedForDeathSilent, 0.015);
@@ -586,6 +592,7 @@ public void OnGameFrame() {
 									iDamagetype |= DMG_CRIT;
 								}
 								SDKHooks_TakeDamage(iEntity, iPrimary, iClient, fDamage, iDamagetype, iPrimary, NULL_VECTOR, vecVictim);		// Deal damage (credited to the Phlog)
+								TF2Util_SetPlayerBurnDuration(iEntity, 6.0);
 								
 								// Add THREAT
 								players[iClient].fTHREAT += fDamage;		// Add THREAT
@@ -605,9 +612,19 @@ public void OnGameFrame() {
 									float fDmgModTHREAT = RemapValClamped(players[iClient].fTHREAT, 0.0, 350.0, 1.0, 1.5);
 									
 									float fDamage = 8.0 * fDmgMod * fDmgModTHREAT;
-									int iDamagetype = DMG_SHOCK;
+									int iDamagetype = DMG_IGNITE;
 									
 									SDKHooks_TakeDamage(iEntity, iPrimary, iClient, fDamage, iDamagetype, iPrimary, NULL_VECTOR, vecVictim);		// Deal damage (credited to the Phlog)
+								}
+								
+								else if (StrEqual(class, "tf_projectile_pipe_remote")) {		// Handles sticky destruction on hit
+									int iStickyTeam = GetEntProp(iEntity, Prop_Data, "m_iTeamNum");
+
+									// Check if the sticky belongs to the opposing team
+									int iProjTeam = GetEntProp(iEntity, Prop_Data, "m_iTeamNum");
+									if (iStickyTeam != iProjTeam) {
+										AcceptEntityInput(iEntity, "Kill"); // Destroy the sticky
+									}
 								}
 							}
 						}
