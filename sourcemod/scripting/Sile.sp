@@ -384,10 +384,28 @@ public void OnGameFrame() {
 				}
 				else if (entities[iEnt].iLevel == 2) {
 					SetEntProp(iEnt, Prop_Data, "m_iMaxHealth", 160);
+					SetEntProp(iEnt, Prop_Data, "m_iMaxHealth", 130);
+					SetEntProp(iEnt, Prop_Send, "m_iMaxAmmoShells", 150);		// Reduced reserve ammo
+					if (GetEntProp(iEnt, Prop_Send, "m_iAmmoShells") > 150) {
+						SetEntProp(iEnt, Prop_Send, "m_iAmmoShells", 150);
+					}
 				}	
 				else if (entities[iEnt].iLevel == 3) {
 					SetEntProp(iEnt, Prop_Data, "m_iMaxHealth", 200);
+					SetEntProp(iEnt, Prop_Data, "m_iMaxHealth", 130);
+					SetEntProp(iEnt, Prop_Send, "m_iMaxAmmoShells", 150);		// Reduced reserve ammo
+					if (GetEntProp(iEnt, Prop_Send, "m_iAmmoShells") > 150) {
+						SetEntProp(iEnt, Prop_Send, "m_iAmmoShells", 150);
+					}
 				}
+				
+				/*if (StrEqual(class, "obj_sentrygun")) {
+					// TODO make this check that the Sentry is actually built first
+					SetEntProp(iEnt, Prop_Send, "m_iMaxAmmoShells", 150);		// Reduced reserve ammo
+					if (GetEntProp(iEnt, Prop_Send, "m_iAmmoShells") > 150) {
+						SetEntProp(iEnt, Prop_Send, "m_iAmmoShells", 150);
+					}
+				}*/
 				
 				if (GetEntProp(iEnt, Prop_Data, "m_iHealth") > GetEntProp(iEnt, Prop_Data, "m_iMaxHealth")) {		// Lowering of current health as nessesary
 					SetEntProp(iEnt, Prop_Data, "m_iHealth", GetEntProp(iEnt, Prop_Data, "m_iMaxHealth"));
@@ -434,24 +452,19 @@ public void OnGameFrame() {
 			ShowHudText(iClient, 1, "THREAT: %.0f", players[iClient].fTHREAT);
 			
 			// Define gold and default colour
-			//int R1 = 0, G1 = 225, B1 = 0; // Default colour (green)
-			//int R2 = 255, G2 = 215, B2 = 0; // Gold colour
+			int R1 = 255, G1 = 225, B1 = 255; // Default colour N/A
+			int R2 = 255, G2 = 215, B2 = 0; // Gold colour
 
-			// Remap fTHREAT to 0–1 range (e.g., max 500 THREAT)
-			//float fThreatScale = RemapValClamped(players[iClient].fTHREAT, 0.0, 500.0, 0.0, 1.0);
+			// Remap fTHREAT to 0–1 range
+			float fThreatScale = RemapValClamped(players[iClient].fTHREAT, 0.0, 1000.0, 0.0, 1.0);
 
 			// Interpolate RGB channels
-			//int R = R1 + (R2 - R1) * fThreatScale;
-			//int G = G1 + (G2 - G1) * fThreatScale;
-			//int B = B1 + (B2 - B1) * fThreatScale;
+			int R = R1 + (R2 - R1) * fThreatScale;
+			int G = G1 + (G2 - G1) * fThreatScale;
+			int B = B1 + (B2 - B1) * fThreatScale;
 
 			// Apply colour to the weapon
-			if (players[iClient].fTHREAT > 500.0) {
-				SetEntityRenderColor(iActive, 255, 255, 0, 200); // Set alpha to 0 or desired value
-			}
-			else {
-				SetEntityRenderColor(iActive, 255, 255, 255, 255);
-			}
+			SetEntityRenderColor(iActive, R, G, B, 255); // Set alpha to 0 or desired value
 			
 			// In-combat healing penalty
 			if (players[iClient].fHeal_Penalty > 0.0) {
@@ -556,7 +569,7 @@ public void OnGameFrame() {
 						ScaleVector(vecAng, 350.0);		// Scales this vector 350 HU out
 						AddVectors(vecPos, vecAng, vecAng);		// Add this vector to the position vector so the game can aim it better
 						
-						Handle hndl = TR_TraceRayFilter(vecPos, vecAng, MASK_SOLID, RayType_EndPoint, TraceFilter_ExcludeSingle, iClient);		// Create a trace that starts at us and ends 512 HU forward
+						TR_TraceRayFilter(vecPos, vecAng, MASK_SOLID, RayType_EndPoint, TraceFilter_ExcludeSingle, iClient);		// Create a trace that starts at us and ends 512 HU forward
 						TR_GetEndPosition(vecEnd);
 						
 						//float angle = vecAng[1]*0.01745329;
@@ -577,8 +590,8 @@ public void OnGameFrame() {
 								float fDmgModTHREAT = RemapValClamped(players[iClient].fTHREAT, 0.0, 350.0, 1.0, 1.5);
 								// TODO: knockback equation
 								
-								int hit = TR_GetHitGroup(hndl);
-								PrintToChatAll("Hitgroup: %i", hit);
+								int hit = TR_GetHitGroup();
+								//PrintToChatAll("Hitgroup beam: %i", hit);
 								
 								float fDamage = 8.0 * fDmgMod * fDmgModTHREAT;
 								int iDamagetype = DMG_IGNITE;
@@ -811,8 +824,10 @@ public void OnGameFrame() {
 					players[iClient].fCloak_Timer += 0.015;
 					if (players[iClient].fCloak_Timer > 1.0) {
 						players[iClient].fCloak_Timer = 1.0;
+						//SetEntPropFloat(iClient, Prop_Send, "m_flCloakMeter", fCloak + 5.0);		// This is how much cloak we normally drain per frame
+					}
+					else {
 						SetEntPropFloat(iClient, Prop_Send, "m_flCloakMeter", fCloak + 0.149254);		// This is how much cloak we normally drain per frame
-						SetEntPropFloat(iClient, Prop_Send, "m_flCloakMeter", fCloak + 5.0);		// This is how much cloak we normally drain per frame
 					}
 				}
 				else {
@@ -903,6 +918,7 @@ public void OnEntityCreated(int iEnt, const char[] classname) {
 
 Action TraceAttack(int victim, int& attacker, int& inflictor, float& damage, int& damage_type, int& ammo_type, int hitbox, int hitgroup) {		// Need this for noscope headshot hitreg
 	if (victim >= 1 && victim <= MaxClients && attacker >= 1 && attacker <= MaxClients) {
+		//PrintToChatAll("Hitgroup %i:", hitgroup);
 		if (hitgroup == 1 && (TF2_GetPlayerClass(attacker) == TFClass_Sniper)) {		// Hitgroup 1 is the head
 			players[attacker].iHeadshot_Frame = GetGameTickCount();		// We store headshot status in a variable for the next function to read
 		}
@@ -918,7 +934,6 @@ Action TraceAttack(int victim, int& attacker, int& inflictor, float& damage, int
 
 public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damage_type, int &weapon, float damageForce[3], float damagePosition[3], int damagecustom) {
 	char class[64];
-	
 	if (victim >= 1 && victim <= MaxClients && attacker >= 1 && attacker <= MaxClients && victim != attacker) {		// Ensures we only go through damage dealt by other players
 		if (weapon > 0) {		// Prevents us attempting to process data from e.g. Sentry Guns and causing errors
 			GetEntityClassname(weapon, class, sizeof(class));		// Retrieve the weapon
@@ -1141,6 +1156,32 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 				damage *= fDmgModTHREAT;
 				//PrintToChat(attacker, "Damage: %f", damage); 
 			}
+		}
+	}
+	else if (attacker >= 1 && IsValidEdict(attacker) && attacker >= 1 && attacker <= MaxClients) {
+		GetEntityClassname(weapon, class, sizeof(class));		// Retrieve the weapon
+		if (StrEqual(class,"obj_sentrygun")) {
+			PrintToChatAll("ID: %i", attacker);
+			float vecAttacker[3];
+			float vecVictim[3];
+			GetEntPropVector(victim, Prop_Send, "m_vecOrigin", vecVictim);		// Gets defender position
+			float fDmgMod = 1.0;		// Distance mod
+			if (damage_type & DMG_BULLET) {		// Only process bullet damage
+				GetEntPropVector(attacker, Prop_Send, "m_vecOrigin", vecAttacker);		// Gets building position
+				float fDistance = GetVectorDistance(vecAttacker, vecVictim, false);		// Distance calculation
+				if (fDistance > 512.0) {
+					fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.2, 0.8) / SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);
+				}
+				fDmgMod *= 0.9375;		// Reduce damage from 16 to 15
+			}
+			else {		// Handle explosive damage from sentry rockets
+				int iOwner = GetEntPropEnt(attacker, Prop_Send, "m_hBuilder");
+				GetEntPropVector(iOwner, Prop_Send, "m_vecOrigin", vecAttacker);		// Gets Engineer position
+				float fDistance = GetVectorDistance(vecAttacker, vecVictim, false);		// Distance calculation
+				fDmgMod = 1 / SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);
+			}
+			
+			damage *= fDmgMod;	
 		}
 	}
 	
