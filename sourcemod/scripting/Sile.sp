@@ -161,6 +161,7 @@ public void OnMapStart() {
 	// -={ Modifies attributes without needing to go through another plugin }=-
 public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Handle& item) {
 	Handle item1;
+
 	// Scout
 	if (StrEqual(class, "tf_weapon_scattergun")) {	// All Scatterguns
 		item1 = TF2Items_CreateItem(0);
@@ -169,7 +170,7 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 		TF2Items_SetAttribute(item1, 0, 37, 0.555555); // hidden primary max ammo bonus (reduced to 20)
 		TF2Items_SetAttribute(item1, 1, 68, -1.0); // increase player capture value (lowered to 1)
 	}
-	else if (StrEqual(class, "tf_weapon_bat")) {	// All Bats
+	else if (TF2_GetPlayerClass(iClient) == TFClass_Scout && (StrEqual(class, "tf_weapon_bat") || StrEqual(class, "tf_weapon_bat_fish") || StrEqual(class, "saxxy"))) {	// All Bats
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
 		TF2Items_SetNumAttributes(item1, 1);
@@ -192,7 +193,7 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 		TF2Items_SetAttribute(item1, 1, 37, 0.6); // hidden primary max ammo bonus (reduced to 12)
 		TF2Items_SetAttribute(item1, 2, 100, 0.67); // blast radius decreased (increased to -33%)
 	}
-	else if (StrEqual(class, "tf_weapon_shovel")) {		// All Shovels
+	else if (TF2_GetPlayerClass(iClient) == TFClass_Soldier && (StrEqual(class, "tf_weapon_shovel") || StrEqual(class, "tf_weapon_katana") || StrEqual(class, "saxxy"))) {		// All Shovels
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
 		TF2Items_SetNumAttributes(item1, 1);
@@ -258,7 +259,7 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 		TF2Items_SetNumAttributes(item1, 1);
 		TF2Items_SetAttribute(item1, 0, 2, 1.25); // damage bonus (25%)
 	}
-	else if (StrEqual(class, "tf_weapon_fists")) {	// All Fists
+	else if (TF2_GetPlayerClass(iClient) == TFClass_Heavy && (StrEqual(class, "tf_weapon_fists") || StrEqual(class, "saxxy"))) {	// All Fists
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
 		TF2Items_SetNumAttributes(item1, 1);
@@ -385,18 +386,18 @@ public void OnGameFrame() {
 				else if (entities[iEnt].iLevel == 2) {
 					SetEntProp(iEnt, Prop_Data, "m_iMaxHealth", 160);
 					SetEntProp(iEnt, Prop_Data, "m_iMaxHealth", 130);
-					SetEntProp(iEnt, Prop_Send, "m_iMaxAmmoShells", 150);		// Reduced reserve ammo
-					if (GetEntProp(iEnt, Prop_Send, "m_iAmmoShells") > 150) {
-						SetEntProp(iEnt, Prop_Send, "m_iAmmoShells", 150);
-					}
+					//SetEntProp(iEnt, Prop_Send, "m_iMaxAmmoShells", 150);		// Reduced reserve ammo
+					//if (GetEntProp(iEnt, Prop_Send, "m_iAmmoShells") > 150) {
+					//	SetEntProp(iEnt, Prop_Send, "m_iAmmoShells", 150);
+					//}
 				}	
 				else if (entities[iEnt].iLevel == 3) {
 					SetEntProp(iEnt, Prop_Data, "m_iMaxHealth", 200);
 					SetEntProp(iEnt, Prop_Data, "m_iMaxHealth", 130);
-					SetEntProp(iEnt, Prop_Send, "m_iMaxAmmoShells", 150);		// Reduced reserve ammo
-					if (GetEntProp(iEnt, Prop_Send, "m_iAmmoShells") > 150) {
-						SetEntProp(iEnt, Prop_Send, "m_iAmmoShells", 150);
-					}
+					//SetEntProp(iEnt, Prop_Send, "m_iMaxAmmoShells", 150);		// Reduced reserve ammo
+					//if (GetEntProp(iEnt, Prop_Send, "m_iAmmoShells") > 150) {
+					//	SetEntProp(iEnt, Prop_Send, "m_iAmmoShells", 150);
+					//}
 				}
 				
 				/*if (StrEqual(class, "obj_sentrygun")) {
