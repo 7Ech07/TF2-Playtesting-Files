@@ -84,8 +84,6 @@ public void OnPluginStart() {
 public void OnClientPutInServer(int iClient) {
 	SDKHook(iClient, SDKHook_OnTakeDamage, OnTakeDamage);
 	SDKHook(iClient, SDKHook_TraceAttack, TraceAttack);
-	
-	players[iClient].iHeads  = 0;
 }
 
 
@@ -111,8 +109,8 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
 		TF2Items_SetNumAttributes(item1, 2);
-		TF2Items_SetAttribute(item1, 1, 419, 0.001); // hype resets on jump (removed)
-		TF2Items_SetAttribute(item1, 2, 733, 0.001); // lose hype on take damage (removed)
+		TF2Items_SetAttribute(item1, 0, 419, 0.001); // hype resets on jump (removed)
+		TF2Items_SetAttribute(item1, 1, 733, 0.0); // lose hype on take damage (removed)
 	}
 
 	// Soldier
@@ -120,7 +118,7 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
 		TF2Items_SetNumAttributes(item1, 1);
-		TF2Items_SetAttribute(item1, 0, 1, 0.833333); // damage penalty (90 to 75)
+		TF2Items_SetAttribute(item1, 0, 1, 0.84); // damage penalty (90 to 75)
 	}
 	else if (StrEqual(class, "tf_weapon_rocketlauncher_directhit")) {		// Direct Hit
 		item1 = TF2Items_CreateItem(0);
@@ -139,15 +137,16 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 	}
 	
 	// Medic
-	else if (StrEqual(class, "tf_weapon_syringegun_medic")) {	// All Syringe Guns
+	else if (StrEqual(class, "tf_weapon_syringegun_medic") && index != 412) {	// All Syringe Guns
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 5);
+		TF2Items_SetNumAttributes(item1, 6);
 		TF2Items_SetAttribute(item1, 0, 4, 0.5); // clip size bonus (20)
 		TF2Items_SetAttribute(item1, 1, 37, 0.4); // hidden primary max ammo bonus (150 to 200)
-		TF2Items_SetAttribute(item1, 2, 6, 2.5); // fire rate bonus (0.25/sec)
+		TF2Items_SetAttribute(item1, 2, 6, 1.66); // fire rate bonus (0.166/sec)
 		TF2Items_SetAttribute(item1, 3, 280, 9.0); // override projectile type (to flame rocket, which disables projectiles entirely)
 		TF2Items_SetAttribute(item1, 4, 772, 0.7); // deploy time decreased (30%)
+		TF2Items_SetAttribute(item1, 5, 96, 1.15);
 	}
 	
 	// Sniper
@@ -250,132 +249,13 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 	return Plugin_Continue;
 }
 
-/*
-public Action Event_PlayerSpawn(Handle hEvent, const char[] cName, bool dontBroadcast) {
-	int iClient = GetClientOfUserId(GetEventInt(hEvent, "userid"));
-	
-	int melee = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Melee, true);
-	int meleeIndex = -1;
-	if(melee >= 0) meleeIndex = GetEntProp(melee, Prop_Send, "m_iItemDefinitionIndex");
-
-	char[] event = new char[64];
-	GetEventName(hEvent,event,64);
-	DataPack pack = new DataPack();
-	pack.Reset();
-	pack.WriteCell(iClient);
-	pack.WriteString(event);
-	float time=0.1;
-	if(IsFakeClient(iClient)) time=0.25;
-	CreateTimer(time,PlayerSpawn,pack);
-
-	SetCommandFlags("r_screenoverlay", GetCommandFlags("r_screenoverlay") & ~FCVAR_CHEAT);
-	ClientCommand(iClient, "r_screenoverlay \"\"");
-	SetCommandFlags("r_screenoverlay", GetCommandFlags("r_screenoverlay") | FCVAR_CHEAT);
-	return Plugin_Changed;
-}
-
-
-public Action PlayerSpawn(Handle timer, DataPack dPack) {
-	dPack.Reset();
-	int iClient = dPack.ReadCell();
-	char[] event = new char[64];
-	dPack.ReadString(event,64);
-
-	if (iClient >= 1 && iClient <= MaxClients) {
-		int primary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
-		int primaryIndex = -1;
-		if(primary >= 0) primaryIndex = GetEntProp(primary, Prop_Send, "m_iItemDefinitionIndex");
-		int secondary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Secondary, true);
-		int secondaryIndex = -1;
-		if(secondary>0) secondaryIndex = GetEntProp(secondary, Prop_Send, "m_iItemDefinitionIndex");
-		int melee = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Melee, true);
-		int meleeIndex = -1;
-		if(melee >= 0) meleeIndex = GetEntProp(melee, Prop_Send, "m_iItemDefinitionIndex");
-
-		switch(TF2_GetPlayerClass(iClient)) {
-			
-			// Scout
-			case TFClass_Scout: {
-				switch(primaryIndex) {
-					// Baby Face's Blaster
-					case 772: {
-						TF2Attrib_SetByDefIndex(primary, 419, 0.001); // hype resets on jump (removed; it must be a non-zero number else it won't work)
-						TF2Attrib_SetByDefIndex(primary, 733, 0.001); // lose hype on take damage (removed)
-					}
-				}
-			}
-			
-			// Sniper
-			case TFClass_Sniper: {
-				switch(primaryIndex) {
-					// Sniper Rifle (all)
-					case 14, 201, 230, 526, 664, 757, 792, 801, 851, 881, 890, 899, 908, 957, 966, 1098, 15000, 15007, 15019, 15023, 15033, 15059, 15080, 15071, 15072, 15111, 15112, 15135, 15136, 15154, 30665: {
-						TF2Attrib_SetByDefIndex(primary, 1, 0.8); // damage penalty (80%)
-						TF2Attrib_SetByDefIndex(primary, 75, 1.25); // aiming movespeed increased (+25%)
-						TF2Attrib_SetByDefIndex(primary, 90, 1.09); // SRifle charge rate increased (109%)
-						int primaryAmmo = GetEntProp(primary, Prop_Send, "m_iPrimaryAmmoType");
-						SetEntProp(iClient, Prop_Data, "m_iAmmo", 12 , _, primaryAmmo);
-					}
-					
-					// Bazaar Bargain
-					case 402: {
-						TF2Attrib_SetByDefIndex(primary, 1, 0.8); // damage penalty (80%)
-						TF2Attrib_SetByDefIndex(primary, 75, 2.5); // aiming movespeed increased (+250%)
-						TF2Attrib_SetByDefIndex(primary, 90, 1.935); // SRifle charge rate increased (193.5%)
-						TF2Attrib_SetByDefIndex(primary, 46, 1.667); // sniper zoom penalty (~40% reduced zoom)
-						int primaryAmmo = GetEntProp(primary, Prop_Send, "m_iPrimaryAmmoType");
-						SetEntProp(iClient, Prop_Data, "m_iAmmo", 12 , _, primaryAmmo);
-					}
-				}
-				
-				switch(meleeIndex) {	
-					// Kukri (and reskins)
-					case 3, 193, 264, 423, 474, 880, 939, 954, 1013, 1071, 1123, 1127, 30758: {
-						TF2Attrib_SetByDefIndex(melee, 1, 0.731); // damage penalty (-26.9%)
-						TF2Attrib_SetByDefIndex(melee, 6, 0.75); // fire rate bonus (-25%; 0.25 sec)
-					}
-					
-					// Tribalman's Shiv
-					case 171: {
-						TF2Attrib_SetByDefIndex(melee, 1, 0.5); // damage penalty (-50%)
-						TF2Attrib_SetByDefIndex(melee, 6, 0.875); // fire rate bonus (-12.5%; half of stock)
-						TF2Attrib_SetByDefIndex(melee, 772, 1.3); // single wep holster time increased (30%)
-						TF2Attrib_SetByDefIndex(melee, 149, 0.0); // bleeding duration (removed, because we're rebuilding this behaviour elsewhere)
-					}
-					
-					// Shahanshah
-					case 401: {
-						TF2Attrib_SetByDefIndex(melee, 1, 1.0); // damage penalty (removed)
-						TF2Attrib_SetByDefIndex(melee, 6, 1.0); // fire rate bonus (removed)
-						TF2Attrib_SetByDefIndex(melee, 224, 1.5); // damage bonus when half dead (the upside; increased to 50%)
-						TF2Attrib_SetByDefIndex(melee, 225, 1.0); // damage penalty when half alive (the downside; removed)
-					}
-				}
-			}
-			
-			// Spy
-			case TFClass_Spy: {
-				// Revolvers (all)
-				if(secondary != -1) {
-					TF2Attrib_SetByDefIndex(secondary, 51, 1.0); // revolver use hit locations
-					TF2Attrib_SetByDefIndex(secondary, 97, 0.8826); // reload time decreased (+33.3%)
-					TF2Attrib_SetByDefIndex(secondary, 107, 1.0654); // faster move speed on wearer (+33.3%)
-				}
-				
-				// Knives (all)
-				if(melee != -1) {
-					TF2Attrib_SetByDefIndex(melee, 2, 1.25); // damage bonus (25%)
-					TF2Attrib_SetByDefIndex(melee, 6, 0.75); // fire rate bonus (25%)
-				}
-			}
-		}
-	}
-	return Plugin_Changed;
-}
-*/
 
 public void OnEntityCreated(int iEnt, const char[] classname) {
 	if (IsValidEdict(iEnt)) {
+		if (StrEqual(classname,"obj_sentrygun") || StrEqual(classname,"obj_dispenser") || StrEqual(classname,"obj_teleporter")) {
+			//SDKHook(iEnt, SDKHook_SetTransmit, BuildingThink);
+			SDKHook(iEnt, SDKHook_OnTakeDamage, BuildingDamage);
+		}
 		if (StrEqual(classname, "tf_projectile_syringe")) {
 			SDKHook(iEnt, SDKHook_SpawnPost, needleSpawn);
 		}
@@ -444,6 +324,7 @@ public void OnGameFrame() {
 							ShowHudText(iClient, 1, "Boosting!: %.00f", players[iClient].fBoosting + 1);
 							
 							players[iClient].fBoosting -= 0.015;		// Decrease by 1 second every ~66.6 server ticks
+							SetEntPropFloat(iClient, Prop_Send, "m_flHypeMeter", 0.0);
 						}
 						if (players[iClient].fBoosting < 0.0) {
 							players[iClient].fBoosting = 0.0;	// Failsafe
@@ -483,7 +364,7 @@ public void OnGameFrame() {
 					// Handles Syringe Gun rebuild
 					int iAmmoTable = FindSendPropInfo("CTFWeaponBase", "m_iClip1");
 					int iClip = GetEntData(iPrimary, iAmmoTable, 4);		// We can detect shots by checking ammo changes
-					if (iClip == (players[iClient].iSyringe_Ammo - 1)) {		// We update iSyringe_Ammo after this check, so iClip will always be 1 lower on frames in which we fire a shot
+					if (iClip == (players[iClient].iSyringe_Ammo - 1) && primaryIndex != 412) {		// We update iSyringe_Ammo after this check, so iClip will always be 1 lower on frames in which we fire a shot
 						float vecAng[3];
 						GetClientEyeAngles(iClient, vecAng);
 						Syringe_PrimaryAttack(iClient, iPrimary, vecAng);
@@ -495,7 +376,7 @@ public void OnGameFrame() {
 					int sequence = GetEntProp(view, Prop_Send, "m_nSequence");
 					if (iClip < 20) {
 						if (iActive == iPrimary && sequence != 7) {	// 7 = Syringe Gun draw (basically, don't reset until we've fully drawn)
-							players[iClient].fTac_Reload = 1.5;		// Prep the 1.5 second timer to start when we swap weapons
+							players[iClient].fTac_Reload = 2.0;		// Prep the 1.5 second timer to start when we swap weapons
 						}
 						else {
 							players[iClient].fTac_Reload -= 0.015;		// Starts timer
@@ -505,7 +386,10 @@ public void OnGameFrame() {
 							Syringe_Autoreload(iClient);	// Perform an autoreload
 						}
 						
-						TF2Attrib_SetByDefIndex(iPrimary, 547, RemapValClamped(players[iClient].fTac_Reload, 1.5, 0.0, 3.0, 1.0));		// Deploy time extended proportionally to fTac_Reload
+						TF2Attrib_SetByDefIndex(iPrimary, 547, RemapValClamped(players[iClient].fTac_Reload, 2.0, 0.0, 4.0, 1.0));		// Deploy time extended proportionally to fTac_Reload
+					}
+					else {
+						players[iClient].fTac_Reload = 0.0;
 					}
 				}
 				
@@ -602,6 +486,7 @@ Action OnGameEvent(Event event, const char[] name, bool dontbroadcast) {
 			players[iClient].iHeads = 0;
 			players[iClient].fBleed_Timer = 0.0;
 			players[iClient].fBoosting = 0.0;
+			players[iClient].fTac_Reload = 0.0;
 			
 			if (TF2_GetPlayerClass(iClient) == TFClass_Spy) {		// Shrink Spy's colision hull
 				// Normal collision hull dimensions are 49, 49 83
@@ -625,7 +510,7 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 
 	char class[64];
 	
-	if (victim >= 1 && victim <= MaxClients && attacker >= 1 && attacker <= MaxClients) {		// Ensures we only go through damage dealt by other players
+	if (victim >= 1 && victim <= MaxClients && attacker >= 1 && attacker <= MaxClients && GetClientTeam(victim) != GetClientTeam(attacker)) {		// Ensures we only go through damage dealt by other players
 		if (weapon > 0) {		// Prevents us attempting to process data from e.g. Sentry Guns and causing errors
 			GetEntityClassname(weapon, class, sizeof(class));		// Retrieve the weapon
 			
@@ -867,6 +752,33 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 	}
 	
 	return Plugin_Continue;
+}
+
+Action BuildingDamage (int building, int &attacker, int &inflictor, float &damage, int &damage_type, int &weapon, float damageForce[3], float damagePosition[3]) {
+	char class[64];
+	
+	if (building >= 1 && IsValidEdict(building) && attacker >= 1 && attacker <= MaxClients) {		// Ensures we only go through damage dealt by other players
+		if (weapon > 0) {
+			GetEntityClassname(weapon, class, sizeof(class));
+			
+			float vecAttacker[3];
+			float vecBuilding[3];
+			GetEntPropVector(attacker, Prop_Send, "m_vecOrigin", vecAttacker);		// Gets attacker position
+			GetEntPropVector(building, Prop_Send, "m_vecOrigin", vecBuilding);		// Gets building position
+			float fDistance = GetVectorDistance(vecAttacker, vecBuilding, false);		// Distance calculation
+			float fDmgMod = 1.0;		// Distance mod
+			float fDmgModTHREAT = 1.0;	// THREAT mod
+			
+			// Medic
+			if (TF2_GetPlayerClass(attacker) == TFClass_Medic) {
+				if (StrEqual(class, "tf_weapon_syringegun_medic")) {
+					fDmgMod *= 0.8;	// I don't know why, but syringes do way too much damage if we don't have this
+				}
+			}
+		}
+	}
+
+	return Plugin_Changed;
 }
 
 
