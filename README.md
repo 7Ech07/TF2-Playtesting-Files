@@ -1,37 +1,19 @@
 # TF2-Playtesting-Files
 
-This repository holds the plugin for both my (Echo's) and Abs Eternal's custom balance changes, which I am currently running on my server, as well as their dependencies.
-All .smx files are contained in a single folder (which can simply be placed in the /sourcemod/plugins folder) for easy installation and uninstallation.
+This repository holds plugins that implement balance changes by myself and several others.
+Only have one plugin loaded at a time. Unload the rest or transfer them to the `plugins/disabled` folder before starting the server.
 
-## Dependencies (already included)
+
+## Installation
+
+Installation should be simple. Grab the most recent release version on the right, and extract the folder inside into your addons folder.
+Remember to install dependencies below.
+
+
+## Dependencies
 
 * TF2Attributes (https://github.com/FlaminSarge/tf2attributes)
 * TF2Items (https://forums.alliedmods.net/showthread.php?p=1050170)
 * TF2Utils (https://github.com/nosoop/SM-TFUtils)
 * Source Scramble (https://github.com/nosoop/SMExt-SourceScramble)
 * TF2 Attribute Extended Support Fixes (https://github.com/nosoop/SM-TFAttributeSupport)
-
-## Current contents
-### My stuff
-- Multi-Class
-  - Panic Attack
-- Pyro
-  - Flamethrower rework
-- Heavy
-  - Minigun tweaks
-  - All Minigun alternatives
-
-### Abs' stuff
-- Multi-Class
-  - B.A.S.E. Jumper
-- Scout
-  - Baby Face's Blaster
-- Sniper
-  - Sniper Rifles
-  - Bazaar Bargain
-  - SMG (mostly)
-  - Kukri
-  - Tribalman's Shiv (a bit; it's half-finished and rather buggy)
-- Spy
-  - Revolvers
-  - Knives
