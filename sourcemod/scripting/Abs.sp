@@ -118,13 +118,13 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
 		TF2Items_SetNumAttributes(item1, 1);
-		TF2Items_SetAttribute(item1, 0, 1, 0.84); // damage penalty (90 to 75)
+		TF2Items_SetAttribute(item1, 0, 1, 0.888888); // damage penalty (90 to 80)
 	}
 	else if (StrEqual(class, "tf_weapon_rocketlauncher_directhit")) {		// Direct Hit
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
 		TF2Items_SetNumAttributes(item1, 1);
-		TF2Items_SetAttribute(item1, 0, 1, 1.0); // damage bonus (none)
+		TF2Items_SetAttribute(item1, 0, 1, 1.066666); // damage bonus (112 to 96)
 	}
 	
 	// Pyro
@@ -146,7 +146,7 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 		TF2Items_SetAttribute(item1, 2, 6, 1.66); // fire rate bonus (0.166/sec)
 		TF2Items_SetAttribute(item1, 3, 280, 9.0); // override projectile type (to flame rocket, which disables projectiles entirely)
 		TF2Items_SetAttribute(item1, 4, 772, 0.7); // deploy time decreased (30%)
-		TF2Items_SetAttribute(item1, 5, 96, 1.15);
+		TF2Items_SetAttribute(item1, 5, 96, 1.15);		// Slower reload speed
 	}
 	
 	// Sniper
@@ -390,7 +390,9 @@ public void OnGameFrame() {
 					}
 					else {
 						players[iClient].fTac_Reload = 0.0;
+						TF2Attrib_SetByDefIndex(iPrimary, 547, 1.0);		// Reset this
 					}
+					//PrintToChatAll("TacReload: %f", players[iClient].fTac_Reload);
 				}
 				
 				// Sniper
@@ -593,7 +595,7 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 							fDmgMod = 3.0;
 							damage_type |= DMG_CRIT;
 						}
-						fDmgMod *= 0.8;	// I don't know why, but syringes do way too much damage if we don't have this
+						fDmgMod *= 0.6;	// I don't know why, but syringes do way too much damage if we don't have this
 						damage *= fDmgMod;
 						return Plugin_Changed;
 					}
@@ -765,14 +767,11 @@ Action BuildingDamage (int building, int &attacker, int &inflictor, float &damag
 			float vecBuilding[3];
 			GetEntPropVector(attacker, Prop_Send, "m_vecOrigin", vecAttacker);		// Gets attacker position
 			GetEntPropVector(building, Prop_Send, "m_vecOrigin", vecBuilding);		// Gets building position
-			float fDistance = GetVectorDistance(vecAttacker, vecBuilding, false);		// Distance calculation
-			float fDmgMod = 1.0;		// Distance mod
-			float fDmgModTHREAT = 1.0;	// THREAT mod
 			
 			// Medic
 			if (TF2_GetPlayerClass(attacker) == TFClass_Medic) {
 				if (StrEqual(class, "tf_weapon_syringegun_medic")) {
-					fDmgMod *= 0.8;	// I don't know why, but syringes do way too much damage if we don't have this
+					damage *= 0.8;	// I don't know why, but syringes do way too much damage if we don't have this
 				}
 			}
 		}
@@ -834,7 +833,7 @@ Action needleTouch(int entity, int other) {
 							
 							float fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 0.5, 1.5);
 							fDmgMod *= 0.4;		// Heal for 40% of the damage you would've done
-							float healing = 20 * fDmgMod;
+							float healing = 15 * fDmgMod;
 						
 							if (iHealth > iMaxHealth - healing) {		// Heal us to full
 								SetEntProp(other, Prop_Send, "m_iHealth", iMaxHealth);
