@@ -376,7 +376,7 @@ public void OnGameFrame() {
 						}
 						if (players[iClient].fBoosting > 0.0) {
 							SetHudTextParams(-0.1, -0.16, 0.1, 255, 255, 255, 255);
-							ShowHudText(iClient, 1, "Boosting!: %.00f", players[iClient].fBoosting + 1);
+							ShowHudText(iClient, 1, "Boosting!: %.2f", players[iClient].fBoosting + 1);
 							
 							players[iClient].fBoosting -= 0.015;		// Decrease by 1 second every ~66.6 server ticks
 							SetEntPropFloat(iClient, Prop_Send, "m_flHypeMeter", 0.0);
@@ -978,7 +978,7 @@ public void Syringe_PrimaryAttack(int iClient, int iPrimary, float vecAng[3]) {
 		
 		offset[0] = (16.0 * Sine(DegToRad(vecAng[1])));		// We already have the eye angles from the function call
 		offset[1] = (-6.0 * Cosine(DegToRad(vecAng[1])));
-		offset[2] = -8.0;
+		offset[2] = -10.0;
 		
 		vecPos[0] += offset[0];
 		vecPos[1] += offset[1];
