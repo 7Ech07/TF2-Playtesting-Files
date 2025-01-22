@@ -173,12 +173,13 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 	if (StrEqual(class, "tf_weapon_soda_popper")) {	// Soda Popper
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 5);
+		TF2Items_SetNumAttributes(item1, 6);
 		TF2Items_SetAttribute(item1, 0, 37, 0.555555); // hidden primary max ammo bonus (reduced to 20)
 		TF2Items_SetAttribute(item1, 1, 68, -1.0); // increase player capture value (lowered to 1)
 		TF2Items_SetAttribute(item1, 2, 6, 1.0); // fire rate bonus (nil)
 		TF2Items_SetAttribute(item1, 3, 793, 0.0); // hype on damage (nil)
 		TF2Items_SetAttribute(item1, 4, 96, 0.60699); // reload time decreased (reduced to 0.87 sec)
+		TF2Items_SetAttribute(item1, 5, 3, 0.5); // clip size
 	}
 	else if ((StrEqual(class, "tf_weapon_pistol") || StrEqual(class, "tf_weapon_pistol_scout")) && TF2_GetPlayerClass(iClient) == TFClass_Scout) {	// Undo ammo penalty from Engineer Pistol
 		item1 = TF2Items_CreateItem(0);
@@ -835,7 +836,7 @@ public void OnGameFrame() {
 										TR_TraceRayFilter(vecPos, vecAng, MASK_SOLID, RayType_EndPoint, SingleTargetTraceFilter, iEntity);
 										TR_GetEndPosition(vecEnd);
 										
-										if (TR_DidHit()) {
+										if (TR_DidHit() && TR_GetEntityIndex() == iEntity) {
 											if (iEntity <= MaxClients) {		// Players
 												float fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 450.0, 1.5, 1.0);		// Gives us our distance multiplier
 												float fDmgModTHREAT = RemapValClamped(fDistance, 0.0, 450.0, 0.0, 0.5) * players[iClient].fTHREAT / 1000 + 1;
@@ -1339,18 +1340,18 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 					}
 				}
 				else if (StrEqual(class, "tf_weapon_flaregun") || StrEqual(class, "tf_weapon_flaregun_revenge")) {
+					if (damage_type & DMG_CRIT != 0 && !isKritzed(attacker)) {		// Remove Crits on burning players
+						damage_type = (damage_type & ~DMG_CRIT);
+						damage /= 3.0;
+					}
 					if (fDistance > 512.0) {
 						fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);		// Gives us our ramp-up/fall-off multiplier
-						if (damage_type & DMG_CRIT != 0 && !isKritzed(attacker)) {		// Remove Crits on burning players
-							damage_type = (damage_type & ~DMG_CRIT);
-							damage /= 3.0;
-							if (TF2Util_GetPlayerBurnDuration(victim) > 0.0) {		// Add a Mini-Crit instead
-								TF2_AddCondition(victim, TFCond_MarkedForDeathSilent, 0.015, 0);		// Applies a Mini-Crit
-								damage *= 1.35;
-								if (fDistance > 512.0) {
-									fDmgMod = 1.0;
-								}
-							}
+					}
+					if (TF2Util_GetPlayerBurnDuration(victim) > 0.0) {		// Add a Mini-Crit instead
+						TF2_AddCondition(victim, TFCond_MarkedForDeathSilent, 0.015, 0);		// Applies a Mini-Crit
+						damage *= 1.35;
+						if (fDistance > 512.0) {
+							fDmgMod = 1.0;
 						}
 					}
 				}
@@ -2159,7 +2160,9 @@ Action BuildingDamage (int building, int &attacker, int &inflictor, float &damag
 			// Pyro
 			if (TF2_GetPlayerClass(attacker) == TFClass_Pyro) {
 				if (StrEqual(class, "tf_weapon_flaregun") || StrEqual(class, "tf_weapon_flaregun_revenge")) {
-					fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);		// Gives us our ramp-up/fall-off multiplier
+					if (fDistance < 512.0) {
+						fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);		// Gives us our ramp-up/fall-off multiplier
+					}
 				}
 			}
 			
