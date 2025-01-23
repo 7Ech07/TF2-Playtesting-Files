@@ -132,6 +132,10 @@ public void OnPluginStart() {
 	HookEvent("player_spawn", OnGameEvent, EventHookMode_Post);
 	// This detects healing we do
 	HookEvent("player_healed", OnPlayerHealed);
+	// This detects when we touch a cabinet
+	HookEvent("post_inventory_application", OnGameEvent, EventHookMode_Post);
+	// Detects health and ammo pickups
+	HookEvent("item_pickup", OnGameEvent, EventHookMode_Post);
 	GameData data = new GameData("buildings");
 	if (!data) {
 		SetFailState("Failed to open gamedata.buildings.txt. Unable to load plugin");
@@ -150,6 +154,7 @@ public void OnClientPutInServer (int iClient) {
 }
 
 public void OnMapStart() {
+	PrecacheSound("player/recharged.wav", true);
 	PrecacheSound("weapons/pipe_bomb1.wav", true);
 	PrecacheSound("weapons/syringegun_shoot.wav", true);
 	PrecacheSound("weapons/syringegun_shoot_crit.wav", true);
@@ -190,10 +195,11 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 	else if (StrEqual(class, "tf_weapon_jar_milk")) {	// Mad Milk
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 3);
-		TF2Items_SetAttribute(item1, 0, 848, 1.0); // item_meter_resupply_denied
-		TF2Items_SetAttribute(item1, 1, 845, 1.0); // grenade1_resupply_denied
-		TF2Items_SetAttribute(item1, 2, 856, 3.0); //meter type
+		TF2Items_SetNumAttributes(item1, 4);
+		TF2Items_SetAttribute(item1, 0, 801, 15); // item_meter_recharge_rate (15 seconds)
+		TF2Items_SetAttribute(item1, 1, 848, 1.0); // item_meter_resupply_denied
+		TF2Items_SetAttribute(item1, 2, 845, 1.0); // grenade1_resupply_denied
+		TF2Items_SetAttribute(item1, 3, 856, 3.0); //meter type
 	}
 	else if (TF2_GetPlayerClass(iClient) == TFClass_Scout && (StrEqual(class, "tf_weapon_bat") || StrEqual(class, "tf_weapon_bat_fish") || StrEqual(class, "saxxy"))) {	// All Bats
 		item1 = TF2Items_CreateItem(0);
@@ -327,22 +333,23 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 	if (index == 308) {	// Loch-n-Load
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 5);
-		TF2Items_SetAttribute(item1, 0, 100, 1.0); // blast radius reduced (removed)
-		TF2Items_SetAttribute(item1, 1, 127, 0.0); // sticky air burst mode (this is the thing that makes bombs shatter on impact; removed)
-		TF2Items_SetAttribute(item1, 2, 137, 1.0); // dmg bonus vs buildings (nil)
-		TF2Items_SetAttribute(item1, 3, 681, 0.0); // grenade no spin (removed)
-		TF2Items_SetAttribute(item1, 4, 671, 1.0); // grenade no bounce
+		TF2Items_SetNumAttributes(item1, 6);
+		TF2Items_SetAttribute(item1, 0, 3, 1.0); // clip size penalty (nil)
+		TF2Items_SetAttribute(item1, 1, 100, 1.0); // blast radius reduced (removed)
+		TF2Items_SetAttribute(item1, 2, 127, 0.0); // sticky air burst mode (this is the thing that makes bombs shatter on impact; removed)
+		TF2Items_SetAttribute(item1, 3, 137, 1.0); // dmg bonus vs buildings (nil)
+		TF2Items_SetAttribute(item1, 4, 681, 0.0); // grenade no spin (removed)
+		TF2Items_SetAttribute(item1, 5, 671, 1.0); // grenade no bounce
 	}
 	else if (StrEqual(class, "tf_weapon_pipebomblauncher")) {	// All Sticky Launchers
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 3);
+		TF2Items_SetNumAttributes(item1, 4);
 		TF2Items_SetAttribute(item1, 0, 1, 0.833333); // damage penalty (120 to 100)
 		//TF2Items_SetAttribute(item1, 1, 3, 0.75); // clip size penalty (6)
 		TF2Items_SetAttribute(item1, 1, 96, 0.917431); // reload time decreased (first shot reload 1.0 seconds)
 		TF2Items_SetAttribute(item1, 2, 670, 0.5); // stickybomb charge rate (50% faster)
-		//TF2Items_SetAttribute(item1, 4, 121, 1.0); // stickies destroy stickies
+		TF2Items_SetAttribute(item1, 3, 121, 1.0); // stickies destroy stickies
 	}
 	if (index == 265) {	// Sticky Jumper
 		item1 = TF2Items_CreateItem(0);
@@ -356,12 +363,12 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 	if (index == 1150) {	// Quickiebomb Launcher
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 5);
+		TF2Items_SetNumAttributes(item1, 4);
 		TF2Items_SetAttribute(item1, 0, 1, 1.0); // damage penalty (nil)
 		TF2Items_SetAttribute(item1, 1, 96, 0.917431); // reload time decreased (first shot reload 1.0 seconds)
 		TF2Items_SetAttribute(item1, 2, 78, 1.0); // maxammo secondary increased (nil)
 		TF2Items_SetAttribute(item1, 3, 670, 0.15); // stickybomb charge rate (70% faster than stock)
-		TF2Items_SetAttribute(item1, 4, 121, 0.0); // stickies destroy stickies (removed)
+		//TF2Items_SetAttribute(item1, 4, 121, 0.0); // stickies destroy stickies (removed)
 	}
 	
 	// Heavy
@@ -375,12 +382,12 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 		TF2Items_SetAttribute(item1, 3, 37, 0.75); // hidden primary max ammo bonus (-25%)
 		TF2Items_SetAttribute(item1, 4, 107, 1.043478); // move speed bonus (10%)
 	}
-	else if (index == 424) {	// Tomislav
+	/*else if (index == 424) {	// Tomislav
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
 		TF2Items_SetNumAttributes(item1, 1);
 		TF2Items_SetAttribute(item1, 0, 5, 1.15); // move speed bonus (10%)
-	}
+	}*/
 	else if ((StrEqual(class, "tf_weapon_shotgun") || StrEqual(class, "tf_weapon_shotgun_hwg")) && TF2_GetPlayerClass(iClient) == TFClass_Heavy) {	// All Heavy Shotguns
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
@@ -444,11 +451,10 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 	if (index == 36) {	// Blutsauger
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 4);
-		TF2Items_SetAttribute(item1, 0, 4, 1.25); // clip size bonus (50)
-		TF2Items_SetAttribute(item1, 1, 37, 0.666667); // hidden primary max ammo bonus (150 to 100)
-		TF2Items_SetAttribute(item1, 2, 280, 9.0); // override projectile type (to flame rocket, which disables projectiles entirely)
-		TF2Items_SetAttribute(item1, 3, 81, 0.0); // health drain medic (nil)
+		TF2Items_SetNumAttributes(item1, 3);
+		TF2Items_SetAttribute(item1, 0, 37, 0.8); // hidden primary max ammo bonus (150 to 120)
+		TF2Items_SetAttribute(item1, 1, 280, 9.0); // override projectile type (to flame rocket, which disables projectiles entirely)
+		TF2Items_SetAttribute(item1, 2, 81, 0.0); // health drain medic (nil)
 	}
 	else if (StrEqual(class, "tf_weapon_medigun")) {	// All Medi-Guns
 		item1 = TF2Items_CreateItem(0);
@@ -586,6 +592,28 @@ Action OnGameEvent(Event event, const char[] name, bool dontbroadcast) {
 					TF2Attrib_SetByDefIndex(iSecondary, 25, (24.0 + AmmoOffset) / 24.0);
 				}
 			}
+		}
+	}
+	
+	else if (StrEqual(name, "post_inventory_application")) {
+		iClient = GetClientOfUserId(GetEventInt(event, "userid"));
+		if (IsValidClient(iClient)) {
+			players[iClient].fAfterburn = 0.0;		// Restore health lost from Afterburn
+			
+			GetEntProp(iClient, Prop_Send, "m_iHealth", iMaxHealth);
+		}
+	}
+	
+	else if (StrEqual(name, "item_pickup")) {
+		iClient = GetClientOfUserId(GetEventInt(event, "userid"));
+		
+		GetEventString(event, "item", class, sizeof(class));
+		
+		if (StrContains(class, "healthkit_small") == 0) {
+			PrintToChat("Health touch");
+		}
+		else if (StrContains(class, "ammopack_small") == 0) {
+			PrintToChat("Ammo touch");
 		}
 	}
 	return Plugin_Continue;
@@ -783,7 +811,7 @@ public void OnGameFrame() {
 				if (iPrimaryIndex == 1104) {
 					if (TF2_IsPlayerInCondition(iClient, TFCond_BlastJumping)) {
 						TF2Attrib_SetByDefIndex(iPrimary, 100, 1.25);	// blast radius (25%; cancels out rapid fire attribute)
-						TF2Attrib_SetByDefIndex(iPrimary, 411, 3.5);	// projectile spread angle penalty (3.5 deg)
+						TF2Attrib_SetByDefIndex(iPrimary, 411, 2.0);	// projectile spread angle penalty (2 deg)
 					}
 					else {
 						TF2Attrib_SetByDefIndex(iPrimary, 100, 1.0);
@@ -805,7 +833,7 @@ public void OnGameFrame() {
 				// Hitscan Flamethrower
 				int weaponState = GetEntProp(iPrimary, Prop_Send, "m_iWeaponState");
 				
-				if (weaponState == 2) {		// Are we firing?
+				if (weaponState == 2 || weaponState == 1) {		// Are we firing?
 					
 					int Ammo = GetEntProp(iPrimary, Prop_Send, "m_iPrimaryAmmoType");
 					int ammoCount = GetEntProp(iClient, Prop_Data, "m_iAmmo", _, Ammo);		// Only fire the beam on frames where the ammo changes
@@ -856,7 +884,7 @@ public void OnGameFrame() {
 													}
 												}
 												
-												float fDamage = 8.0 * fDmgMod * fDmgModTHREAT;
+												float fDamage = 10.0 * fDmgMod * fDmgModTHREAT;
 												int iDamagetype = DMG_IGNITE|DMG_USE_HITLOCATIONS;
 												
 												if (isMiniKritzed(iClient, iEntity)) {
@@ -1014,7 +1042,7 @@ public void OnGameFrame() {
 				if (time % 100 == 0) {		// Only trigger an update every 0.1 sec
 					float factor = 1.0 + time / 1000.0;		// This value continuously decreases from ~2 to 1 over time
 					TF2Attrib_SetByDefIndex(iPrimary, 106, 0.8 / factor);		// Spread bonus
-					TF2Attrib_SetByDefIndex(iPrimary, 2, DmgBase * factor);		// Damage bonus
+					TF2Attrib_SetByDefIndex(iPrimary, 2, DmgBase * factor * RemapValClamped(players[iClient].fSpeed, 0.0, 1.005, 0.666, 1.0));		// Damage bonus (33% damage penalty inversely proportional to speed)
 				}
 				
 				TF2Attrib_SetByDefIndex(iPrimary, 54, RemapValClamped(players[iClient].fSpeed, 0.0, 1.005, 0.666, 1.0));		// Speed
@@ -1344,7 +1372,7 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 						damage_type = (damage_type & ~DMG_CRIT);
 						damage /= 3.0;
 					}
-					if (fDistance > 512.0) {
+					if (fDistance < 512.0) {
 						fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);		// Gives us our ramp-up/fall-off multiplier
 					}
 					if (TF2Util_GetPlayerBurnDuration(victim) > 0.0) {		// Add a Mini-Crit instead
@@ -1666,11 +1694,12 @@ public Action OnPlayerHealed(Event event, const char[] name, bool dontBroadcast)
 			if(iSecondary > 0) iSecondaryIndex = GetEntProp(iSecondary, Prop_Send, "m_iItemDefinitionIndex");
 			
 			float fUber = GetEntPropFloat(iSecondary, Prop_Send, "m_flChargeLevel");
+			// Ratio changed to 1% per 8 HP
 			if (iSecondaryIndex == 35) {		// Kritzkreig
-				fUber += iHealing * 0.00125;		// Add this to our Uber amount (multiply by 0.001 as 1 HP -> 1%, and Uber is stored as a 0 - 1 proportion)
+				fUber += iHealing * 0.00125 * 1.25;		// Add this to our Uber amount (multiply by 0.001 as 1 HP -> 1%, and Uber is stored as a 0 - 1 proportion)
 			}
 			else {
-				fUber += iHealing * 0.001;
+				fUber += iHealing * 0.00125;
 			}
 			if (fUber > 1.0) {
 				SetEntPropFloat(iSecondary, Prop_Send, "m_flChargeLevel", 1.0);
@@ -1967,33 +1996,18 @@ Action ProjectileTouch(int iProjectile, int other) {
 
 				// Check if the target is within our splash radius
 				if (GetVectorDistance(vecRocketPos, vecTargetPos) <= 200.0) {
-					if (owner == iTarget) {		// Reduced healing on self-hits
-						TF2Util_TakeHealth(iTarget, 65.0);
-					
-						Event event = CreateEvent("player_healonhit");		// Inform the user that they have been healed and by how much
-						if (event && players[iTarget].iEquipped == 0) {
-							event.SetInt("amount", 65);
-							event.SetInt("entindex", iTarget);
-							
-							event.FireToClient(iTarget);
-							delete event;
-							players[iTarget].iEquipped = 1;
-							CreateTimer(0.1, MilkCooldown, iTarget);
-						}
-					}
-					else {
-						TF2Util_TakeHealth(iTarget, 75.0);
-					
-						Event event = CreateEvent("player_healonhit");
-						if (event && players[iTarget].iEquipped == 0) {
-							event.SetInt("amount", 75);
-							event.SetInt("entindex", iTarget);
-							
-							event.FireToClient(iTarget);
-							delete event;
-							players[iTarget].iEquipped = 1;
-							CreateTimer(0.1, MilkCooldown, iTarget);
-						}
+					TF2Util_TakeHealth(iTarget, 75.0);
+				
+					Event event = CreateEvent("player_healonhit");		// Inform the user that they have been healed and by how much
+					if (event && players[iTarget].iMilk_Cooldown == 0) {
+						event.SetInt("amount", 75);
+						event.SetInt("entindex", iTarget);
+						
+						EmitSoundToClient(iTarget, "player/recharged.wav");
+						event.FireToClient(iTarget);
+						delete event;
+						players[iTarget].iMilk_Cooldown = 1;
+						CreateTimer(0.1, iMilk_Cooldown, iTarget);
 					}
 				}
 			}
@@ -2003,7 +2017,7 @@ Action ProjectileTouch(int iProjectile, int other) {
 }
 
 void MilkCooldown(Handle timer, int iTarget) {
-	players[iTarget].iEquipped = 0;
+	players[iTarget].iMilk_Cooldown = 0;
 }
 
 Action PipeSet(int iProjectile) {
