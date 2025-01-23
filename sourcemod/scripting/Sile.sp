@@ -196,7 +196,7 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
 		TF2Items_SetNumAttributes(item1, 4);
-		TF2Items_SetAttribute(item1, 0, 801, 15); // item_meter_recharge_rate (15 seconds)
+		TF2Items_SetAttribute(item1, 0, 801, 15.0); // item_meter_recharge_rate (15 seconds)
 		TF2Items_SetAttribute(item1, 1, 848, 1.0); // item_meter_resupply_denied
 		TF2Items_SetAttribute(item1, 2, 845, 1.0); // grenade1_resupply_denied
 		TF2Items_SetAttribute(item1, 3, 856, 3.0); //meter type
@@ -351,6 +351,15 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 		TF2Items_SetAttribute(item1, 2, 670, 0.5); // stickybomb charge rate (50% faster)
 		TF2Items_SetAttribute(item1, 3, 121, 1.0); // stickies destroy stickies
 	}
+	if (index == 265) {	// Scottish Resistance
+		item1 = TF2Items_CreateItem(0);
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 4);
+		TF2Items_SetAttribute(item1, 0, 1, 0.0); // damage penalty (100%)
+		TF2Items_SetAttribute(item1, 1, 96, 0.917431); // reload time decreased (first shot reload 1.0 seconds)
+		TF2Items_SetAttribute(item1, 2, 78, 1.0); // maxammo secondary increased (nil)
+		TF2Items_SetAttribute(item1, 3, 670, 0.5); // stickybomb charge rate (50% faster)
+	}
 	if (index == 265) {	// Sticky Jumper
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
@@ -363,11 +372,12 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 	if (index == 1150) {	// Quickiebomb Launcher
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 4);
+		TF2Items_SetNumAttributes(item1, 5);
 		TF2Items_SetAttribute(item1, 0, 1, 1.0); // damage penalty (nil)
-		TF2Items_SetAttribute(item1, 1, 96, 0.917431); // reload time decreased (first shot reload 1.0 seconds)
-		TF2Items_SetAttribute(item1, 2, 78, 1.0); // maxammo secondary increased (nil)
-		TF2Items_SetAttribute(item1, 3, 670, 0.15); // stickybomb charge rate (70% faster than stock)
+		TF2Items_SetAttribute(item1, 1, 3, 0.75); // clip size penalty (6)
+		TF2Items_SetAttribute(item1, 2, 96, 0.917431); // reload time decreased (first shot reload 1.0 seconds)
+		TF2Items_SetAttribute(item1, 3, 78, 1.0); // maxammo secondary increased (nil)
+		TF2Items_SetAttribute(item1, 4, 670, 0.15); // stickybomb charge rate (70% faster than stock)
 		//TF2Items_SetAttribute(item1, 4, 121, 0.0); // stickies destroy stickies (removed)
 	}
 	
@@ -599,7 +609,7 @@ Action OnGameEvent(Event event, const char[] name, bool dontbroadcast) {
 		iClient = GetClientOfUserId(GetEventInt(event, "userid"));
 		if (IsValidClient(iClient)) {
 			players[iClient].fAfterburn = 0.0;		// Restore health lost from Afterburn
-			
+			int iMaxHealth = GetEntProp(GetPlayerResourceEntity(), Prop_Send, "m_iMaxHealth", _, iClient);
 			GetEntProp(iClient, Prop_Send, "m_iHealth", iMaxHealth);
 		}
 	}
@@ -607,13 +617,75 @@ Action OnGameEvent(Event event, const char[] name, bool dontbroadcast) {
 	else if (StrEqual(name, "item_pickup")) {
 		iClient = GetClientOfUserId(GetEventInt(event, "userid"));
 		
+		char class[64];
 		GetEventString(event, "item", class, sizeof(class));
 		
 		if (StrContains(class, "healthkit_small") == 0) {
-			PrintToChat("Health touch");
+			PrintToChatAll("Health touch");
 		}
 		else if (StrContains(class, "ammopack_small") == 0) {
-			PrintToChat("Ammo touch");
+			PrintToChatAll("Ammo touch");
+			if (IsValidClient(iClient)) {
+				
+				int iPrimary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
+				int iSecondary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Secondary, true);
+			
+				if (iPrimary != -1) {
+					int PrimaryAmmo = GetEntProp(iPrimary, Prop_Send, "m_iPrimaryAmmoType");
+					int PrimaryAmmoCount = GetEntProp(iClient, Prop_Data, "m_iAmmo", _, PrimaryAmmo);
+					
+					GetEntityClassname(iPrimary, class, sizeof(class));		// Retrieve the weapon
+					// Flamethrowers
+					if (StrEqual(class, "tf_weapon_flamethrower")) {
+						if (PrimaryAmmoCount < 190) {
+							SetEntProp(iClient, Prop_Data, "m_iAmmo", PrimaryAmmoCount + 10, _, PrimaryAmmo);
+						}
+						else {
+							SetEntProp(iClient, Prop_Data, "m_iAmmo", 200, _, PrimaryAmmo);
+						}
+					}
+					// Miniguns
+					else if (StrEqual(class, "tf_weapon_minigun")) {
+						if (PrimaryAmmoCount < 142) {
+							SetEntProp(iClient, Prop_Data, "m_iAmmo", PrimaryAmmoCount + 8, _, PrimaryAmmo);
+						}
+						else {
+							SetEntProp(iClient, Prop_Data, "m_iAmmo", 150, _, PrimaryAmmo);
+						}
+					}
+					// Grenade Launchers
+					else if (StrEqual(class, "tf_weapon_grenadelauncher")) {
+						if (PrimaryAmmoCount < 24) {
+							SetEntProp(iClient, Prop_Data, "m_iAmmo", PrimaryAmmoCount + 1, _, PrimaryAmmo);
+						}
+					}
+				}
+				if (iSecondary != -1) {
+					int SecondaryAmmo = GetEntProp(iSecondary, Prop_Send, "m_iPrimaryAmmoType");
+					int SecondaryAmmoCount = GetEntProp(iClient, Prop_Data, "m_iAmmo", _, SecondaryAmmo);
+					
+					GetEntityClassname(iPrimary, class, sizeof(class));	
+					// Sticky Launchers
+					if (StrEqual(class, "tf_weapon_pipebomblauncher")) {
+						if (SecondaryAmmoCount < 24) {
+							SetEntProp(iClient, Prop_Data, "m_iAmmo", SecondaryAmmoCount + 1, _, SecondaryAmmo);
+						}
+					}
+				}
+
+				// Metal
+				int iMetal = GetEntData(iClient, FindDataMapInfo(iClient, "m_iAmmo") + (3 * 4), 4);
+				if (iMetal < 190) {
+					SetEntData(iClient, FindDataMapInfo(iClient, "m_iAmmo") + (3 * 4), iMetal + 10, 4);
+				}
+				else {
+					SetEntData(iClient, FindDataMapInfo(iClient, "m_iAmmo") + (3 * 4), 200, 4);
+				}
+				
+				// Cloak
+				float fCloak = GetEntPropFloat(iClient, Prop_Send, "m_flCloakMeter");
+				SetEntPropFloat(iClient, Prop_Send, "m_flCloakMeter", fCloak + 5.0);
+			}
 		}
 	}
 	return Plugin_Continue;
@@ -780,7 +852,7 @@ public void OnGameFrame() {
 				}
 				
 				// Pistol autoreload
-				if (players[iClient].iEquipped != iActive) {			// Weapon swap
+				if (players[iClient].iEquipped != iActive && players[iClient].iEquipped == iSecondary) {			// Weapon swap off Pistol
 					CreateTimer(1.005, AutoreloadPistol, iClient);
 				}
 				players[iClient].iEquipped = iActive;
@@ -857,7 +929,6 @@ public void OnGameFrame() {
 								if (iEntity <= MaxClients || StrEqual(class, "obj_sentrygun") || StrEqual(class, "obj_dispenser") || StrEqual(class, "obj_teleporter") || StrEqual(class, "tf_projectile_pipe_remote")) {	// Are we targeting a valid player or building?
 									float vecVictim[3];
 									GetEntPropVector(iEntity, Prop_Send, "m_vecOrigin", vecVictim);		// Gets defender position
-									vecVictim[2] += 40;
 									float fDistance = GetVectorDistance(vecPos, vecVictim);
 									if (fDistance <= 450.0 && GetEntProp(iEntity, Prop_Send, "m_iTeamNum") != GetEntProp(iClient, Prop_Send, "m_iTeamNum")) {		// Is the target an enemy and in range?
 						
@@ -892,7 +963,7 @@ public void OnGameFrame() {
 													fDamage *= 1.35;
 												}
 												else if (isKritzed(iClient)) {
-													fDamage = 8.0;
+													fDamage = 10.0;
 													iDamagetype |= DMG_CRIT;
 												}
 												SDKHooks_TakeDamage(iEntity, iPrimary, iClient, fDamage, iDamagetype, iPrimary, NULL_VECTOR, vecVictim);		// Deal damage (credited to the Phlog)
@@ -912,7 +983,7 @@ public void OnGameFrame() {
 												float fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 450.0, 1.5, 1.0);		// Gives us our distance multiplier
 												float fDmgModTHREAT = RemapValClamped(fDistance, 0.0, 450.0, 0.0, 0.5) * players[iClient].fTHREAT / 1000 + 1;
 												
-												float fDamage = 8.0 * fDmgMod * fDmgModTHREAT;
+												float fDamage = 10.0 * fDmgMod * fDmgModTHREAT;
 												int iDamagetype = DMG_IGNITE;
 												
 												SDKHooks_TakeDamage(iEntity, iPrimary, iClient, fDamage, iDamagetype, iPrimary, NULL_VECTOR, vecVictim);		// Deal damage
@@ -1066,7 +1137,7 @@ public void OnGameFrame() {
 			// Engineer
 			else if (TF2_GetPlayerClass(iClient) == TFClass_Engineer) {
 				// Pistol autoreload
-				if (players[iClient].iEquipped != iActive) {			// Weapon swap
+				if (players[iClient].iEquipped != iActive && players[iClient].iEquipped == iSecondary) {			// Weapon swap off Pistol
 					CreateTimer(1.005, AutoreloadPistol, iClient);
 				}
 				players[iClient].iEquipped = iActive;
@@ -1513,10 +1584,6 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 						// This is just a scaling linear multiplier
 						fDmgModTHREAT = RemapValClamped(fDistance, 512.0, 1024.0, 0.5, 0.0) * players[attacker].fTHREAT/1000 + 1.0;
 					}
-					
-					if (StrEqual(class, "tf_weapon_sniperrifle") && fDistance > 512.0 && players[attacker].iHeadshot_Frame == GetGameTickCount()) {	// Standardise the multiplier for headshots
-						fDmgModTHREAT = 0.5 * players[attacker].fTHREAT/1000 + 1;
-					}
 				}
 				
 				else if (		// List of all weapon archetypes with atypical ramp-up and/or fall-off
@@ -1774,7 +1841,7 @@ public Action OnPlayerRunCmd(int iClient, int &buttons, int &impulse, float vel[
 	return Plugin_Continue;
 }
 
-void AutoreloadPistol(Handle timer, int iClient) {
+public Action AutoreloadPistol(Handle timer, int iClient) {
 	
 	int iSecondary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Secondary, true);		// Retrieve the secondary weapon
 	
@@ -1797,9 +1864,10 @@ void AutoreloadPistol(Handle timer, int iClient) {
 			SetEntData(iSecondary, iAmmoTable, 12, 4, true);		// Add loaded ammo
 		}
 	}
+	return Plugin_Handled;
 }
 
-void AutoreloadSyringe(Handle timer, int iClient) {
+public Action AutoreloadSyringe(Handle timer, int iClient) {
 	int iPrimary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);		// Retrieve the primary weapon
 	
 	char class[64];
@@ -1821,6 +1889,7 @@ void AutoreloadSyringe(Handle timer, int iClient) {
 			SetEntData(iPrimary, iAmmoTable, 50, 4, true);		// Add loaded ammo
 		}
 	}
+	return Plugin_Handled;
 }
 
 public void Syringe_PrimaryAttack(int iClient, int iPrimary, float vecAng[3]) {
@@ -1859,9 +1928,19 @@ public void Syringe_PrimaryAttack(int iClient, int iPrimary, float vecAng[3]) {
 		
 		DispatchSpawn(iSyringe);
 		
+		// Calculates forward velocity
 		vecVel[0] = Cosine(DegToRad(vecAng[0])) * Cosine(DegToRad(vecAng[1])) * 1200.0;
 		vecVel[1] = Cosine(DegToRad(vecAng[0])) * Sine(DegToRad(vecAng[1])) * 1200.0;
 		vecVel[2] = Sine(DegToRad(vecAng[0])) * -1200.0;
+		
+		// Calculate minor leftward velocity to help us aim better
+		float leftVel[3];
+		leftVel[0] = -Sine(DegToRad(vecAng[1])) * 133.0;
+		leftVel[1] = Cosine(DegToRad(vecAng[1])) * 133.0;
+		leftVel[2] = 0.0;  // No change in the vertical direction
+
+		vecVel[0] += leftVel[0];
+		vecVel[1] += leftVel[1];
 
 		TeleportEntity(iSyringe, vecPos, vecAng, vecVel);			// Apply position and velocity to syringe
 	}
@@ -1978,8 +2057,8 @@ Action ProjectileTouch(int iProjectile, int other) {
 	}
 	// Mad Milk
 	else if (StrEqual(class, "tf_projectile_jar_milk")) {
-		int weapon = GetEntPropEnt(iProjectile, Prop_Send, "m_hLauncher");
-		int owner = GetEntPropEnt(weapon, Prop_Send, "m_hOwnerEntity");
+		//int weapon = GetEntPropEnt(iProjectile, Prop_Send, "m_hLauncher");
+		//int owner = GetEntPropEnt(weapon, Prop_Send, "m_hOwnerEntity");
 		int iProjTeam = GetEntProp(iProjectile, Prop_Data, "m_iTeamNum");
 		float vecRocketPos[3];
 		GetEntPropVector(iProjectile, Prop_Send, "m_vecOrigin", vecRocketPos);
@@ -1989,8 +2068,8 @@ Action ProjectileTouch(int iProjectile, int other) {
 			if (!IsValidClient(iTarget)) continue; // Skip invalid players
 
 			// Check if the player belongs to the opposing team
-			int iTargetTeam = TF2_GetClientTeam(iTarget);
-			if (iTargetTeam == iProjTeam) {
+			//int iTargetTeam = TF2_GetClientTeam(iTarget);
+			if (GetEntProp(iTarget, Prop_Send, "m_iTeamNum") == iProjTeam) {
 				float vecTargetPos[3];
 				GetEntPropVector(iTarget, Prop_Send, "m_vecOrigin", vecTargetPos);
 
@@ -2007,7 +2086,7 @@ Action ProjectileTouch(int iProjectile, int other) {
 						event.FireToClient(iTarget);
 						delete event;
 						players[iTarget].iMilk_Cooldown = 1;
-						CreateTimer(0.1, iMilk_Cooldown, iTarget);
+						CreateTimer(0.3, MilkCooldown, iTarget);
 					}
 				}
 			}
@@ -2016,8 +2095,9 @@ Action ProjectileTouch(int iProjectile, int other) {
 	return Plugin_Handled;
 }
 
-void MilkCooldown(Handle timer, int iTarget) {
+Action MilkCooldown(Handle timer, int iTarget) {
 	players[iTarget].iMilk_Cooldown = 0;
+	return Plugin_Handled;
 }
 
 Action PipeSet(int iProjectile) {
