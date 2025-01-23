@@ -16,7 +16,7 @@ public Plugin myinfo =
 	name = "Sile's Team Synergy 2 Mini-mod",
 	author = "Ech0",
 	description = "Contains stock weapon changes from Sile's document",
-	version = "1.3.1",
+	version = "1.3.2",
 	url = ""
 };
 
@@ -35,6 +35,9 @@ enum struct Player {
 	
 	// Scout
 	float fAirjump;		// Tracks damage taken while airborne
+	
+	// Soldier
+	float fBlack_Box_Healing;	// Tracks damage we do with the Black Box
 	
 	// Pyro
 	int iAmmo;	// Tracks ammo for the purpose of making the hitscan beam
@@ -461,10 +464,11 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 	if (index == 36) {	// Blutsauger
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 3);
-		TF2Items_SetAttribute(item1, 0, 37, 0.8); // hidden primary max ammo bonus (150 to 120)
-		TF2Items_SetAttribute(item1, 1, 280, 9.0); // override projectile type (to flame rocket, which disables projectiles entirely)
-		TF2Items_SetAttribute(item1, 2, 81, 0.0); // health drain medic (nil)
+		TF2Items_SetNumAttributes(item1, 4);
+		TF2Items_SetAttribute(item1, 0, 4, 1.0); // clip size bonus (nil)
+		TF2Items_SetAttribute(item1, 1, 37, 0.8); // hidden primary max ammo bonus (150 to 120)
+		TF2Items_SetAttribute(item1, 2, 280, 9.0); // override projectile type (to flame rocket, which disables projectiles entirely)
+		TF2Items_SetAttribute(item1, 3, 81, 0.0); // health drain medic (nil)
 	}
 	else if (StrEqual(class, "tf_weapon_medigun")) {	// All Medi-Guns
 		item1 = TF2Items_CreateItem(0);
@@ -551,12 +555,6 @@ Action OnGameEvent(Event event, const char[] name, bool dontbroadcast) {
 			int iSecondaryIndex = -1;
 			if(iSecondary > 0) iSecondaryIndex = GetEntProp(iSecondary, Prop_Send, "m_iItemDefinitionIndex");
 			
-			// Set Jar meter to zero on respawn
-			/*if (iSecondaryIndex == 58 || iSecondaryIndex == 222 || iSecondaryIndex == 1121 || iSecondaryIndex == 1083 || iSecondaryIndex == 1105) {
-				PrintToChatAll("Before %f", GetEntPropFloat(iClient, Prop_Send, "m_flItemChargeMeter", 1));
-				SetEntPropFloat(iClient, Prop_Send, "m_flItemChargeMeter", 0.0, 1);
-				PrintToChatAll("After %f", GetEntPropFloat(iClient, Prop_Send, "m_flItemChargeMeter", 1));
-			}*/
 			
 			// Syncs Demo's ammo count between launchers
 			if (TF2_GetPlayerClass(iClient) == TFClass_DemoMan) {
@@ -620,14 +618,23 @@ Action OnGameEvent(Event event, const char[] name, bool dontbroadcast) {
 		char class[64];
 		GetEventString(event, "item", class, sizeof(class));
 		
-		if (StrContains(class, "healthkit_small") == 0) {
-			PrintToChatAll("Health touch");
+		if (StrContains(class, "medkit_small") == 0) {
+			
+			int iMaxHealth = GetEntProp(GetPlayerResourceEntity(), Prop_Send, "m_iMaxHealth", _, iClient);
+			int iHealth = GetEntProp(iClient, Prop_Send, "m_iHealth");
+			int newHealth = RoundFloat(iHealth + iMaxHealth * 0.05);
+			if (newHealth > iMaxHealth) {
+				newHealth = iMaxHealth;
+			}
+			SetEntProp(iClient, Prop_Send, "m_iHealth", newHealth);
+			CreateTimer(0.4, HealPopup, iClient, newHealth);
 		}
 		else if (StrContains(class, "ammopack_small") == 0) {
-			PrintToChatAll("Ammo touch");
 			if (IsValidClient(iClient)) {
 				
 				int iPrimary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
+				int iPrimaryIndex = -1;
+				if(iPrimary > 0) iPrimaryIndex = GetEntProp(iPrimary, Prop_Send, "m_iItemDefinitionIndex");
 				int iSecondary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Secondary, true);
 			
 				if (iPrimary != -1) {
@@ -635,8 +642,14 @@ Action OnGameEvent(Event event, const char[] name, bool dontbroadcast) {
 					int PrimaryAmmoCount = GetEntProp(iClient, Prop_Data, "m_iAmmo", _, PrimaryAmmo);
 					
 					GetEntityClassname(iPrimary, class, sizeof(class));		// Retrieve the weapon
-					// Flamethrowers
-					if (StrEqual(class, "tf_weapon_flamethrower")) {
+					// Scatterguns
+					if (StrEqual(class, "tf_weapon_scattergun")) {
+						if (PrimaryAmmoCount < 18) {
+							SetEntProp(iClient, Prop_Data, "m_iAmmo", PrimaryAmmoCount + 11, _, PrimaryAmmo);
+						}
+					}
+					// Flamethrowers, Syringe Guns (excluding Blutsauger)
+					else if (StrEqual(class, "tf_weapon_flamethrower") || (StrEqual(class, "tf_weapon_syringegun_medic") && iPrimaryIndex != 36)) {
 						if (PrimaryAmmoCount < 190) {
 							SetEntProp(iClient, Prop_Data, "m_iAmmo", PrimaryAmmoCount + 10, _, PrimaryAmmo);
 						}
@@ -659,15 +672,60 @@ Action OnGameEvent(Event event, const char[] name, bool dontbroadcast) {
 							SetEntProp(iClient, Prop_Data, "m_iAmmo", PrimaryAmmoCount + 1, _, PrimaryAmmo);
 						}
 					}
+					// Engie Shotgun
+					else if (StrEqual(class, "tf_weapon_shotgun_primary")) {
+						if (PrimaryAmmoCount < 36) {
+							SetEntProp(iClient, Prop_Data, "m_iAmmo", PrimaryAmmoCount + 1, _, PrimaryAmmo);
+						}
+					}
+					// Blutsauger
+					else if (iPrimaryIndex == 36) {
+						if (PrimaryAmmoCount < 114) {
+							SetEntProp(iClient, Prop_Data, "m_iAmmo", PrimaryAmmoCount + 6, _, PrimaryAmmo);
+						}
+						else {
+							SetEntProp(iClient, Prop_Data, "m_iAmmo", 120, _, PrimaryAmmo);
+						}
+					}
 				}
 				if (iSecondary != -1) {
 					int SecondaryAmmo = GetEntProp(iSecondary, Prop_Send, "m_iPrimaryAmmoType");
 					int SecondaryAmmoCount = GetEntProp(iClient, Prop_Data, "m_iAmmo", _, SecondaryAmmo);
 					
 					GetEntityClassname(iPrimary, class, sizeof(class));	
+					// Pistol
+					if (StrEqual(class, "tf_weapon_pistol") || StrEqual(class, "tf_weapon_pistol_scout")) {
+						if (SecondaryAmmoCount < 35) {
+							SetEntProp(iClient, Prop_Data, "m_iAmmo", SecondaryAmmoCount + 1, _, SecondaryAmmo);
+						}
+						else {
+							SetEntProp(iClient, Prop_Data, "m_iAmmo", 36, _, SecondaryAmmo);
+						}
+					}
 					// Sticky Launchers
-					if (StrEqual(class, "tf_weapon_pipebomblauncher")) {
+					else if (StrEqual(class, "tf_weapon_pipebomblauncher")) {
 						if (SecondaryAmmoCount < 24) {
+							SetEntProp(iClient, Prop_Data, "m_iAmmo", SecondaryAmmoCount + 1, _, SecondaryAmmo);
+						}
+					}
+					// Shotguns
+					else if (StrEqual(class, "tf_weapon_shotgun") || StrEqual(class, "tf_weapon_shotgun_hwg") || StrEqual(class, "tf_weapon_shotgun_pyro") || StrEqual(class, "tf_weapon_shotgun_soldier")) {
+						if (SecondaryAmmoCount < 36) {
+							SetEntProp(iClient, Prop_Data, "m_iAmmo", SecondaryAmmoCount + 1, _, SecondaryAmmo);
+						}
+					}
+					// SMG
+					else if (StrEqual(class, "tf_weapon_smg")) {
+						if (SecondaryAmmoCount < 71) {
+							SetEntProp(iClient, Prop_Data, "m_iAmmo", SecondaryAmmoCount + 4, _, SecondaryAmmo);
+						}
+						else {
+							SetEntProp(iClient, Prop_Data, "m_iAmmo", 75, _, SecondaryAmmo);
+						}
+					}
+					// SMG
+					else if (StrEqual(class, "tf_weapon_revolver")) {
+						if (SecondaryAmmoCount < 17) {
 							SetEntProp(iClient, Prop_Data, "m_iAmmo", SecondaryAmmoCount + 1, _, SecondaryAmmo);
 						}
 					}
@@ -687,6 +745,18 @@ Action OnGameEvent(Event event, const char[] name, bool dontbroadcast) {
 				SetEntPropFloat(iClient, Prop_Send, "m_flCloakMeter", fCloak + 5.0);
 			}
 		}
+	}
+	return Plugin_Continue;
+}
+
+Action HealPopup(int iClient, int newHealth) {
+	Event event = CreateEvent("player_healonhit");		// Inform the user that they have been healed and by how much
+	if (event) {
+		event.SetInt("amount", newHealth);
+		event.SetInt("entindex", iClient);
+		
+		event.FireToClient(iClient);
+		delete event;
 	}
 	return Plugin_Continue;
 }
@@ -1099,6 +1169,9 @@ public void OnGameFrame() {
 							players[iClient].fSpeed = players[iClient].fSpeed + 0.015;
 						}
 					}
+					else {
+						players[iClient].fSpeed = 1.005;		// Clamp
+					}
 				}
 				
 				float DmgBase;
@@ -1113,7 +1186,7 @@ public void OnGameFrame() {
 				if (time % 100 == 0) {		// Only trigger an update every 0.1 sec
 					float factor = 1.0 + time / 1000.0;		// This value continuously decreases from ~2 to 1 over time
 					TF2Attrib_SetByDefIndex(iPrimary, 106, 0.8 / factor);		// Spread bonus
-					TF2Attrib_SetByDefIndex(iPrimary, 2, DmgBase * factor * RemapValClamped(players[iClient].fSpeed, 0.0, 1.005, 0.666, 1.0));		// Damage bonus (33% damage penalty inversely proportional to speed)
+					TF2Attrib_SetByDefIndex(iPrimary, 2, DmgBase * factor * RemapValClamped(players[iClient].fSpeed, 0.0, 1.005, 1.0, 0.666));		// Damage bonus (33% damage penalty inversely proportional to speed)
 				}
 				
 				TF2Attrib_SetByDefIndex(iPrimary, 54, RemapValClamped(players[iClient].fSpeed, 0.0, 1.005, 0.666, 1.0));		// Speed
@@ -1420,7 +1493,7 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 			// Soldier
 			if (TF2_GetPlayerClass(attacker) == TFClass_Soldier) {
 				if ((StrEqual(class, "tf_weapon_rocketlauncher") || StrEqual(class, "tf_weapon_rocketlauncher_airstrike") || StrEqual(class, "tf_weapon_particle_cannon")) && fDistance < 512.0) {
-					fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5) / SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.25, 0.75);		// Scale the ramp-up up to 150%
+					fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.4, 0.6) / SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.25, 0.75);		// Scale the ramp-up up to 140%
 				}
 				else	if (iPrimaryIndex == 414 && fDistance > 512.0) {		// Liberty Launcher
 					fDmgMod = 1.0 / SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);		// Remove fall-off
@@ -1549,10 +1622,6 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 				StrEqual(class, "tf_weapon_handgun_scout_primary") ||
 				StrEqual(class, "tf_weapon_handgun_scout_secondary") ||
 				// Soldier
-				StrEqual(class, "tf_weapon_rocketlauncher") ||
-				StrEqual(class, "tf_weapon_rocketlauncher_directhit") ||
-				StrEqual(class, "tf_weapon_rocketlauncher_airstrike") ||
-				StrEqual(class, "tf_weapon_particle_cannon") ||
 				StrEqual(class, "tf_weapon_raygun") ||
 				StrEqual(class, "tf_weapon_shotgun_soldier") ||
 				// Pyro
@@ -1587,8 +1656,12 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 				}
 				
 				else if (		// List of all weapon archetypes with atypical ramp-up and/or fall-off
+				// Soldier
+				StrEqual(class, "tf_weapon_rocketlauncher") ||	// +40
+				StrEqual(class, "tf_weapon_rocketlauncher_airstrike") ||
+				StrEqual(class, "tf_weapon_particle_cannon") ||
 				// Demoman
-				StrEqual(class, "tf_weapon_pipebomblauncher")) {	// +40
+				StrEqual(class, "tf_weapon_pipebomblauncher")) {
 					if (fDistance < 512.0) {
 						fDmgModTHREAT = (1.4/SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.4, 0.7) -  1) * players[attacker].fTHREAT/1000 + 1;
 					}
@@ -1730,20 +1803,29 @@ public void OnTakeDamagePost(int victim, int attacker, int inflictor, float dama
 			// Soldier
 			if (TF2_GetPlayerClass(attacker) == TFClass_Soldier) {
 				if (iWeaponIndex == 228 || iWeaponIndex == 1085) {		// Black Box
-					TF2Util_TakeHealth(attacker, damage / 6);		// Heal for 1/6 of damage done (15 health per 90 damage)
-					
-					Event event = CreateEvent("player_healonhit");		// Inform the user that they have been healed and by how much
-					if (event) {
-						event.SetInt("amount", RoundFloat(damage / 6));
-						event.SetInt("entindex", attacker);
-						
-						event.FireToClient(attacker);
-						delete event;
-					}
+					players[attacker].fBlack_Box_Healing += damage / 6;
+					CreateTimer(0.015, BlackBoxHeal, attacker);		// We do this to collate the healing from multi-hits
 				}
 			}
 		}
 	}
+}
+
+Action BlackBoxHeal(Handle timer, int iClient) {
+	if (players[iClient].fBlack_Box_Healing > 0.0) {
+		float HealAmount = players[iClient].fBlack_Box_Healing;
+		TF2Util_TakeHealth(iClient, HealAmount);
+		Event event = CreateEvent("player_healonhit");		// Inform the user that they have been healed and by how much
+		if (event) {
+			event.SetInt("amount", RoundFloat(HealAmount));
+			event.SetInt("entindex", iClient);
+			
+			event.FireToClient(iClient);
+			delete event;
+		}
+	}
+	players[iClient].fBlack_Box_Healing = 0.0;
+	return Plugin_Continue;
 }
 
 
@@ -1869,24 +1951,33 @@ public Action AutoreloadPistol(Handle timer, int iClient) {
 
 public Action AutoreloadSyringe(Handle timer, int iClient) {
 	int iPrimary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);		// Retrieve the primary weapon
+	int iPrimaryIndex = -1;
+	if(iPrimary != -1) iPrimaryIndex = GetEntProp(iPrimary, Prop_Send, "m_iItemDefinitionIndex");
 	
 	char class[64];
 	GetEntityClassname(iPrimary, class, sizeof(class));		// Retrieve the weapon
 	
 	if (StrEqual(class, "tf_weapon_syringegun_medic")) {		// If we have a Syringe Gun equipped
+		int iClipMax = 50;
+		switch(iPrimaryIndex) {
+			case 36: {
+				iClipMax = 40;
+			}
+		}
+		
 		int iAmmoTable = FindSendPropInfo("CTFWeaponBase", "m_iClip1");
 		int clip = GetEntData(iPrimary, iAmmoTable, 4);		// Retrieve the loaded ammo of our SMG
-		int ammoSubtract = 50 - clip;		// Don't take away more ammo than is nessesary
+		int ammoSubtract = iClipMax - clip;		// Don't take away more ammo than is nessesary
 		
 		int primaryAmmo = GetEntProp(iPrimary, Prop_Send, "m_iPrimaryAmmoType");
 		int ammoCount = GetEntProp(iClient, Prop_Data, "m_iAmmo", _, primaryAmmo);		// Retrieve the reserve secondary ammo
 		
-		if (clip < 50 && ammoCount > 0) {
-			if (ammoCount < 50) {		// Don't take away more ammo than we actually have
+		if (clip < iClipMax && ammoCount > 0) {
+			if (ammoCount < iClipMax) {		// Don't take away more ammo than we actually have
 				ammoSubtract = ammoCount;
 			}
 			SetEntProp(iClient, Prop_Data, "m_iAmmo", ammoCount - ammoSubtract, _, primaryAmmo);		// Subtract reserve ammo
-			SetEntData(iPrimary, iAmmoTable, 50, 4, true);		// Add loaded ammo
+			SetEntData(iPrimary, iAmmoTable, iClipMax, 4, true);		// Add loaded ammo
 		}
 	}
 	return Plugin_Handled;
@@ -2244,7 +2335,7 @@ Action BuildingDamage (int building, int &attacker, int &inflictor, float &damag
 			// Soldier
 			if (TF2_GetPlayerClass(attacker) == TFClass_Soldier) {
 				if ((StrEqual(class, "tf_weapon_rocketlauncher") || StrEqual(class, "tf_weapon_rocketlauncher_airstrike") || StrEqual(class, "tf_weapon_particle_cannon")) && fDistance < 512.0) {
-					fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5) / SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.25, 0.75);		// Scale the ramp-up up to 150%
+					fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.4, 0.6) / SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.25, 0.75);		// Scale the ramp-up up to 150%
 				}
 				else	if (iPrimaryIndex == 414 && fDistance > 512.0) {		// Liberty Launcher
 					fDmgMod = 1.0 / SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);		// Remove fall-off
@@ -2319,10 +2410,6 @@ Action BuildingDamage (int building, int &attacker, int &inflictor, float &damag
 				StrEqual(class, "tf_weapon_handgun_scout_primary") ||
 				StrEqual(class, "tf_weapon_handgun_scout_secondary") ||
 				// Soldier
-				StrEqual(class, "tf_weapon_rocketlauncher") ||
-				StrEqual(class, "tf_weapon_rocketlauncher_directhit") ||
-				StrEqual(class, "tf_weapon_rocketlauncher_airstrike") ||
-				StrEqual(class, "tf_weapon_particle_cannon") ||
 				StrEqual(class, "tf_weapon_raygun") ||
 				StrEqual(class, "tf_weapon_shotgun_soldier") ||
 				// Pyro
@@ -2366,8 +2453,12 @@ Action BuildingDamage (int building, int &attacker, int &inflictor, float &damag
 					}
 				}
 				else if (	
+				// Soldier
+				StrEqual(class, "tf_weapon_rocketlauncher") ||	// +40
+				StrEqual(class, "tf_weapon_rocketlauncher_airstrike") ||
+				StrEqual(class, "tf_weapon_particle_cannon") ||
 				// Demoman
-				StrEqual(class, "tf_weapon_pipebomblauncher")) {	// +40
+				StrEqual(class, "tf_weapon_pipebomblauncher")) {
 					if (fDistance < 512.0) {
 						fDmgModTHREAT = (1.4/SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.4, 0.7) -  1) * players[attacker].fTHREAT/1000 + 1;
 					}
