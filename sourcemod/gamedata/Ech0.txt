@@ -275,6 +275,17 @@
 					}
 				}
 			}
+			"CTFPlayer::TeamFortress_CalculateMaxSpeed" {
+				"signature" "CTFPlayer::TeamFortress_CalculateMaxSpeed"
+				"callconv" "thiscall"
+				"return" "float"
+				"this" "entity"
+				"arguments" {
+					"ignore_special_ability" {
+						"type" "bool"
+					}
+				}
+			}
 			"CTFPlayer::CreateRagdollEntity()"
 			{
 				"signature"		"CTFPlayer::CreateRagdollEntity()"
@@ -524,6 +535,13 @@
 				"callconv"		"thiscall"
 				"return"		"void"
 				"this"			"entity"
+			}
+			"CTFWeaponBase::SecondaryAttack"
+			{
+				"offset" "CTFWeaponBase::SecondaryAttack"
+				"hooktype" "entity"
+				"this" "entity"
+				"return" "void"
 			}
 			"CTFStunBall::ApplyBallImpactEffectOnVictim()"
 			{
@@ -1114,6 +1132,10 @@
 				"linux"		"@_ZN9CTFPlayer19ApplyPushFromDamageERK15CTakeDamageInfo6Vector"
 				"windows"	"\x2A\x2A\x2A\x2A\x2A\x2A\x2A\x2A\x83\xEC\x34\x83\x78\x30\x00\x53\x8B\x5D\x08\x56\x57"
 			}
+			"CTFPlayer::TeamFortress_CalculateMaxSpeed" {
+				"linux" "@_ZNK9CTFPlayer30TeamFortress_CalculateMaxSpeedEb"
+				"windows" "\x55\x8B\xEC\x83\xEC\x18\x56\x8B\xF1\x8B\x0D\x2A\x2A\x2A\x2A"
+			}
 			"CTFPlayer::CreateRagdollEntity()"
 			{
 				// semi-unique xref "tf_ragdoll" with tons of straight conditionals
@@ -1346,6 +1368,26 @@
 		
 		"Offsets"
 		{
+			"CBaseObject::StartBuilding"
+			{
+				"windows"       "342"
+				"linux"         "344"
+			}
+			"CBaseObject::FinishedBuilding"
+			{
+				"windows"       "343"
+				"linux"         "345"
+			}
+			"CBaseObject::StartUpgrading"
+			{
+				"windows"       "383"
+				"linux"         "384"
+			}
+			"CBaseObject::FinishUpgrading"
+			{
+				"windows"       "384"
+				"linux"         "385"
+			}
 			"CBaseCombatWeapon::ItemPostFrame()"
 			{
 				"windows"	"272"
@@ -1449,6 +1491,11 @@
 			{
 				"windows"	"266"
 				"linux"		"267"
+			}
+			"CTFWeaponBase::SecondaryAttack"
+			{
+				"linux" "293"
+				"windows" "287"
 			}
 			"CTFWeaponBase::DeflectEntity()"
 			{
