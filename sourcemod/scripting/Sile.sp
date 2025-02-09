@@ -2366,7 +2366,7 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 			// Pyro
 			if (TF2_GetPlayerClass(attacker) == TFClass_Pyro) {
 				// Disables damage from fire particles
-				if (StrEqual(class, "tf_weapon_flamethrower")) {
+				if (StrEqual(class, "tf_weapon_flamethrower") && (damage_type & DMG_IGNITE) && !(damage_type & DMG_BLAST)) {
 					if (damage_type & DMG_USE_HITLOCATIONS) {
 						damage_type &= ~DMG_USE_HITLOCATIONS;
 					}
