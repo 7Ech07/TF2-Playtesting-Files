@@ -3,6 +3,7 @@
 
 #include <sdktools>
 #include <sdkhooks>
+#include <dhooks>
 #include <tf2>
 #include <tf2_stocks>
 #include <tf2utils>
@@ -10,6 +11,15 @@
 #include <tf2attributes>
 
 #pragma newdecls required
+
+public Plugin myinfo =
+{
+	name = "Abs' TF^2 Concept Mod",
+	author = "Ech0",
+	description = "Contains some weapon changes from Abs's document",
+	version = "1.0.0",
+	url = ""
+};
 
 
 	// -={ Stock functions -- taken from Valve themselves }=-
@@ -65,7 +75,8 @@ enum struct Player {
 	
 	// Pyro
 	float fPressure;
-	int iAxe_Count;		// Tracks the number of hits we've made with the Fire Axe for each attack we perform
+	float fAxe_Swing_Cooldown;
+	//int iAxe_Count;		// Tracks the number of hits we've made with the Fire Axe for each attack we perform
 	float fAxe_Cooldown;		// Stores the cooldown timer of our axe throw ability
 	
 	// Demoman
@@ -90,12 +101,17 @@ enum struct Player {
 }
 
 enum struct Entity {
-	// Stickie
+	// Stickies
 	float fLifetime;		// Tracks how long a sticky has been around
 	bool bTrap;		// Stores whether a sticky has existed long enough to become a trap
+	
+	// Buildings
+	float fConstruction_Health;		// Tracks the amount of health a building is *supposed* to have during its construction animation
 }
 
 int frame;		// Tracks frames
+int g_LastButtons[MAXPLAYERS+1];
+int g_TrueLastButtons[MAXPLAYERS+1];
 
 
 Player players[MAXPLAYERS+1];
@@ -105,11 +121,23 @@ float g_meterPri[MAXPLAYERS+1];
 
 Handle cvar_ref_tf_parachute_aircontrol;
 Handle g_SDKCallWeaponSwitch;
+Handle g_hSDKFinishBuilding;
 //Handle g_SDKCallInitGrenade;
+
+Handle cvar_ref_tf_use_fixed_weaponspreads;
+Handle cvar_ref_tf_boost_drain_time;
+
+//Handle dhook_CTFWeaponBase_SecondaryAttack;
 
 
 public void OnPluginStart() {
     cvar_ref_tf_parachute_aircontrol = FindConVar("tf_parachute_aircontrol");
+	cvar_ref_tf_use_fixed_weaponspreads = FindConVar("tf_use_fixed_weaponspreads");
+	cvar_ref_tf_boost_drain_time = FindConVar("tf_boost_drain_time");
+
+
+	SetConVarString(cvar_ref_tf_use_fixed_weaponspreads, "1");
+	SetConVarString(cvar_ref_tf_boost_drain_time, "99999.0");		// This disables Overheal drain
 
 	Handle hGameConf = LoadGameConfigFile("sdkhooks.games");
 	if (!hGameConf) {
@@ -122,10 +150,23 @@ public void OnPluginStart() {
 	PrepSDKCall_AddParameter(SDKType_CBaseEntity, SDKPass_Pointer);
 	PrepSDKCall_AddParameter(SDKType_PlainOldData, SDKPass_Plain);
 	g_SDKCallWeaponSwitch = EndPrepSDKCall();
+
+	GameData data = new GameData("Ech0");
+	if (!data) {
+		SetFailState("Failed to open gamedata.Ech0.txt. Unable to load plugin");
+	}
+
+	StartPrepSDKCall(SDKCall_Entity);
+	PrepSDKCall_SetFromConf(data, SDKConf_Virtual, "CBaseObject::FinishedBuilding");
+	g_hSDKFinishBuilding = EndPrepSDKCall();
+
 	//g_SDKCallInitGrenade = EndPrepSDKCall();
 	if (!g_SDKCallWeaponSwitch) {
 		SetFailState("Could not initialize call for CTFPlayer::Weapon_Switch");
 	}
+	
+	//dhook_CTFWeaponBase_SecondaryAttack = DHookCreateFromConf(data, "CTFWeaponBase::SecondaryAttack");
+	//if (dhook_CTFWeaponBase_SecondaryAttack == null) SetFailState("Failed to create dhook_CTFWeaponBase_SecondaryAttack");
 
     // Event hooks
     HookEvent("player_spawn", OnGameEvent, EventHookMode_Post);
@@ -152,11 +193,11 @@ public void OnMapStart() {
 	PrecacheSound("weapons/machete_swing.wav", true);
 	PrecacheSound("weapons/cleaver_throw.wav", true);
 	PrecacheSound("weapons/cleaver_hit_world.wav", true);
-	PrecacheSound("weapons/weapons/cleaver_hit_02.wav.wav", true);
-	PrecacheSound("weapons/weapons/cleaver_hit_03.wav.wav", true);
-	PrecacheSound("weapons/weapons/cleaver_hit_05.wav.wav", true);
-	PrecacheSound("weapons/weapons/cleaver_hit_06.wav.wav", true);
-	PrecacheSound("weapons/weapons/cleaver_hit_07.wav.wav", true);
+	PrecacheSound("weapons/weapons/cleaver_hit_02.wav", true);
+	PrecacheSound("weapons/weapons/cleaver_hit_03.wav", true);
+	PrecacheSound("weapons/weapons/cleaver_hit_05.wav", true);
+	PrecacheSound("weapons/weapons/cleaver_hit_06.wav", true);
+	PrecacheSound("weapons/weapons/cleaver_hit_07.wav", true);
 	PrecacheSound("weapons/syringegun_shoot.wav", true);
 	PrecacheSound("weapons/syringegun_shoot_crit.wav", true);
 	PrecacheSound("weapons/discipline_device_power_up.wav", true);
@@ -191,6 +232,14 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 		TF2Items_SetAttribute(item1, 2, 419, 0.001); // hype resets on jump (removed)
 		TF2Items_SetAttribute(item1, 3, 733, 0.0); // lose hype on take damage (removed)
 	}
+	
+	else if ((StrEqual(class, "tf_weapon_pistol") || StrEqual(class, "tf_weapon_pistol_scout")) && TF2_GetPlayerClass(iClient) == TFClass_Scout) {	// Undo ammo penalty from Engineer Pistol
+		item1 = TF2Items_CreateItem(0);
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 1);
+		TF2Items_SetAttribute(item1, 0, 78, 1.0); // maxammo secondary reduced (reset)
+	}
+	
 	else if (StrEqual(class, "tf_weapon_bat")) {		// Bat
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
@@ -297,6 +346,7 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 		TF2Items_SetNumAttributes(item1, 1);
 		TF2Items_SetAttribute(item1, 0, 78, 0.18); // maxammo secondary reduced (36)
 	}
+	
 	else if (StrEqual(class, "tf_weapon_wrench")) {	// All Engineer Pistols
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
@@ -433,6 +483,7 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 public void OnEntityCreated(int iEnt, const char[] classname) {
 	if (IsValidEdict(iEnt)) {
 		if (StrEqual(classname,"obj_sentrygun") || StrEqual(classname,"obj_dispenser") || StrEqual(classname,"obj_teleporter")) {
+			entities[iEnt].fConstruction_Health = 0.0;
 			//SDKHook(iEnt, SDKHook_SetTransmit, BuildingThink);
 			SDKHook(iEnt, SDKHook_OnTakeDamage, BuildingDamage);
 		}
@@ -441,6 +492,10 @@ public void OnEntityCreated(int iEnt, const char[] classname) {
 			entities[iEnt].bTrap = false;
 			CreateTimer(5.0, TrapSet, iEnt);		// This function swaps the sticky from rocket-style ramp-up to fixed damage
 		}
+		
+		/*else if(StrEqual(classname, "tf_weapon_fists")) {
+			DHookEntity(dhook_CTFWeaponBase_SecondaryAttack, false, iEnt, _, DHookCallback_CTFWeaponBase_SecondaryAttack);
+		}*/
 
 		else if (StrEqual(classname, "tf_projectile_syringe")) {
 			SDKHook(iEnt, SDKHook_SpawnPost, needleSpawn);
@@ -465,6 +520,12 @@ public void OnEntityDestroyed(int entity) {
 		}
 	}
 }
+
+	// -={ Disable the Mangler secondary fire entirely }=-
+
+/*MRESReturn DHookCallback_CTFWeaponBase_SecondaryAttack(int entity) {
+	return MRES_Supercede;
+}*/
 
 
 	// -={ Sniper Rifle noscope headshot hit registration }=-
@@ -496,11 +557,17 @@ Action OnClientWeaponCanSwitchTo(int iClient, int weapon) {
 	return Plugin_Continue;
 }
 
-public Action AxeSwing(Handle timer, int iClient) {
+public Action AxeSwing(Handle timer, DataPack data) {
+	
+	// Extract the variables from the DataPack
+	data.Reset();
+	int iClient = data.ReadCell();
+	int counter = data.ReadCell();
+	
 	if (IsValidClient(iClient)) {
 		
-		players[iClient].iAxe_Count += 1;
-		if (players[iClient].iAxe_Count <= 3) {
+		counter += 1;
+		if (counter <= 3) {
 		
 			int iMelee = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Melee, true);
 			int iActive = GetEntPropEnt(iClient, Prop_Send, "m_hActiveWeapon");
@@ -540,11 +607,15 @@ public Action AxeSwing(Handle timer, int iClient) {
 						CreateParticle(iEnt, "blood_impact_red_01", 2.0, _, _, _, _, 40.0);
 						players[iEnt].iAxe_Hit += 1;
 						players[iEnt].fAxe_LastHitTime = GetGameTime();
-						CreateTimer(0.4, ResetAxeHitCounter, iEnt);
+						CreateTimer(0.3, ResetAxeHitCounter, iEnt);
 					}
 				}
 				
-				CreateTimer(0.2, AxeSwing, iClient); 
+				DataPack hDataPack = new DataPack();		// Write this to a datapack so we can send it to another function
+				hDataPack.WriteCell(iClient);
+				hDataPack.WriteCell(counter);
+				
+				CreateTimer(0.2, AxeSwing, hDataPack); 
 			}
 		}
 	}
@@ -620,7 +691,7 @@ public void OnGameFrame() {
 					lastSequence[iClient] = sequence;
 					char msg[64];
 					Format(msg, sizeof(msg), "Viewmodel sequence changed: %d", sequence);
-					PrintToChat(iClient, msg);
+					//PrintToChat(iClient, msg);
 				}
 			}
 			
@@ -650,7 +721,9 @@ public void OnGameFrame() {
 			
 			if (frame % 8 == 0) {		// Trigger 8 times/sec
 				if (players[iClient].iHealth > GetEntProp(GetPlayerResourceEntity(), Prop_Send, "m_iMaxHealth", _, iClient) && !(TF2_IsPlayerInCondition(iClient, TFCond_Healing))) {		// Overheal drain
-					TF2Util_TakeHealth(iClient, -1.0);
+					if (players[iClient].fDrunk <= 0.0) {
+						SetEntProp(iClient, Prop_Send, "m_iHealth", players[iClient].iHealth - 1);
+					}
 				}
 			}
 			
@@ -775,17 +848,19 @@ public void OnGameFrame() {
 					}
 					
 					// Pressure
-					if (players[iClient].fPressure < 1.25) {
-						if (GetEntPropFloat(iPrimary, Prop_Send, "m_flLastFireTime") < GetGameTime()) {		// Don't repressurise during the Airblast cooldown
-							players[iClient].fPressure += 0.015;
+					if (iPrimary > 0) {
+						if (players[iClient].fPressure < 1.25) {
+							if (GetEntPropFloat(iPrimary, Prop_Send, "m_flLastFireTime") < GetGameTime()) {		// Don't repressurise during the Airblast cooldown
+								players[iClient].fPressure += 0.015;
+							}
+							TF2Attrib_SetByDefIndex(iPrimary, 255, 0.75); // Reduce Airblast force
+							TF2Attrib_SetByDefIndex(iPrimary, 171, 1.0);	// Airblast costs ammo
 						}
-						TF2Attrib_SetByDefIndex(iPrimary, 255, 0.75); // Reduce Airblast force
-						TF2Attrib_SetByDefIndex(iPrimary, 171, 1.0);	// Airblast costs ammo
-					}
-					else if (players[iClient].fPressure >= 1.25) {
-						players[iClient].fPressure = 1.25;
-						TF2Attrib_SetByDefIndex(iPrimary, 255, 1.0);
-						TF2Attrib_SetByDefIndex(iPrimary, 171, 0.0);
+						else if (players[iClient].fPressure >= 1.25) {
+							players[iClient].fPressure = 1.25;
+							TF2Attrib_SetByDefIndex(iPrimary, 255, 1.0);
+							TF2Attrib_SetByDefIndex(iPrimary, 171, 0.0);
+						}
 					}
 					
 					// Throwing axe
@@ -805,12 +880,14 @@ public void OnGameFrame() {
 				
 				// Demoman
 				case TFClass_DemoMan: {
-					if (players[iClient].fBottle < 20.0 && players[iClient].fDrunk <= 0.0) {
-						players[iClient].fBottle += 0.015;
+					if (players[iClient].fBottle < 20.0) {
+						if (players[iClient].fDrunk <= 0.0) {
+							players[iClient].fBottle += 0.015;
+						}
 					}
 					else {
 						players[iClient].fBottle = 20.0;
-						players[iClient].fBottle = true;
+						players[iClient].bVintage = true;
 					}
 					SetHudTextParams(-0.1, -0.16, 0.5, 255, 255, 255, 255);
 					ShowHudText(iClient, 1, "Drink: %.0f%%", 5.0 * players[iClient].fBottle);
@@ -820,15 +897,25 @@ public void OnGameFrame() {
 						ShowHudText(iClient, 2, "Drunkenness: %.0f", players[iClient].fDrunk);
 						players[iClient].fDrunk -= 0.015;
 						if (frame % 33 == 0) {		// Trigger twice
-							if (players[iClient].iHealth > 1.5 * GetEntProp(GetPlayerResourceEntity(), Prop_Send, "m_iMaxHealth", _, iClient)) {		// Overheal drain
-								TF2Util_TakeHealth(iClient, 1.0);
-								TF2Attrib_AddCustomPlayerAttribute(iClient, "projectile spread angle penalty", 0.275);
+							if (players[iClient].iHealth < 1.5 * GetEntProp(GetPlayerResourceEntity(), Prop_Send, "m_iMaxHealth", _, iClient)) {		// Overheal drain
+								SetEntProp(iClient, Prop_Send, "m_iHealth", players[iClient].iHealth + 1);
+								Event event = CreateEvent("player_healonhit");		// Inform the user that they have been healed and by how much
+								if (event) {
+									event.SetInt("amount", 1);
+									event.SetInt("entindex", iClient);
+									
+									event.FireToClient(iClient);
+									delete event;
+								}
+								TF2Attrib_SetByDefIndex(iPrimary, 68, 0.25);		// Projectile deviation
+								TF2Attrib_SetByDefIndex(iSecondary, 68, 0.25);
 							}
 						}
 					}
 					else {
 						ShowHudText(iClient, 2, "");
-						TF2Attrib_AddCustomPlayerAttribute(iClient, "projectile spread angle penalty", 0.0);
+						TF2Attrib_SetByDefIndex(iPrimary, 68, 0.0);
+						TF2Attrib_SetByDefIndex(iSecondary, 68, 0.0);
 					}
 					
 					if (players[iClient].bVintage == true) {
@@ -1147,6 +1234,97 @@ public void OnGameFrame() {
 		}
 	}
 
+	bool looking = true;
+	int iBuilding = -1;
+	int place = -1;		// This variable makes the loop more efficient by storing the last relevant entity we look at
+	while (looking) {
+		iBuilding = FindEntityByClassname(place, "obj_*");
+		if (iBuilding == -1) {
+			looking = false;		// If we find nothing, kill the loop
+		}
+		else {
+			place = iBuilding;
+		}
+
+		if (iBuilding != -1 && iBuilding <= 2048 && IsValidEdict(iBuilding)) {
+			//update animation speeds for building construction
+			char class[64];
+			GetEntityClassname(iBuilding,class,64);
+			int sequence = GetEntProp(iBuilding, Prop_Send, "m_nSequence");
+			float rate = RoundToFloor(GetEntPropFloat(iBuilding, Prop_Data, "m_flPlaybackRate") * 100) / 100.0;
+
+			if(rate > 0) {
+				int builder = GetEntPropEnt(iBuilding, Prop_Send, "m_hBuilder");
+				if (IsValidClient(builder)) {
+				
+					float cycle = GetEntPropFloat(iBuilding, Prop_Send, "m_flCycle");
+					float cons = GetEntPropFloat(iBuilding, Prop_Send, "m_flPercentageConstructed");
+					
+					//PrintToChatAll("Cons %f", cons);
+				
+					if((StrEqual(class,"obj_teleporter") || StrEqual(class,"obj_dispenser")) && sequence == 1) {
+						switch(rate) {
+							case 0.50: { rate = 1.00; SetEntPropFloat(iBuilding, Prop_Send, "m_flPlaybackRate", 1.00); } // not boosted
+							case 0.33: { rate = 0.67; SetEntPropFloat(iBuilding, Prop_Send, "m_flPlaybackRate", 0.67); } // Gunslinger not boosted
+							case 1.25: { rate = 2.50; SetEntPropFloat(iBuilding, Prop_Send, "m_flPlaybackRate", 2.50); } // wrench boost
+							case 1.08: { rate = 2.16; SetEntPropFloat(iBuilding, Prop_Send, "m_flPlaybackRate", 2.16); } // Gunslinger boost
+							case 1.47: { rate = 2.94; SetEntPropFloat(iBuilding, Prop_Send, "m_flPlaybackRate", 2.94); } // jag boost
+							case 0.87: { rate = 1.74; SetEntPropFloat(iBuilding, Prop_Send, "m_flPlaybackRate", 1.74); } // EE boost
+							case 2.00: { rate = 2.63; SetEntPropFloat(iBuilding, Prop_Send, "m_flPlaybackRate", 2.63); } // redeploy no boost
+							case 2.75: { rate = 3.38; SetEntPropFloat(iBuilding, Prop_Send, "m_flPlaybackRate", 3.38); } // redeploy boosted
+						}
+							
+						if (rate != 4.00 && rate != 2.00 && rate != 5.50 && rate != 3.67) {		// Don't heal while redeploying
+							if(GetEntProp(iBuilding, Prop_Send, "m_iHealth") < RoundFloat(entities[iBuilding].fConstruction_Health)) {
+								SetVariantInt(1);
+								AcceptEntityInput(iBuilding,"AddHealth");		// Increase health by 1 per frame, so long as we haven't hit the desired amount of health yet
+							}
+						}
+						
+						SetEntPropFloat(iBuilding, Prop_Send, "m_flPercentageConstructed", cycle * 2.00 > 1.0 ? 1.0 : cycle * 2.00);
+						
+						if (cons >= 1.00) {
+							SDKCall(g_hSDKFinishBuilding, iBuilding);		// Turns the building on once it's finished
+						}
+						
+						if (entities[iBuilding].fConstruction_Health < 135.0) {		// Incrememt this value as the building constructs, and clamp just in case
+							entities[iBuilding].fConstruction_Health += rate / 4.5;
+						}
+						else {
+							entities[iBuilding].fConstruction_Health = 135.0;
+						}
+					}
+					
+					else if (StrEqual(class,"obj_sentrygun") && sequence == 2) {
+						switch(rate) {
+							case 1.50: { rate = 1.31; SetEntPropFloat(iBuilding, Prop_Send, "m_flPlaybackRate", 1.31); } // redeploy no boost
+							case 2.25: { rate = 2.06; SetEntPropFloat(iBuilding, Prop_Send, "m_flPlaybackRate", 2.06); } // redeploy Wrench boosted
+							case 2.47: { rate = 2.34; SetEntPropFloat(iBuilding, Prop_Send, "m_flPlaybackRate", 2.34); } // redeploy Jag boosted
+						}
+						
+						if (rate != 1.63 && rate != 2.38 && rate != 5.50 && rate != 3.67) {		// Don't heal while redeploying
+							if(GetEntProp(iBuilding, Prop_Send, "m_iHealth") < RoundFloat(entities[iBuilding].fConstruction_Health)) {
+								SetVariantInt(1);
+								AcceptEntityInput(iBuilding,"AddHealth");		// Increase health by 1 per frame, so long as we haven't hit the desired amount of health yet
+							}
+						}
+						
+						if (cons >= 1.00) {
+							SDKCall(g_hSDKFinishBuilding, iBuilding);		// Turns the building on once it's finished
+						}
+						
+						if (entities[iBuilding].fConstruction_Health < 135.0) {		// Incrememt this value as the building constructs, and clamp just in case
+							entities[iBuilding].fConstruction_Health += rate / 2.45;		// Double this amount because Sentries build twice as fast at baseline
+						}
+						else {
+							entities[iBuilding].fConstruction_Health = 135.0;
+						}
+					}
+				}
+			}
+		}
+	}
+
 	int iEnt;
 	for (iEnt = 1; iEnt <= 2048; iEnt++) {
 		if (IsValidEntity(iEnt)) {
@@ -1412,7 +1590,9 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 						
 						return Plugin_Changed;
 					}
-					if (StrEqual(class, "tf_weapon_fireaxe")) {		// The player is considered the inflictor for melee attacks, so this only detects the ranged attack
+
+
+					else if (StrEqual(class, "tf_weapon_fireaxe")) {		// The player is considered the inflictor for melee attacks, so this only detects the ranged attack
 						damage = 65.0;
 
 						if (fDistance > 650.0) {
@@ -1463,7 +1643,10 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 						return Plugin_Changed;
 					}
 					else if (StrEqual(class, "tf_weapon_fists") && players[attacker].fUppercut_Cooldown < 1.0) {	// Cancel the normal damage of the uppercut attack
-						damage = 0.0;
+						if (!(damage_type & DMG_PREVENT_PHYSICS_FORCE)) {
+							damage = 0.0;
+							return Plugin_Changed;
+						}
 					}
 				}
 				
@@ -1659,6 +1842,19 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 		}
 	}
 	
+	else if (victim >= 1 && victim <= MaxClients && attacker == victim) {		// Self damage
+		TFClassType tfAttackerClass = TF2_GetPlayerClass(attacker);
+		switch(tfAttackerClass) {
+			// Soldier
+			case TFClass_Soldier: {
+				if (GetEntityFlags(attacker) & FL_ONGROUND) {
+					damage *= 0.6;
+					return Plugin_Changed;
+				}
+			}
+		}
+	}
+	
 	return Plugin_Continue;
 }
 
@@ -1681,9 +1877,12 @@ Action BuildingDamage (int building, int &attacker, int &inflictor, float &damag
 			
 			float vecAttacker[3];
 			float vecBuilding[3];
+			float fDmgMod = 1.0;
 			GetEntPropVector(attacker, Prop_Send, "m_vecOrigin", vecAttacker);		// Gets attacker position
 			GetEntPropVector(building, Prop_Send, "m_vecOrigin", vecBuilding);		// Gets building position
+			float fDistance = GetVectorDistance(vecAttacker, vecBuilding, false);		// Distance calculation
 			
+			int Level = GetEntProp(building, Prop_Send,"m_iUpgradeLevel");
 			
 			// Pyro
 			if (TF2_GetPlayerClass(attacker) == TFClass_Pyro) {
@@ -1691,8 +1890,47 @@ Action BuildingDamage (int building, int &attacker, int &inflictor, float &damag
 				//PrintToChatAll("Inflictor classname: %s", class);
 				if (StrEqual(class, "tf_weapon_fireaxe")) {		// The player is considered the inflictor for melee attacks, so this only detects the ranged attack
 					damage = 65.0;
+				}
+				if (StrEqual(class, "tf_weapon_flaregun")) {
+					damage *= 3;
+				}
+			}
+			
+			// Demoman
+			if (TF2_GetPlayerClass(attacker) == TFClass_DemoMan) {
+				if (StrEqual(class, "tf_weapon_pipebomblauncher") && entities[inflictor].bTrap == false) {
+					//PrintToChatAll("Lifetime: %f", entities[inflictor].fLifetime);
+					if (fDistance < 512.0) {
+						fDmgMod = 1.0 / SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.2, 0.8);		// Disable ramp-up and fall-off
+					}
+					else {
+						fDmgMod = 1.0 / SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);
+					}
+					//PrintToChatAll("DmgMod: %f",fDmgMod);
+					fDmgMod *= RemapValClamped(entities[inflictor].fLifetime, 0.0, 10.0, 0.5, 1.5);		// Damage ramp up over time
 					
+					damage *= fDmgMod;
 					return Plugin_Changed;
+				}
+				else if (StrEqual(class, "tf_weapon_bottle")) {
+					if (players[attacker].bVintage == true) {		// Smash the Bottle
+						if (players[attacker].fBottle >= 20) {
+							players[attacker].fBottle = 0.0;
+						}
+						damage *= 1.5;
+						players[attacker].bVintage = false;
+					}
+					return Plugin_Changed;
+				}
+			}
+
+			// Heavy
+			if (TF2_GetPlayerClass(attacker) == TFClass_Heavy) {
+				GetEntityClassname(inflictor, class, sizeof(class));
+				if (StrEqual(class, "tf_weapon_minigun")) {		// Change Minigun damage resistance
+					if (Level == 1) {
+						damage *= 0.9;
+					}
 				}
 			}
 			
@@ -1701,9 +1939,14 @@ Action BuildingDamage (int building, int &attacker, int &inflictor, float &damag
 				if (StrEqual(class, "tf_weapon_syringegun_medic")) {
 					damage_type |= DMG_BULLET;
 					damage = 15.0;
-					
-					return Plugin_Changed;
 				}
+			}
+			
+			if (Level == 1) {
+				damage *= 1.0714;		// Reduce effective health to 140
+			}
+			else if (Level == 3) {
+				damage *= 0.981;		// increase effective health to 220
 			}
 		}
 	}
@@ -1730,6 +1973,16 @@ public void TF2_OnConditionRemoved(int iClient, TFCond condition) {
 	// Drunkenness
 	if (condition == TFCond_PreventDeath) {
 		players[iClient].fDrunk = 0.0;
+		// Play a voice line
+		float vecPos[3];
+		GetClientEyePosition(iClient, vecPos);
+		int rndact = GetRandomUInt(0, 3);
+		switch(rndact) {
+			case 0: EmitAmbientSound("vo/demoman_autodejectedtie02.mp3", vecPos, iClient);
+			case 1: EmitAmbientSound("vo/demoman_painsharp07.mp3", vecPos, iClient);
+			case 2: EmitAmbientSound("vo/demoman_negativevocalization03.mp3", vecPos, iClient);
+			case 3: EmitAmbientSound("vo/demoman_jeers04.mp3", vecPos, iClient);
+		}
 	}
 }
 
@@ -1740,7 +1993,6 @@ public Action PlayerListener(int iClient, const char[] command, int argc) {
 	char[] args = new char[64];
 	GetCmdArg(1,args,64);
 	TFClassType tfClientClass = TF2_GetPlayerClass(iClient);
-	int clientFlags = GetEntityFlags(iClient);
 	char[] current = new char[64];
 	GetClientWeapon(iClient,current,64);
 
@@ -1754,12 +2006,14 @@ public Action PlayerListener(int iClient, const char[] command, int argc) {
 			}
 		}
 	}
+	return Plugin_Continue;
 }
 
 public Action Drink(Handle timer, int iClient) {
 	players[iClient].fBottle = 0.0;
 	players[iClient].fDrunk = 10.0;
 	TF2_AddCondition(iClient, TFCond_PreventDeath, 10.0);
+	return Plugin_Handled;
 }
 
 
@@ -1795,91 +2049,95 @@ void needleSpawn(int entity) {
 
 Action needleTouch(int entity, int other) {
 	int weapon = GetEntPropEnt(entity, Prop_Send, "m_hLauncher");
-	int wepIndex = -1;
-	if (weapon != -1) wepIndex = GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex");
+	//int wepIndex = -1;
+	//if (weapon != -1) wepIndex = GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex");
 	int owner = GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity");
-	if (TF2_GetPlayerClass(owner) == TFClass_Medic) {
-		
-		if (IsValidClient(owner)) {
-			if (other != owner && other >= 1 && other <= MaxClients) {
-				TFTeam team = TF2_GetClientTeam(other);
-				if (TF2_GetClientTeam(owner) != team) {		// Hitting enemies
-				
-					int damage_type = DMG_BULLET | DMG_USE_HITLOCATIONS;
-					SDKHooks_TakeDamage(other, owner, owner, 1.0, damage_type, weapon,_,_, false);		// Do this to ensure we get hit markers
-				}
-				else if (TF2_GetClientTeam(owner) == team) {		// Hitting heammates
+	if (IsValidClient(owner)) {
+		if (TF2_GetPlayerClass(owner) == TFClass_Medic) {
+			
+			if (IsValidClient(owner)) {
+				if (other != owner && other >= 1 && other <= MaxClients) {
+					TFTeam team = TF2_GetClientTeam(other);
+					if (TF2_GetClientTeam(owner) != team) {		// Hitting enemies
 					
-					int iHealth = GetEntProp(other, Prop_Send, "m_iHealth");
-					int iMaxHealth = GetEntProp(GetPlayerResourceEntity(), Prop_Send, "m_iMaxHealth", _, other);
-					if (iHealth < iMaxHealth) {		// If the teammate is below max health
+						int damage_type = DMG_BULLET | DMG_USE_HITLOCATIONS;
+						SDKHooks_TakeDamage(other, owner, owner, 1.0, damage_type, weapon,_,_, false);		// Do this to ensure we get hit markers
+					}
+					else if (TF2_GetClientTeam(owner) == team) {		// Hitting heammates
 						
-						float vecVictim[3], vecPos[3];
-						GetClientEyePosition(owner, vecPos);		// Gets shooter position
-						GetEntPropVector(other, Prop_Send, "m_vecOrigin", vecVictim);		// Gets defender position
-						float fDistance = GetVectorDistance(vecPos, vecVictim, false);		// Distance calculation
+						int iHealth = GetEntProp(other, Prop_Send, "m_iHealth");
+						int iMaxHealth = GetEntProp(GetPlayerResourceEntity(), Prop_Send, "m_iMaxHealth", _, other);
+						if (iHealth < iMaxHealth) {		// If the teammate is below max health
+							
+							float vecVictim[3], vecPos[3];
+							GetClientEyePosition(owner, vecPos);		// Gets shooter position
+							GetEntPropVector(other, Prop_Send, "m_vecOrigin", vecVictim);		// Gets defender position
+							float fDistance = GetVectorDistance(vecPos, vecVictim, false);		// Distance calculation
+							
+							float fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 0.5, 1.5);
+							fDmgMod *= 0.4;		// Heal for 40% of the damage you would've done
+							float healing = 15 * fDmgMod;
 						
-						float fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 0.5, 1.5);
-						fDmgMod *= 0.4;		// Heal for 40% of the damage you would've done
-						float healing = 15 * fDmgMod;
-					
-						if (iHealth > iMaxHealth - healing) {		// Heal us to full
-							SetEntProp(other, Prop_Send, "m_iHealth", iMaxHealth);
-						} 
-						else {
-							TF2Util_TakeHealth(other, healing);
-						}
+							if (iHealth > iMaxHealth - healing) {		// Heal us to full
+								SetEntProp(other, Prop_Send, "m_iHealth", iMaxHealth);
+							} 
+							else {
+								TF2Util_TakeHealth(other, healing);
+							}
 
-						// Build Uber
-						int iSecondary = TF2Util_GetPlayerLoadoutEntity(owner, TFWeaponSlot_Secondary, true);
-						int iSecondaryIndex = -1;
-						if (iSecondary >= 0) {
-							iSecondaryIndex = GetEntProp(iSecondary, Prop_Send, "m_iItemDefinitionIndex");
-						}
+							// Build Uber
+							int iSecondary = TF2Util_GetPlayerLoadoutEntity(owner, TFWeaponSlot_Secondary, true);
+							int iSecondaryIndex = -1;
+							if (iSecondary >= 0) {
+								iSecondaryIndex = GetEntProp(iSecondary, Prop_Send, "m_iItemDefinitionIndex");
+							}
+							
+							float fUber = GetEntPropFloat(iSecondary, Prop_Send, "m_flChargeLevel");
+							// The ratio is 12 healing per 1%
+							if (iSecondaryIndex == 35) {		// Kritzkreig
+								fUber += healing * 0.00085 * 1.25;		// Add this to our Uber amount (multiply by 0.001 as 1 HP -> 1%, and Uber is stored as a 0 - 1 proportion)
+							}
+							else {
+								fUber += healing * 0.00085;
+							}
+							if (fUber > 1.0) {
+								SetEntPropFloat(iSecondary, Prop_Send, "m_flChargeLevel", 1.0);
+							}
+							else {
+								SetEntPropFloat(iSecondary, Prop_Send, "m_flChargeLevel", fUber);
+							}
 						
-						float fUber = GetEntPropFloat(iSecondary, Prop_Send, "m_flChargeLevel");
-						// The ratio is 12 healing per 1%
-						if (iSecondaryIndex == 35) {		// Kritzkreig
-							fUber += healing * 0.00085 * 1.25;		// Add this to our Uber amount (multiply by 0.001 as 1 HP -> 1%, and Uber is stored as a 0 - 1 proportion)
+							EmitSoundToClient(owner, "player/recharged.wav");
+							EmitSoundToClient(other, "player/recharged.wav");
 						}
-						else {
-							fUber += healing * 0.00085;
-						}
-						if (fUber > 1.0) {
-							SetEntPropFloat(iSecondary, Prop_Send, "m_flChargeLevel", 1.0);
-						}
-						else {
-							SetEntPropFloat(iSecondary, Prop_Send, "m_flChargeLevel", fUber);
-						}
-					
-						EmitSoundToClient(owner, "player/recharged.wav");
-						EmitSoundToClient(other, "player/recharged.wav");
 					}
 				}
-			}
-			else if (other == 0) {		// Impact world
-				CreateParticle(entity, "impact_metal", 1.0,_,_,_,_,_,_,false);
-			}
-		}
-	}
-	else if (TF2_GetPlayerClass(owner) == TFClass_Pyro) {		// Pyro
-		if (IsValidClient(owner)) {
-			float vecPos[3];
-			GetEntPropVector(entity, Prop_Send, "m_vecOrigin", vecPos);
-			TFTeam team = TF2_GetClientTeam(other);
-			if (TF2_GetClientTeam(owner) != team) {		// Hitting enemies
-				int rndact = GetRandomUInt(0, 4);
-				switch(rndact) {
-					case 0: EmitAmbientSound("weapons/cleaver_hit_02.wav", vecPos, entity);
-					case 1: EmitAmbientSound("weapons/cleaver_hit_03.wav", vecPos, entity);
-					case 2: EmitAmbientSound("weapons/cleaver_hit_05.wav", vecPos, entity);
-					case 3: EmitAmbientSound("weapons/cleaver_hit_06.wav", vecPos, entity);
-					case 4: EmitAmbientSound("weapons/cleaver_hit_07.wav", vecPos, entity);
+				else if (other == 0) {		// Impact world
+					CreateParticle(entity, "impact_metal", 1.0,_,_,_,_,_,_,false);
 				}
 			}
-			else {		// Impact world
-				CreateParticle(entity, "impact_metal", 1.0,_,_,_,_,_,_,false);
-				EmitAmbientSound("weapons/cleaver_hit_world.wav", vecPos, entity);
+		}
+		else if (TF2_GetPlayerClass(owner) == TFClass_Pyro) {		// Pyro
+			if (IsValidClient(owner)) {
+				float vecPos[3];
+				GetEntPropVector(entity, Prop_Send, "m_vecOrigin", vecPos);
+				if (other != owner && other >= 1 && other <= MaxClients) {
+					TFTeam team = TF2_GetClientTeam(other);
+					if (TF2_GetClientTeam(owner) != team) {		// Hitting enemies
+						int rndact = GetRandomUInt(0, 4);
+						switch(rndact) {
+							case 0: EmitAmbientSound("weapons/cleaver_hit_02.wav", vecPos, entity);
+							case 1: EmitAmbientSound("weapons/cleaver_hit_03.wav", vecPos, entity);
+							case 2: EmitAmbientSound("weapons/cleaver_hit_05.wav", vecPos, entity);
+							case 3: EmitAmbientSound("weapons/cleaver_hit_06.wav", vecPos, entity);
+							case 4: EmitAmbientSound("weapons/cleaver_hit_07.wav", vecPos, entity);
+						}
+					}
+				}
+				else {		// Impact world
+					CreateParticle(entity, "impact_metal", 1.0,_,_,_,_,_,_,false);
+					EmitAmbientSound("weapons/cleaver_hit_world.wav", vecPos, entity);
+				}
 			}
 		}
 	}
@@ -2095,6 +2353,8 @@ public Action Event_PlayerDeath(Event event, const char[] cName, bool dontBroadc
 
 public Action OnPlayerRunCmd(int iClient, int &buttons, int &impulse, float vel[3], float angles[3], int &weapon, int &subtype, int &cmdnum, int &tickcount, int &seed, int mouse[2]) {
 	if((IsClientInGame(iClient) && IsPlayerAlive(iClient))) {
+		bool buttonsModified = false;
+		
 		TFClassType tfClientClass = TF2_GetPlayerClass(iClient);
 		int iActive = GetEntPropEnt(iClient, Prop_Send, "m_hActiveWeapon");
 		float position[3];
@@ -2149,6 +2409,11 @@ public Action OnPlayerRunCmd(int iClient, int &buttons, int &impulse, float vel[
 						TF2_AddCondition(iClient, TFCond_RestrictToMelee, 1.25, 0);		// Buffalo Steak strip to melee debuff
 						BatDeflect(iClient);
 						
+						// Viewmodel sequence 12 = baseball hit
+						int view = GetEntPropEnt(iClient, Prop_Send, "m_hViewModel");
+						//int sequence = GetEntProp(view, Prop_Send, "m_nSequence");
+						SetEntProp(view, Prop_Send, "m_nSequence", 12);
+						
 						// Process damage dealt
 						float vecPos[3], vecAng[3], maxs[3], mins[3];
 					
@@ -2176,9 +2441,13 @@ public Action OnPlayerRunCmd(int iClient, int &buttons, int &impulse, float vel[
 								float vecVelVictim[3];
 								GetEntPropVector(iEnt, Prop_Data, "m_vecVelocity", vecVelVictim);		// Retrieve existing velocity
 								
-								ScaleVector(vecAng, 5.0);		// Generate knockback
+								//ScaleVector(vecAng, 5.0);		// Generate knockback
 								vecVelVictim[2] += 100.0;		// This is approximately what jump velocity is
-								AddVectors(vecAng, vecVelVictim, vecVelVictim);
+								//AddVectors(vecAng, vecVelVictim, vecVelVictim);
+								
+								vecVelVictim[0] += Cosine(DegToRad(vecAng[0])) * Cosine(DegToRad(vecAng[1])) * 400.0;
+								vecVelVictim[1] += Cosine(DegToRad(vecAng[0])) * Sine(DegToRad(vecAng[1])) * 400.0;
+								vecVelVictim[2] += Sine(DegToRad(vecAng[0])) * -400.0;
 								
 								TeleportEntity(iEnt , _, _, vecVelVictim);
 								SDKHooks_TakeDamage(iEnt, iClient, iClient, 40.0, DMG_CLUB, iMelee, _, _, false);
@@ -2214,10 +2483,16 @@ public Action OnPlayerRunCmd(int iClient, int &buttons, int &impulse, float vel[
 				}
 				
 				// Melee multi-hit
-				if (iMelee == iActive && buttons & IN_ATTACK && GetEntPropFloat(iMelee, Prop_Data, "m_flNextPrimaryAttack") + 0.02 < GetGameTime()) {		// Are we performing a swing?
+				if (iMelee == iActive && buttons & IN_ATTACK && players[iClient].fAxe_Swing_Cooldown >= 0.75) {		// Are we performing a swing?
 					//SetEntPropFloat(iMelee, Prop_Data, "m_flNextPrimaryAttack", GetGameTime() + 0.8);
-					players[iClient].iAxe_Count = 0;
-					CreateTimer(0.0, AxeSwing, iClient);
+					int counter = 0;
+					
+					DataPack hDataPack = new DataPack();		// Write this to a datapack so we can send it to another function
+					hDataPack.WriteCell(iClient);
+					hDataPack.WriteCell(counter);
+					
+					CreateTimer(0.0, AxeSwing, hDataPack, 0);
+					players[iClient].fAxe_Swing_Cooldown = 0.0;
 				}
 				else if (iMelee == iActive && buttons & IN_ATTACK) {
 					//PrintToChatAll("Fail");
@@ -2234,15 +2509,27 @@ public Action OnPlayerRunCmd(int iClient, int &buttons, int &impulse, float vel[
 						ForceSwitchFromMeleeWeapon(iClient);
 					}
 				}
+				if (players[iClient].fAxe_Swing_Cooldown < 0.8) {
+					players[iClient].fAxe_Swing_Cooldown += 0.015;
+				}
+				else {
+					players[iClient].fAxe_Swing_Cooldown = 0.8;
+				}
 			}
 
 			case TFClass_Heavy:
 			{
 				// Uppercut
-				if (iMelee == iActive && buttons & IN_ATTACK2 && players[iClient].fUppercut_Cooldown >= 1.0 && GetEntPropFloat(iMelee, Prop_Data, "m_flNextPrimaryAttack") < GetGameTime()) {		// Are we performing a swing?
+				if (iMelee == iActive && buttons & IN_ATTACK2 && players[iClient].fUppercut_Cooldown >= 1.0) {		// Are we performing a swing?
 					TF2_AddCondition(iClient, TFCond_CritDemoCharge, 0.5);
 					SetEntPropFloat(iMelee, Prop_Data, "m_flNextPrimaryAttack", GetGameTime() + 1.0);		// 1 second melee cooldown on uppercut
 					players[iClient].fUppercut_Cooldown = 0.0;
+					
+					// Viewmodel sequence 6 = uppercut
+					int view = GetEntPropEnt(iClient, Prop_Send, "m_hViewModel");
+					//int sequence = GetEntProp(view, Prop_Send, "m_nSequence");
+					SetEntProp(view, Prop_Send, "m_nSequence", 6);
+					
 					if (!(GetEntityFlags(iClient) & FL_ONGROUND)) {
 						float vecVel[3];
 						GetEntPropVector(iClient, Prop_Data, "m_vecVelocity", vecVel);		// Retrieve existing velocity
@@ -2282,8 +2569,43 @@ public Action OnPlayerRunCmd(int iClient, int &buttons, int &impulse, float vel[
 						}
 					}
 				}
+				else if (iMelee == iActive && buttons & IN_ATTACK && GetEntPropFloat(iMelee, Prop_Send, "m_flLastFireTime") > GetGameTime()) {
+					players[iClient].fUppercut_Cooldown = 0.8;
+				}
+			}
+	
+			// Engineer
+			case TFClass_Engineer:
+			{
+				// Baby Face's Blaster
+				if (iMelee == iActive && buttons & IN_ATTACK && GetEntPropFloat(iMelee, Prop_Send, "m_flLastFireTime") > GetGameTime()) {
+					
+					float vecPos[3], vecAng[3], vecEnd[3];
+					
+					GetClientEyePosition(iClient, vecPos);
+					GetClientEyeAngles(iClient, vecAng);
+					
+					GetAngleVectors(vecAng, vecAng, NULL_VECTOR, NULL_VECTOR);
+					ScaleVector(vecAng, 70.0);		// Scales this vector 450 HU out
+					AddVectors(vecPos, vecAng, vecAng);		// Add this vector to the position vector so the game can aim it better
+					
+					TR_TraceRayFilter(vecPos, vecAng, MASK_SOLID, RayType_EndPoint, SingleTargetTraceFilter, iClient);
+					TR_GetEndPosition(vecEnd);
+					
+					if (TR_DidHit()) {
+						int iEntity = TR_GetEntityIndex();
+						char class[64];
+						GetEntityClassname(iEntity, class, sizeof(class));
+						
+						if (StrEqual(class,"team_control_point")) {
+							TF2Attrib_AddCustomPlayerAttribute(iClient, "increase player capture value", 1.0);
+							CreateTimer(2.0, RemoveCap, iClient);
+						}
+					}
+				}
 			}
 			
+			// Sniper
 			case TFClass_Sniper:
 			{
 				//handle Sniper rifle reloads
@@ -2352,10 +2674,24 @@ public Action OnPlayerRunCmd(int iClient, int &buttons, int &impulse, float vel[
 				}
 			}
 		}
+		
+		g_LastButtons[iClient] = buttons;
+		if(!buttonsModified) g_TrueLastButtons[iClient] = buttons;
 	}
 	return Plugin_Continue;
 }
 
+bool SingleTargetTraceFilter(int entity, int contentsMask, any data) {
+	if(entity != data)
+		return (false);
+	return (true);
+}
+
+public Action RemoveCap(int iClient) {
+	TF2Attrib_AddCustomPlayerAttribute(iClient, "increase player capture value", 0.0);
+	
+	return Plugin_Handled;
+}
 
 public Action BatDeflect(int iClient) {
 	float vecPos[3], vecAng[3];
@@ -2409,6 +2745,8 @@ public Action BatDeflect(int iClient) {
 					vecVel[1] = Cosine(DegToRad(vecAng[0])) * Sine(DegToRad(vecAng[1])) * 1500.0;
 					vecVel[2] = Sine(DegToRad(vecAng[0])) * -1500.0;
 					
+					float spin[3] = {700.0, 0.0, 0.0};  // Fast spinning on X-axis
+					SetEntPropVector(iEnt, Prop_Data, "m_vecAngVelocity", spin);
 
 					TeleportEntity(iEnt, _, vecAng, vecVel);			// Apply position and velocity to syringe
 					
@@ -2446,17 +2784,13 @@ public void AxeThrow(int iClient, int iMelee, float vecAng[3]) {
 		SetEntPropFloat(iAxe, Prop_Send, "m_flModelScale", 1.0);
 		
 		DispatchSpawn(iAxe);
+		char name[32];
+		Format(name, sizeof(name), "thrown_axe_%d", iAxe); // Assigns a unique name
+		DispatchKeyValue(iAxe, "targetname", name);
 		SetEntityModel(iAxe, "models/weapons/c_models/c_fireaxe_pyro/c_fireaxe_pyro.mdl");	// Model
 		SetEntPropVector(iAxe, Prop_Data, "m_angRotation", vecAng);	// Make the axe face forwards
-		float spin[3] = {1000.0, 0.0, 0.0};  // Fast spinning on X-axis
+		float spin[3] = {700.0, 0.0, 0.0};  // Fast spinning on X-axis
 		SetEntPropVector(iAxe, Prop_Data, "m_vecAngVelocity", spin);
-		
-		if (team == 2) {
-			CreateParticle(iAxe, "peejar_trail_red", 1.0);
-		}
-		else {
-			CreateParticle(iAxe, "peejar_trail_blu", 1.0);
-		}
 		
 		// Calculates forward velocity
 		vecVel[0] = Cosine(DegToRad(vecAng[0])) * Cosine(DegToRad(vecAng[1])) * 2000.0;
@@ -2464,6 +2798,13 @@ public void AxeThrow(int iClient, int iMelee, float vecAng[3]) {
 		vecVel[2] = Sine(DegToRad(vecAng[0])) * -2000.0;
 
 		TeleportEntity(iAxe, vecPos, vecAng, vecVel);			// Apply position and velocity to syringe
+		
+		if (team == 2) {
+			CreateParticle(iAxe, "peejar_trail_red", 1.0);
+		}
+		else {
+			CreateParticle(iAxe, "peejar_trail_blu", 1.0);
+		}
 	}
 }
 
