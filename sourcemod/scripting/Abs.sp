@@ -391,7 +391,7 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 	else if (StrEqual(class, "tf_weapon_sniperrifle_decap")) {		// The Bazaar Bargain specifically
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 6);
+		TF2Items_SetNumAttributes(item1, 7);
 		TF2Items_SetAttribute(item1, 0, 1, 0.8); // damage penalty (80%)
 		TF2Items_SetAttribute(item1, 1, 318, 0.533333); // fire rate bonus (0.8 seconds)
 		TF2Items_SetAttribute(item1, 2, 75, 2.25); // aiming movespeed increased (+225%)
@@ -1680,6 +1680,7 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 				case TFClass_Sniper: {
 					if (StrEqual(class, "tf_weapon_sniperrifle") || StrEqual(class, "tf_weapon_sniperrifle_decap") || StrEqual(class, "tf_weapon_sniperrifle_classic")) {						
 						if (GetEntPropFloat(weapon, Prop_Send, "m_flChargedDamage") <= 0.0) {		// Detects if we have no charge (because we're unscoped)
+							damage = 40.0;
 							fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);		// Gives us our distance multiplier
 							damage *= fDmgMod;
 							

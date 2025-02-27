@@ -1388,6 +1388,16 @@
 				"windows"       "384"
 				"linux"         "385"
 			}
+			"Weapon_ShootPosition"
+			{
+				"windows" "275"
+				"linux" "276"
+			}
+			"CTFGrenadePipebombProjectile::Detonate"
+			{
+				"windows" "236"
+				"linux" "237"
+			}
 			"CBaseCombatWeapon::ItemPostFrame()"
 			{
 				"windows"	"272"
