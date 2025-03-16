@@ -67,6 +67,9 @@ enum struct Player {
 	float fPressureCD;	// Tracks Airblast repressurisation cooldown
 	float fBoost;		// Natascha Boost
 	float fFlare_Cooldown;		// HLH firing interval (to prevent tapfiring)
+	
+	float fTreadsTimer;
+	bool bSlam;
 }
 
 int g_TrueLastButtons[MAXPLAYERS+1];
@@ -645,8 +648,19 @@ public void OnGameFrame() {
 				}
 			}
 			
+			// Soldier
+			else if (TF2_GetPlayerClass(iClient) == TFClass_Soldier) {
+				if (players[iClient].bSlam == true) {
+					float vecVel[3];
+					GetEntPropVector(iClient, Prop_Data, "m_vecVelocity", vecVel);		// Retrieve existing velocity
+					vecVel[2] -= 12.0;		// Effectively doubles our gravity
+					SetEntPropVector(iClient, Prop_Data, "m_vecVelocity", vecVel);
+					PrintToChatAll("Slam!");
+				}
+			}
+			
 			// Pyro
-			if (TF2_GetPlayerClass(iClient) == TFClass_Pyro) {
+			else if (TF2_GetPlayerClass(iClient) == TFClass_Pyro) {
 				// Airblast jump chaining prevention
 				float vecVel[3];
 				GetEntPropVector(iClient, Prop_Data, "m_vecVelocity", vecVel);		// Retrieve existing velocity
@@ -875,6 +889,23 @@ public Action OnPlayerRunCmd(int iClient, int& buttons, int& impulse, float vel[
 			
 			int iActive = GetEntPropEnt(iClient, Prop_Send, "m_hActiveWeapon");		// Retrieve the active weapon
 			int iClientFlags = GetEntityFlags(iClient);
+			
+			// Soldier
+			if (TF2_GetPlayerClass(iClient) == TFClass_Soldier) {
+				if (buttons & IN_JUMP) {
+					if (secondaryIndex == 444) {		// Mantreads
+						if (players[iClient].fTreadsTimer < 0.5) {
+							players[iClient].fTreadsTimer += 0.015;
+							PrintToChatAll("Charging");
+						}
+						else {
+							players[iClient].bSlam = true;
+							PrintToChatAll("Slam");
+						}
+					}
+				}
+
+			}
 			
 			// Pyro
 			if (TF2_GetPlayerClass(iClient) == TFClass_Pyro) {
