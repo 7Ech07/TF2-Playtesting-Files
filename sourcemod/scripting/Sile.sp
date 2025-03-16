@@ -707,7 +707,7 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 				TF2Items_SetAttribute(item1, 6, 37, 0.75); // hidden primary max ammo bonus (-25%)
 				TF2Items_SetAttribute(item1, 7, 86, 1.25); // minigun spinup time increased (25%)
 				TF2Items_SetAttribute(item1, 8, 266, 1.0); // projectile penetration
-				TF2Items_SetAttribute(item1, 9, 738, 0.0); // spunup_damage_resistance (removed)
+				TF2Items_SetAttribute(item1, 9, 738, 1.0); // spunup_damage_resistance (removed)
 			}
 			else if (index == 312) {	// Brass Beast
 				item1 = TF2Items_CreateItem(0);
@@ -719,7 +719,7 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 				TF2Items_SetAttribute(item1, 3, 37, 0.75); // hidden primary max ammo bonus (-25%)
 				TF2Items_SetAttribute(item1, 4, 86, 1.0); // minigun spinup time increased (removed)
 				TF2Items_SetAttribute(item1, 5, 107, 1.043478); // move speed bonus (10%)
-				TF2Items_SetAttribute(item1, 6, 738, 0.0); // spunup_damage_resistance (removed)
+				TF2Items_SetAttribute(item1, 6, 738, 1.0); // spunup_damage_resistance (removed)
 			}
 			
 			else if ((StrEqual(class, "tf_weapon_shotgun") || StrEqual(class, "tf_weapon_shotgun_hwg")) && TF2_GetPlayerClass(iClient) == TFClass_Heavy) {	// All Heavy Shotguns
@@ -910,8 +910,9 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 			else if (StrEqual(class, "tf_weapon_compound_bow")) {	// Huntsman
 				item1 = TF2Items_CreateItem(0);
 				TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-				TF2Items_SetNumAttributes(item1, 1);
+				TF2Items_SetNumAttributes(item1, 2);
 				TF2Items_SetAttribute(item1, 0, 318, 0.75); // faster reload rate (1.5 sec)
+				TF2Items_SetAttribute(item1, 1, 37, 0.25); // hidden primary max ammo bonus (12 to 8)
 			}
 			
 			else if (StrEqual(class, "tf_weapon_jar")) {	// Jarate
@@ -2911,21 +2912,28 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 					}
 					
 					else if (players[attacker].iHeadshot_Frame == GetGameTickCount()) {		// Here we look at headshot status
-						if (StrEqual(class, "tf_weapon_sniperrifle_classic") && fCharge >= 150.0) {
+						if (StrEqual(class, "tf_weapon_sniperrifle_classic")) {
+							if (fCharge >= 150.0) {
+								damage_type |= DMG_CRIT;		// Apply a Crit
+								fDmgMod *= 2.0;
+								damagecustom = TF_CUSTOM_HEADSHOT;		// No idea if this does anything, honestly
+							}
+							else {
+								fDmgMod *= 1.35;
+								TF2_AddCondition(victim, TFCond_MarkedForDeathSilent, 0.015, 0);
+							}
+						}
+						else {
 							damage_type |= DMG_CRIT;		// Apply a Crit
 							fDmgMod *= 2.0;
 							damagecustom = TF_CUSTOM_HEADSHOT;		// No idea if this does anything, honestly
-						}
-						else {
-							fDmgMod *= 1.35;
-							TF2_AddCondition(victim, TFCond_MarkedForDeathSilent, 0.015, 0);
 						}
 					}
 					
 					else if (fDistance < 512.0) {
 						fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);		// Gives us our ramp-up multiplier
 					}
-				}			
+				}
 				
 				else if (StrEqual(class, "tf_weapon_compound_bow")) {
 					fDmgMod = RemapValClamped(damage, 50.0, 120.0, 1.2, 1.0);		// Scale min damage up to 60
