@@ -1545,7 +1545,7 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 			
 				// Soldier
 				case TFClass_Soldier: {
-					if ((StrEqual(class, "tf_weapon_rocketlauncher") || StrEqual(class, "tf_weapon_rocketlauncher_directhit")) && fDistance < 512.0) {
+					if ((StrEqual(class, "tf_weapon_rocketlauncher")) && fDistance < 512.0) {
 						fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5) / SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.25, 0.75);		// Scale the ramp-up up to 150%
 						damage *= fDmgMod;
 						return Plugin_Changed;
