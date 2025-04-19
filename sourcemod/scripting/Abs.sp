@@ -88,6 +88,7 @@ enum struct Player {
 	// Heavy
 	float fFists_Sprint;	// Tracks how long we've been out of combat for determining Heavy sprint
 	float fUppercut_Cooldown;	// Puts a 1 second hard cooldown on alt-fire use
+	bool bUppercutCD;		// Disables uppercut spam in the air
 	float fRev;
 	float fBrace_Time;		// Stores how long we've been braced for for the purpose of increasing ramp-up over time
 	
@@ -955,6 +956,12 @@ public void OnGameFrame() {
 						TF2Attrib_AddCustomPlayerAttribute(iClient, "fire rate penalty", 1.0);
 					}
 					
+					if (players[iClient].bUppercutCD == false) {
+						if (GetEntityFlags(iClient) & FL_ONGROUND) {
+							players[iClient].bUppercutCD = true;
+						}
+					}
+					
 					if (iActive == iMelee) {
 						SetEntPropFloat(iClient, Prop_Send, "m_flMaxspeed", 258.0 + 1.5 * players[iClient].fFists_Sprint);
 					}
@@ -1157,7 +1164,7 @@ public void OnGameFrame() {
 					
 					// Melees
 					// Dynamically adjusts melee stats depending on Heads
-					if (iActive == iMelee) {
+					if (iActive > 0 && iActive == iMelee) {
 						switch(meleeIndex) {		// Kukri
 							case 3, 193, 264, 423, 474, 880, 939, 954, 1013, 1071, 1123, 1127, 30758: {		// Kukri and reskins
 								//TF2Attrib_SetByDefIndex(iMelee, 107, 1.0 + 0.04 * players[iClient].iHeads);		// Speed bonus while active
@@ -2560,10 +2567,11 @@ public Action OnPlayerRunCmd(int iClient, int &buttons, int &impulse, float vel[
 			case TFClass_Heavy:
 			{
 				// Uppercut
-				if (iMelee == iActive && buttons & IN_ATTACK2 && players[iClient].fUppercut_Cooldown >= 1.0) {		// Are we performing a swing?
+				if (iMelee == iActive && buttons & IN_ATTACK2 && players[iClient].fUppercut_Cooldown >= 1.0 && players[iClient].bUppercutCD == true) {		// Are we performing a swing?
 					TF2_AddCondition(iClient, TFCond_CritDemoCharge, 0.5);
 					SetEntPropFloat(iMelee, Prop_Data, "m_flNextPrimaryAttack", GetGameTime() + 1.0);		// 1 second melee cooldown on uppercut
 					players[iClient].fUppercut_Cooldown = 0.0;
+					players[iClient].bUppercutCD = false;
 					
 					// Viewmodel sequence 6 = uppercut
 					int view = GetEntPropEnt(iClient, Prop_Send, "m_hViewModel");
