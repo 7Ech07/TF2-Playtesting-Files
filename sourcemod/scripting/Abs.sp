@@ -1667,7 +1667,7 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 					if (StrEqual(class, "tf_weapon_syringegun_medic")) {
 						damage_type |= DMG_BULLET;
 						if (!isKritzed(attacker)) {
-							fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 0.5, 0.5);		// Gives us our ramp-up/fall-off multiplier (+/- 20%)
+							fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 0.5, 1.5);		// Gives us our ramp-up/fall-off multiplier (+/- 20%)
 							if (isMiniKritzed(attacker, victim) && fDistance > 512.0) {
 								fDmgMod = 1.0;
 							}
