@@ -42,6 +42,9 @@ enum struct Player {
 	bool bCac;		// Tracks status of the Crit-a-Cola buff
 	
 	// Soldier
+	float fTreadsTimer;	// Tracks how long we've been charging the Mantreads slam attack
+	float fSpeedometer;	// Tracks our falling speed during the Mantreads slam
+	bool bSlam;		// Stores whether we're in the slam state
 	
 	// Pyro
 	int iAmmo;	// Tracks ammo for the purpose of making the hitscan beam
@@ -56,6 +59,7 @@ enum struct Player {
 	
 	// Engineer
 	bool bMini;		// Stores whether we've swapped to the Mini-Sentry PDA
+	bool bSentryBuilt;		// Stores whether or not we already have a Sentry, built to help us interpret EventObjectBuilt
 	
 	// Medic
 	int iSyringe_Ammo;		// Tracks loaded syringes for the purposes of determining when we fire a shot
@@ -167,6 +171,8 @@ public void OnPluginStart() {
 	HookEvent("player_jarated", OnGameEvent, EventHookMode_Post);
 	// Detects Building construction
 	HookEvent("player_builtobject", EventObjectBuilt);
+	// Detects Building death
+	HookEvent("object_destroyed", EventObjectDestroy);
 	// Detects Destruction PDA use
 	HookEvent("object_detonated", EventObjectDetonate);
 	
@@ -262,6 +268,7 @@ public void OnClientPutInServer (int iClient) {
 }
 
 public void OnMapStart() {
+	PrecacheSound("weapons/explode2.wav", true);
 	PrecacheSound("player/recharged.wav", true);
 	PrecacheSound("weapons/dispenser_heal.wav", true);
 	PrecacheSound("weapons/jar_explode.wav", true);
@@ -793,9 +800,12 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 			else if (StrEqual(class, "tf_weapon_wrench")) {		// All Wrenches
 				item1 = TF2Items_CreateItem(0);
 				TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-				TF2Items_SetNumAttributes(item1, 2);
+				TF2Items_SetNumAttributes(item1, 4);
 				TF2Items_SetAttribute(item1, 0, 286, 0.9); // engy building health bonus (reduced 10%)
-				TF2Items_SetAttribute(item1, 1, 2043, 2.0); // upgrade rate decrease (increased; 100%)
+				// TODO: Use attributes 321 and 464 instead of doing all this crap
+				TF2Items_SetAttribute(item1, 1, 321, 2.0); // build rate bonus
+				TF2Items_SetAttribute(item1, 2, 464, 0.5); // engineer sentry build rate multiplier (base construction time 15 sec)
+				TF2Items_SetAttribute(item1, 3, 2043, 2.0); // upgrade rate decrease (increased; 100%)
 			}
 			else if (StrEqual(class, "tf_weapon_robot_arm")) {	// Gunslinger
 				item1 = TF2Items_CreateItem(0);
@@ -1642,6 +1652,66 @@ public void OnGameFrame() {
 						TF2Attrib_SetByDefIndex(iPrimary, 411, 0.0);
 					}
 				}
+				// Mantreads
+				if (iSecondaryIndex == 444) {
+					float vecVel[3];
+					if (players[iClient].bSlam == true) {
+						GetEntPropVector(iClient, Prop_Data, "m_vecVelocity", vecVel);		// Retrieve existing velocity
+						vecVel[2] -= 12.0;		// Effectively doubles our gravity
+						TeleportEntity(iClient , _, _, vecVel);
+						if (players[iClient].fSpeedometer > vecVel[2]) {
+							players[iClient].fSpeedometer = vecVel[2];
+						}
+						TF2_AddCondition(iClient, TFCond_SpeedBuffAlly, 4.0, 0);		// Repeatedly adds a 1-frame speed buff while cloaked (this is a hackjob, but hopefully it works)
+						TF2Attrib_SetByDefIndex(iSecondary, 252, 0.25);	// Knockback resistance
+						TF2Attrib_SetByDefIndex(iSecondary, 329, 0.25);	// Airblast resistance
+						TF2Attrib_SetByDefIndex(iSecondary, 610, 2.0);	// Air control
+					}
+					if (GetEntityFlags(iClient) & FL_ONGROUND || GetEntityFlags(iClient) & FL_INWATER) {
+						players[iClient].bSlam = false;
+						players[iClient].fTreadsTimer = 0.0;
+						if (players[iClient].fSpeedometer < 0.0) {
+							PrintToChatAll("Slam speed: %f", players[iClient].fSpeedometer);
+							
+							for (int iTarget = 1 ; iTarget <= MaxClients ; iTarget++) {		// The player being damaged by the explosion
+								if (IsValidClient(iTarget)) {
+									float vecSoldierPos[3], vecTargetPos[3];
+									EmitAmbientSound("weapons/explode2.wav", vecSoldierPos, iClient, SNDLEVEL_TRAIN, _, 0.35);
+									GetClientEyePosition(iClient, vecSoldierPos);
+									GetClientEyePosition(iTarget, vecTargetPos);
+									
+									float fDist = GetVectorDistance(vecSoldierPos, vecTargetPos);		// Store distance
+									if (fDist <= 218.0 && (TF2_GetClientTeam(iClient) != TF2_GetClientTeam(iTarget) || iClient != iTarget)) {
+										PrintToChatAll("Distance: %f", fDist);
+										Handle hndl = TR_TraceRayFilterEx(vecSoldierPos, vecTargetPos, MASK_SOLID, RayType_EndPoint, PlayerTraceFilter, iClient);
+										if (TR_DidHit(hndl) == false || IsValidClient(TR_GetEntityIndex(hndl))) {
+											float damage = RemapValClamped(fDist, 70.0, 218.0, 1.0, 0.5) * RemapValClamped(players[iClient].fSpeedometer, -650.0, -3500.0, 40.0, 240.0);		// Damage scales with distance and falling speed
+
+											int type = DMG_BLAST;
+											float vecBlast[3];
+											vecBlast[2] = 200.0;
+											
+											vecTargetPos[2] += 10.0;		// Damage force comes from 10 HU lower than it actually does, so we get upwards force
+											//MakeVectorFromPoints(vecSoldierPos, vecTargetPos, vecBlast);
+											//NormalizeVector(vecBlast, vecBlast);
+											//ScaleVector(vecBlast, damage * 1.4909091 * 9);
+											
+											PrintToChatAll("Damage: %f", damage);
+											
+											SDKHooks_TakeDamage(iTarget, iSecondary, iClient, damage, type, -1, vecBlast, vecSoldierPos, false);
+										}
+										delete hndl;
+									}
+								}
+							}
+						}
+						players[iClient].fSpeedometer = 0.0;
+						TF2_RemoveCondition(iClient, TFCond_SpeedBuffAlly);
+						TF2Attrib_SetByDefIndex(iSecondary, 252, 1.0);	// Knockback resistance
+						TF2Attrib_SetByDefIndex(iSecondary, 329, 1.0);	// Airblast resistance
+						TF2Attrib_SetByDefIndex(iSecondary, 610, 1.0);	// Air control
+					}
+				}
 			}
 			
 			// Pyro
@@ -2136,7 +2206,9 @@ public void OnGameFrame() {
 			int sequence = GetEntProp(iBuilding, Prop_Send, "m_nSequence");
 			float rate = RoundToFloor(GetEntPropFloat(iBuilding, Prop_Data, "m_flPlaybackRate") * 100) / 100.0;
 
-			if(rate > 0) {
+			// TODO: Use attributes 321 and 464 instead of doing all this crap
+
+			/*if(rate > 0) {
 				int builder = GetEntPropEnt(iBuilding, Prop_Send, "m_hBuilder");
 				if (IsValidClient(builder)) {
 					
@@ -2184,12 +2256,25 @@ public void OnGameFrame() {
 						}
 						
 						if (entities[iBuilding].fConstruction_Health < 135.0) {		// Incrememt this value as the building constructs, and clamp just in case
+						
+							// To be honest, I don't know why these values work
+							// They just do
+							if (rate > 1.0) {		// Construction boost
+								entities[iBuilding].fConstruction_Health += rate / 3.7;
+							}
+							else {		// No construction boost
+								entities[iBuilding].fConstruction_Health += rate / 3.3;
+							}
+							
 							if (meleeIndex == 142) {
-								entities[iBuilding].fConstruction_Health += rate / 4.9 * 1.2;
+								//entities[iBuilding].fConstruction_Health += rate / 4.9 * 1.2;
+								//entities[iBuilding].fConstruction_Health += rate / 3.4 * 1.2;
+								entities[iBuilding].fConstruction_Health /= 1.0005;
 							}
-							else {
-								entities[iBuilding].fConstruction_Health += rate / 4.9;
-							}
+							/*else {
+								//entities[iBuilding].fConstruction_Health += rate / 4.9;
+								entities[iBuilding].fConstruction_Health += rate / 3.4;
+							}//Comment goes here
 						}
 						else {
 							entities[iBuilding].fConstruction_Health = 135.0;
@@ -2229,7 +2314,7 @@ public void OnGameFrame() {
 						}
 					}
 				}
-			}
+			}*/
 		}
 	}
 }
@@ -3334,11 +3419,27 @@ public Action OnPlayerRunCmd(int iClient, int &buttons, int &impulse, float vel[
 		if(iPrimary != -1) iPrimaryIndex = GetEntProp(iPrimary, Prop_Send, "m_iItemDefinitionIndex");*/
 		
 		int iSecondary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Secondary, true);
+		int iSecondaryIndex = -1;
+		if(iSecondary != -1) iSecondaryIndex = GetEntProp(iSecondary, Prop_Send, "m_iItemDefinitionIndex");
 		
 		int iMelee = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Melee, true);
 
 		char class[64];
 		GetEntityClassname(iSecondary, class, sizeof(class));
+		
+		// Soldier
+		if (TF2_GetPlayerClass(iClient) == TFClass_Soldier) {
+			if (buttons & IN_JUMP) {
+				if (iSecondaryIndex == 444) {		// Mantreads
+					if (players[iClient].fTreadsTimer < 0.8) {
+						players[iClient].fTreadsTimer += 0.015;
+					}
+					else {
+						players[iClient].bSlam = true;
+					}
+				}
+			}
+		}
 		
 		// Demoman
 		if (TF2_GetPlayerClass(iClient) == TFClass_DemoMan) {
@@ -3386,7 +3487,7 @@ public Action OnPlayerRunCmd(int iClient, int &buttons, int &impulse, float vel[
 		
 		// Engineer
 		else if (TF2_GetPlayerClass(iClient) == TFClass_Engineer) {
-			if (buttons & IN_RELOAD && !(players[iClient].iLastButtons & IN_RELOAD) && (iActive == iMelee || iActiveIndex == 25 || iActiveIndex == 737 || iActiveIndex == 26)) {		// Swaps PDA
+			if (buttons & IN_RELOAD && !(players[iClient].iLastButtons & IN_RELOAD) && ((iActive == iMelee && iActiveIndex != 589) || iActiveIndex == 25 || iActiveIndex == 737 || iActiveIndex == 26)) {		// Swaps PDA
 				Command_PDA(iClient, 0);
 			}
 		}
@@ -3481,7 +3582,7 @@ public void Syringe_PrimaryAttack(int iClient, int iPrimary, float vecAng[3]) {
 	
 	if (iSyringe != -1) {
 		int team = GetClientTeam(iClient);
-		float vecPos[3], vecVel[3],  offset[3];
+		float vecPos[3], vecVel[3], offset[3];
 		
 		GetClientEyePosition(iClient, vecPos);
 		
@@ -3836,8 +3937,14 @@ Action BuildingDamage (int building, int &attacker, int &inflictor, float &damag
 				else	if (iPrimaryIndex == 414 && fDistance > 512.0) {		// Liberty Launcher
 					fDmgMod = 1.0 / SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);		// Remove fall-off
 				}
-				if (StrEqual(class, "tf_weapon_particle_cannon") && fDistance > 512.0) {		// Increase Cow Mangler fall-off
-					fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.75, 0.25) / SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);
+				if (StrEqual(class, "tf_weapon_particle_cannon")) {
+					damage *= 5;
+					if (fDistance > 512.0) {		// Increase Cow Mangler fall-off
+						fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.75, 0.25) / SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);
+					}
+					else {
+						fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.4, 0.6) / SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.25, 0.75);		// Scale the ramp-up up to 140%
+					}
 				}
 			}
 			
@@ -4143,17 +4250,42 @@ public Action EventObjectBuilt(Event bEvent, const char[] name, bool bBroad) {
 	char class[64];
 	GetEntityClassname(building, class, sizeof(class));
 	if (StrEqual(class, "obj_sentrygun")) {
-		if (players[owner].bMini == true) {
-			SetEntProp(building, Prop_Send, "m_bMiniBuilding", 1);
-			SetEntProp(building, Prop_Send, "m_iMaxHealth", 100);
-			SetEntPropFloat(building, Prop_Send, "m_flModelScale", 0.75);
+		if (players[owner].bSentryBuilt == false) {
+			players[owner].bSentryBuilt = true;
+			if (players[owner].bMini == true) {
+				SetEntProp(building, Prop_Send, "m_bMiniBuilding", 1);
+				SetEntProp(building, Prop_Send, "m_iMaxHealth", 100);
+				SetEntPropFloat(building, Prop_Send, "m_flModelScale", 0.75);
+			}
+			int iMetal = GetEntData(owner, FindDataMapInfo(owner, "m_iAmmo") + (3 * 4), 4);
+			SetEntData(owner, FindDataMapInfo(owner, "m_iAmmo") + (3 * 4), iMetal + 5, 4);
 		}
-		int iMetal = GetEntData(owner, FindDataMapInfo(owner, "m_iAmmo") + (3 * 4), 4);
-		SetEntData(owner, FindDataMapInfo(owner, "m_iAmmo") + (3 * 4), iMetal + 5, 4);
 	}
 	
 	return Plugin_Continue;
 }
+
+
+	// -={ Detects Sentry death }=-
+
+public Action EventObjectDestroy(Event bEvent, const char[] name, bool bBroad) {
+	bool was_building = GetEventBool(bEvent, "was_building");
+	int buildType = GetEventInt(bEvent, "objecttype");
+	int owner = GetClientOfUserId(GetEventInt(bEvent, "userid"));
+	
+	// Dispenser = 0
+	// Tele = 1
+	// Sentry = 2
+	
+	if (was_building == true) {
+		if (buildType == 2) {
+			players[owner].bSentryBuilt = false;
+		}
+	}
+	
+	return Plugin_Continue;
+}
+
 
 	// -={ Allows for Dispenser self-destruct }=-
 
@@ -4189,7 +4321,18 @@ public Action EventObjectDetonate(Event bEvent, const char[] name, bool dBroad) 
 						float damage = RemapValClamped(fDist, 0.0, 148.0, 87.5, 87.5 / 2) * RemapValClamped(iMetal * 1.0, 0.0, 400.0, 1.0, 1.5);
 
 						int type = DMG_BLAST;
-						if (owner == iTarget) {		// Apply self damage resistance
+						if (owner == iTarget) {		// Apply self damage resistance and increased push force
+							float vel[3], vecBlast[3];
+							GetEntPropVector(owner, Prop_Data, "m_vecVelocity", vel);
+							
+							MakeVectorFromPoints(vecGrenadePos, vecTargetPos, vecBlast);
+							NormalizeVector(vecBlast, vecBlast);
+							ScaleVector(vecBlast, 400.0);
+							
+							vel[0] += vecBlast[0]; vel[1] += vecBlast[1]; vel[2] += vecBlast[2];
+							
+							TeleportEntity(owner, NULL_VECTOR, NULL_VECTOR, vel);
+							
 							damage *= 0.5;
 						}
 						SDKHooks_TakeDamage(iTarget, owner, owner, damage, type, -1, NULL_VECTOR, vecGrenadePos, false);
@@ -4198,6 +4341,9 @@ public Action EventObjectDetonate(Event bEvent, const char[] name, bool dBroad) 
 				}
 			}
 		}
+	}
+	else if (buildType == 2) {
+		players[owner].bSentryBuilt = false;
 	}
 
 	return Plugin_Continue;
