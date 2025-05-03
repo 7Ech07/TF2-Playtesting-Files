@@ -202,8 +202,7 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
 		TF2Items_SetNumAttributes(item1, 1);
-		TF2Items_SetAttribute(item1, 0, 1, 0.85); // damage penalty (15%)
-		TF2Items_SetAttribute(item1, 1, 86, 1.15); // minigun spinup time increased (15%)
+		TF2Items_SetAttribute(item1, 0, 45, 4.0); // bullets per shot bonus (16)
 	}
 	
 	if (index == 41) {	// Natascha
@@ -220,7 +219,6 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
 		TF2Items_SetNumAttributes(item1, 1);
-		TF2Items_SetAttribute(item1, 0, 2, 1.02); // damage bonus (20% * 0.85 base damage)
 		TF2Items_SetAttribute(item1, 0, 738, 0.0); // spinup_damage_resistance (removed)
 	}
 	
@@ -237,25 +235,24 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 	if (index == 811 || index == 832) {	// Huo-Long Heater
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 9);
-		TF2Items_SetAttribute(item1, 0, 2, 7.2222); // damage bonus (65 damage)
-		TF2Items_SetAttribute(item1, 1, 5, 3.0); // fire rate penalty (300%)
-		TF2Items_SetAttribute(item1, 2, 76, 0.4); // maxammo primary reduced (60%)
-		TF2Items_SetAttribute(item1, 3, 86, 1.15); // minigun spinup time increased (15%)
-		TF2Items_SetAttribute(item1, 4, 137, 1.5); // dmg bonus vs buildings (50%; effectively a 50% damage penalty)
-		TF2Items_SetAttribute(item1, 5, 280, 6.0); // override projectile type (to flare)
-		TF2Items_SetAttribute(item1, 6, 289, 1.0); // centerfire projectile
-		TF2Items_SetAttribute(item1, 7, 430, 0.0); // ring of fire while aiming (removed)
-		TF2Items_SetAttribute(item1, 8, 431, 0.0); // uses ammo while aiming (removed)
+		TF2Items_SetNumAttributes(item1, 8);
+		TF2Items_SetAttribute(item1, 0, 5, 3.0); // fire rate penalty (300%)
+		TF2Items_SetAttribute(item1, 1, 76, 0.4); // maxammo primary reduced (60%)
+		TF2Items_SetAttribute(item1, 2, 86, 1.15); // minigun spinup time increased (15%)
+		TF2Items_SetAttribute(item1, 3, 137, 1.5); // dmg bonus vs buildings (50%; effectively a 50% damage penalty)
+		TF2Items_SetAttribute(item1, 4, 280, 6.0); // override projectile type (to flare)
+		TF2Items_SetAttribute(item1, 5, 289, 1.0); // centerfire projectile
+		TF2Items_SetAttribute(item1, 6, 430, 0.0); // ring of fire while aiming (removed)
+		TF2Items_SetAttribute(item1, 7, 431, 0.0); // uses ammo while aiming (removed)
 	}
 	
 	// Medic
 	if (StrEqual(class, "tf_weapon_syringegun_medic")) {	// All Syringe Guns
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 2);
+		TF2Items_SetNumAttributes(item1, 1);
 		TF2Items_SetAttribute(item1, 0, 3, 0.625); // clip size penalty (37.5%)
-		TF2Items_SetAttribute(item1, 1, 2, 1.25); // damage bonus (25%)
+		//TF2Items_SetAttribute(item1, 1, 2, 1.25); // damage bonus (25%)
 		//TF2Items_SetAttribute(item1, 1, 280, 9.0); // projectile override
 	}	
 	
@@ -277,48 +274,6 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 		TF2Items_SetAttribute(item1, 0, 106, 0.7); // weapon spread bonus (removed)
 	}
 	
-	// Demoman
-	if (index == 405 || index == 608) {	// Ali Baba's Wee Booties (& Bootlegger)
-		item1 = TF2Items_CreateItem(0);
-		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 3);
-		TF2Items_SetAttribute(item1, 0, 107, 1.10); // move speed bonus (10%; same as existing one)
-		TF2Items_SetAttribute(item1, 1, 788, 1.00); // move speed bonus shield required (removed)
-		TF2Items_SetAttribute(item1, 2, 252, 0.75); // damage force reduction (25%)
-	}
-
-	if (StrEqual(class, "tf_wearable_demoshield")) {	// All Shields
-		item1 = TF2Items_CreateItem(0);
-		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 6);
-		TF2Items_SetAttribute(item1, 0, 64, 1.0); // dmg taken from blast reduced (removed)
-		TF2Items_SetAttribute(item1, 1, 60, 1.0); // dmg taken from fire reduced (removed)
-		TF2Items_SetAttribute(item1, 2, 249, 1.15); // charge recharge rate increased (15%; reduces cooldown to 10 seconds)
-		TF2Items_SetAttribute(item1, 3, 205, 0.75); // dmg from ranged reduced (25% reduction)
-		TF2Items_SetAttribute(item1, 4, 206, 0.75); // dmg from melee increased (25% reduction, in spite of what the attribute says)
-		TF2Items_SetAttribute(item1, 5, 252, 0.75); // damage force reduction (25%)
-	}
-	
-	if (index == 406) {	// Splendid Screen
-		item1 = TF2Items_CreateItem(0);
-		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 4);
-		TF2Items_SetAttribute(item1, 0, 249, 1.0); // charge recharge rate increased (removed)
-		TF2Items_SetAttribute(item1, 1, 205, 0.85); // dmg from ranged reduced (15% reduction)
-		TF2Items_SetAttribute(item1, 2, 206, 0.85); // dmg from melee increased (15% reduction)
-		TF2Items_SetAttribute(item1, 3, 252, 0.85); // damage force reduction (15%)
-	}
-	
-	if (index == 1099) {	// Tide Turner
-		item1 = TF2Items_CreateItem(0);
-		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 4);
-		TF2Items_SetAttribute(item1, 0, 205, 0.90); // dmg from ranged reduced (10% reduction)
-		TF2Items_SetAttribute(item1, 1, 206, 0.90); // dmg from melee increased (10% reduction)
-		TF2Items_SetAttribute(item1, 2, 252, 0.90); // damage force reduction (10%)
-		TF2Items_SetAttribute(item1, 3, 676, 0.0); // lose demo charge on damage when charging
-	}
-
 	if (item1 != null) {
 		item = item1;
 		return Plugin_Changed;
@@ -1124,143 +1079,221 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 	char class[64];
 	
 	if (victim >= 1 && victim <= MaxClients && attacker >= 1 && attacker <= MaxClients) {		// Ensures we only go through damage dealt by other players
+	
+		if (victim != attacker) {
 		
-		float vecAttacker[3];
-		float vecVictim[3];
-		GetEntPropVector(attacker, Prop_Send, "m_vecOrigin", vecAttacker);		// Gets attacker position
-		GetEntPropVector(victim, Prop_Send, "m_vecOrigin", vecVictim);		// Gets defender position
-		float fDistance = GetVectorDistance(vecAttacker, vecVictim, false);		// Distance calculation
-		float fDmgMod;
-		
-		if (weapon > 0) {		// Prevents us attempting to process data from e.g. Sentry Guns and causing errors
-			GetEntityClassname(weapon, class, sizeof(class));		// Retrieve the weapon
+			float vecAttacker[3];
+			float vecVictim[3];
+			GetEntPropVector(attacker, Prop_Send, "m_vecOrigin", vecAttacker);		// Gets attacker position
+			GetEntPropVector(victim, Prop_Send, "m_vecOrigin", vecVictim);		// Gets defender position
+			float fDistance = GetVectorDistance(vecAttacker, vecVictim, false);		// Distance calculation
+			float fDmgMod = 1.0;
 			
-			// Soldier
-			if (GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") == 414) {
-				// Liberty Launcher no ramp-up-fall-off
-				if (!(damage_type & DMG_CRIT)) {
-					if (fDistance < 512.0) {
-						fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.25, 0.75);		// Generates a proportion from 1.25 to 1.0 depending on distance (from 0 to 512 HU)
-					}
-					else fDmgMod = 1.0;
-				}
-				damage = damage / fDmgMod;		// Removes ramp-up multiplier
-				return Plugin_Changed;
-			}
-			
-			// Pyro
-			// Flamethrower rebuild
-			else if(StrEqual(class, "tf_weapon_flamethrower") && (damage_type & DMG_IGNITE) && !(damage_type & DMG_BLAST)) {
-				//recreate flamethrower damage scaling, code inpsired by NotnHeavy
-				//base damage plus any bonus
-				/*Address bonus = TF2Attrib_GetByDefIndex(weapon, 2);
-				float value = bonus == Address_Null ? 1.0 : TF2Attrib_GetValue(bonus);*/
-				//damage = 6.8181 + (2.727272 * players[victim].iTempLevel);
-				damage = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 14.333333, 9.05);
-				if (TF2_IsPlayerInCondition(victim, TFCond_Cloaked) || TF2_IsPlayerInCondition(victim, TFCond_CloakFlicker)) {
-					players[victim].fTempLevel += 0.65;
-					//PrintToChatAll("Temp :%f", players[victim].fTempLevel);
-				}
-				else {
-					players[victim].fTempLevel += 1.0;
-					//PrintToChatAll("Temp :%f", players[victim].fTempLevel);
-				}
-				damage_type &= ~DMG_IGNITE;
-
-				//crit damage multipliers
-				if (damage_type & DMG_CRIT) {
-					if (isMiniKritzed(attacker, victim) && !isKritzed(attacker)) {
-						damage *= 1.35;
-					}
-					else {
-						damage *= 3.0;
-					}
-				}
-
-				damage_type &= ~DMG_USEDISTANCEMOD;
-
-				if(damage_type & DMG_SONIC) {
-					damage_type &= ~DMG_SONIC;
-					damage = 0.01;
-				}
-			}
-			
-			else if ((damage_type & DMG_IGNITE) && !(StrEqual(class, "tf_weapon_rocketlauncher_fireball"))) {	// Flare Guns, Volcano Fragment, and other weapons that burn
-				players[victim].fTempLevel = 7.0;		// Max temperature out instantly; prevents a weird interaction where the Flamethrower can extinguish low-temp enemies
-			}
-			
-			/*if(damage_type & DMG_IGNITE) {
-				players[victim].fTempLevel = 6.0;
-			}*/
-			
-			// Heavy
-			// HLH Damage
-			else if (GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") == 811 || GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") == 832) {		// Do we have the HLH equipped?
-				if (TF2Util_GetPlayerBurnDuration(victim) > 0 && !(TF2_IsPlayerInCondition(attacker, TFCond_Kritzkrieged) || TF2_IsPlayerInCondition(attacker, TFCond_CritOnFirstBlood) 
-					|| TF2_IsPlayerInCondition(attacker, TFCond_CritOnWin) || TF2_IsPlayerInCondition(attacker, TFCond_CritOnFlagCapture) || TF2_IsPlayerInCondition(attacker, TFCond_CritOnKill) 
-					|| TF2_IsPlayerInCondition(attacker, TFCond_CritOnDamage))) {		// If we're shooting a burning person but not supposed to be dealing Crits...
-					damage_type &= ~DMG_CRIT;		// ...Remove the Crits
-					if (TF2_IsPlayerInCondition(victim, TFCond_Jarated) || TF2_IsPlayerInCondition(victim, TFCond_MarkedForDeath) || TF2_IsPlayerInCondition(victim, TFCond_MarkedForDeathSilent)
-						|| TF2_IsPlayerInCondition(attacker, TFCond_MiniCritOnKill) || TF2_IsPlayerInCondition(attacker, TFCond_Buffed) || TF2_IsPlayerInCondition(attacker, TFCond_CritCola)) {		// But, if we're suppose doing Mini-Crits...
-						TF2_AddCondition(victim,TFCond_MarkedForDeathSilent, 0.015);		// Apply Mini-Crits via Mark-for-Death
-					}
-				}
-
-				if (!(damage_type & DMG_CRIT)) {
-					if (fDistance < 512.0) {
-						fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.25, 0.75);		// Generates a proportion from 0.5 to 1.0 depending on distance (from 1024 to 1536 HU)
-					}
-					else {
-						fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);
-					}
-				}
-				damage *= 9.0 * fDmgMod;
-				damage_type = (damage_type & ~DMG_IGNITE);
-				return Plugin_Changed;
-			}
-			
-			// Sniper
-			// Huntsman damage fall-off
-			else if (StrEqual(class, "tf_weapon_compound_bow")) {
+			if (weapon > 0) {		// Prevents us attempting to process data from e.g. Sentry Guns and causing errors
+				GetEntityClassname(weapon, class, sizeof(class));		// Retrieve the weapon
 				
-				if (fDistance > 1000.0) {
-					fDmgMod = SimpleSplineRemapValClamped(fDistance, 1000.0, 1200.0, 1.0, 0.5);		// Generates a proportion from 0.5 to 1.0 depending on distance (from 1024 to 1536 HU)
+				// Soldier
+				if (GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") == 414) {
+					// Liberty Launcher no ramp-up-fall-off
+					if (!(damage_type & DMG_CRIT)) {
+						if (fDistance < 512.0) {
+							fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.25, 0.75);		// Generates a proportion from 1.25 to 1.0 depending on distance (from 0 to 512 HU)
+						}
+					}
+					damage = damage / fDmgMod;		// Removes ramp-up multiplier
+					return Plugin_Changed;
+				}
+				
+				// Pyro
+				// Flamethrower rebuild
+				else if(StrEqual(class, "tf_weapon_flamethrower") && (damage_type & DMG_IGNITE) && !(damage_type & DMG_BLAST)) {
+					//recreate flamethrower damage scaling, code inpsired by NotnHeavy
+					//base damage plus any bonus
+					/*Address bonus = TF2Attrib_GetByDefIndex(weapon, 2);
+					float value = bonus == Address_Null ? 1.0 : TF2Attrib_GetValue(bonus);*/
+					//damage = 6.8181 + (2.727272 * players[victim].iTempLevel);
+					damage = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 14.333333, 9.05);
+					if (TF2_IsPlayerInCondition(victim, TFCond_Cloaked) || TF2_IsPlayerInCondition(victim, TFCond_CloakFlicker)) {
+						players[victim].fTempLevel += 0.65;
+						//PrintToChatAll("Temp :%f", players[victim].fTempLevel);
+					}
+					else {
+						players[victim].fTempLevel += 1.0;
+						//PrintToChatAll("Temp :%f", players[victim].fTempLevel);
+					}
+					damage_type &= ~DMG_IGNITE;
 
-					damage *= fDmgMod;
-					// The following code removes headshot Crits after a certain distance
-					if (fDistance > 1200.0 && damage_type & DMG_CRIT != 0) {		// Removes headshot Crits after 1200 HU
-						damage_type = (damage_type & ~DMG_CRIT);
-						damage /= 3;
+					//crit damage multipliers
+					if (damage_type & DMG_CRIT) {
+						if (isMiniKritzed(attacker, victim) && !isKritzed(attacker)) {
+							damage *= 1.35;
+						}
+						else {
+							damage *= 3.0;
+						}
+					}
+
+					damage_type &= ~DMG_USEDISTANCEMOD;
+
+					if(damage_type & DMG_SONIC) {
+						damage_type &= ~DMG_SONIC;
+						damage = 0.01;
+					}
+				}
+				
+				else if ((damage_type & DMG_IGNITE) && !(StrEqual(class, "tf_weapon_rocketlauncher_fireball"))) {	// Flare Guns, Volcano Fragment, and other weapons that burn
+					players[victim].fTempLevel = 7.0;		// Max temperature out instantly; prevents a weird interaction where the Flamethrower can extinguish low-temp enemies
+				}
+				
+				/*if(damage_type & DMG_IGNITE) {
+					players[victim].fTempLevel = 6.0;
+				}*/
+				
+				// Heavy
+				// Reduce base damage to compensate for extra bullets
+				if (StrEqual(class, "tf_weapon_minigun") {
+					damage *= 0.222222;		// 36 to 32
+				}
+				
+				// HLH Damage
+				if (GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") == 811 || GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") == 832) {		// Do we have the HLH equipped?
+					if (TF2Util_GetPlayerBurnDuration(victim) > 0 && !(TF2_IsPlayerInCondition(attacker, TFCond_Kritzkrieged) || TF2_IsPlayerInCondition(attacker, TFCond_CritOnFirstBlood) 
+						|| TF2_IsPlayerInCondition(attacker, TFCond_CritOnWin) || TF2_IsPlayerInCondition(attacker, TFCond_CritOnFlagCapture) || TF2_IsPlayerInCondition(attacker, TFCond_CritOnKill) 
+						|| TF2_IsPlayerInCondition(attacker, TFCond_CritOnDamage))) {		// If we're shooting a burning person but not supposed to be dealing Crits...
+						damage_type &= ~DMG_CRIT;		// ...Remove the Crits
+						if (TF2_IsPlayerInCondition(victim, TFCond_Jarated) || TF2_IsPlayerInCondition(victim, TFCond_MarkedForDeath) || TF2_IsPlayerInCondition(victim, TFCond_MarkedForDeathSilent)
+							|| TF2_IsPlayerInCondition(attacker, TFCond_MiniCritOnKill) || TF2_IsPlayerInCondition(attacker, TFCond_Buffed) || TF2_IsPlayerInCondition(attacker, TFCond_CritCola)) {		// But, if we're suppose doing Mini-Crits...
+							TF2_AddCondition(victim,TFCond_MarkedForDeathSilent, 0.015);		// Apply Mini-Crits via Mark-for-Death
+						}
+					}
+
+					if (!(damage_type & DMG_CRIT)) {
+						if (fDistance < 512.0) {
+							fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.25, 0.75);		// Generates a proportion from 0.5 to 1.0 depending on distance (from 1024 to 1536 HU)
+						}
+						else {
+							fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);
+						}
+					}
+					damage = 60.0 * fDmgMod;
+					damage_type = (damage_type & ~DMG_IGNITE);
+					return Plugin_Changed;
+				}
+				
+				// Medic
+				// Syringe Gun
+				else if (StrEqual(class, "tf_weapon_syringegun_medic") && fDistance < 512.0) {
+					damage *= SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5) / SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.75, 0.25);		// Scale the ramp-up down up 150%
+				}				
+				
+				// Sniper
+				// SMG
+				else if (StrEqual(class, "tf_weapon_smg")) {
+					damage *= 1.125;
+				}
+				// Huntsman damage fall-off
+				else if (StrEqual(class, "tf_weapon_compound_bow")) {
+					
+					if (fDistance > 1000.0) {
+						fDmgMod = SimpleSplineRemapValClamped(fDistance, 1000.0, 1200.0, 1.0, 0.5);		// Generates a proportion from 0.5 to 1.0 depending on distance (from 1024 to 1536 HU)
+
+						damage *= fDmgMod;
+						// The following code removes headshot Crits after a certain distance
+						if (fDistance > 1200.0 && damage_type & DMG_CRIT != 0) {		// Removes headshot Crits after 1200 HU
+							damage_type = (damage_type & ~DMG_CRIT);
+							damage /= 3;
+						}
+						return Plugin_Changed;
+					}
+				}
+				
+				// Spy
+				// Revolver
+				else if (StrEqual(class, "tf_weapon_revolver")) {
+					damage *= 1.125;
+				}
+				// Enforcer
+				if (GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") == 460) {		// Do we have the Enforcer equipped?
+					
+					float vecAttackerAng[3], vecVictimAng[3];		// Stores the shooter and victim's facing
+					GetClientEyeAngles(attacker, vecAttackerAng);
+					GetClientEyeAngles(victim, vecVictimAng);
+					NormalizeVector(vecAttackerAng, vecAttackerAng);
+					NormalizeVector(vecVictimAng, vecVictimAng);
+					
+					PrintToChatAll("dotproduct: %f", GetVectorDotProduct(vecAttackerAng, vecVictimAng));
+					
+					if (GetVectorDotProduct(vecAttackerAng, vecVictimAng) > 0.0 && TF2_IsPlayerInCondition(attacker, TFCond_Disguised)) {		// Are we disguised and behind the victim?
+						if (fDistance < 512.0001) {		// Are we close?
+							TF2_AddCondition(victim, TFCond_MarkedForDeath, 5.0);
+							players[victim].iEnforcer_Mark = attacker;		// Record the person that marks us so we can buff them when we die
+							//PrintToChatAll("marker: %i marked %i", players[victim].iEnforcer_Mark, victim);
+						}
 					}
 					return Plugin_Changed;
 				}
 			}
-			
-			// Spy
-			// Enforcer
-			if (GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") == 460) {		// Do we have the Enforcer equipped?
-				
-				float vecAttackerAng[3], vecVictimAng[3];		// Stores the shooter and victim's facing
-				GetClientEyeAngles(attacker, vecAttackerAng);
-				GetClientEyeAngles(victim, vecVictimAng);
-				NormalizeVector(vecAttackerAng, vecAttackerAng);
-				NormalizeVector(vecVictimAng, vecVictimAng);
-				
-				PrintToChatAll("dotproduct: %f", GetVectorDotProduct(vecAttackerAng, vecVictimAng));
-				
-				if (GetVectorDotProduct(vecAttackerAng, vecVictimAng) > 0.0 && TF2_IsPlayerInCondition(attacker, TFCond_Disguised)) {		// Are we disguised and behind the victim?
-					if (fDistance < 512.0001) {		// Are we close?
-						TF2_AddCondition(victim, TFCond_MarkedForDeath, 5.0);
-						players[victim].iEnforcer_Mark = attacker;		// Record the person that marks us so we can buff them when we die
-						//PrintToChatAll("marker: %i marked %i", players[victim].iEnforcer_Mark, victim);
-					}
+		}
+		else {
+			// Soldier
+			if (TF2_GetPlayerClass(victim) == TFClass_Soldier) {
+				if (damage_type & DMG_BLAST) {
+					damage /= 1.2;		// Raise resistance 40% -> 50%
 				}
-				return Plugin_Changed;
+			}
+			
+			// Pyro
+			else if (TF2_GetPlayerClass(victim) == TFClass_Pyro) {
+				GetEntityClassname(inflictor, class, sizeof(class));
+				if (StrEqual(class, "tf_projectile_pipe"))  {		// Reduce damage taken from pipe reflects
+					float vecVictim[3], vecPipe[3];
+					GetEntPropVector(victim, Prop_Send, "m_vecOrigin", vecVictim);
+					GetEntPropVector(inflictor, Prop_Send, "m_vecOrigin", vecPipe);
+					float fDistance = GetVectorDistance(vecPipe, vecVictim, false);
+					damage = SimpleSplineRemapValClamped(fDistance, 0.0, 144.0, 45.0, 22.5);	// Pipes do normal damage, plus 25% self damage resistance
+				}
 			}
 		}
 	}
 	
-	return Plugin_Continue;
+	return Plugin_Changed;;
+}
+
+Action BuildingDamage (int building, int &attacker, int &inflictor, float &damage, int &damage_type, int &weapon, float damageForce[3], float damagePosition[3]) {
+	char class[64];
+	
+	if (building >= 1 && IsValidEdict(building) && attacker >= 1 && attacker <= MaxClients) {		// Ensures we only go through damage dealt by other players
+		if (weapon > 0) {
+			GetEntityClassname(weapon, class, sizeof(class));
+			int iWeaponIndex = GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex")
+			int Level = GetEntProp(building, Prop_Send,"m_iUpgradeLevel");
+			
+			// Heavy
+			// Minigun
+			else if (StrEqual(class, "tf_weapon_minigun")) {
+				damage *= 0.222222;
+				
+				if (Level == 2) {
+					damage *= 1.17;
+				}
+				else if (Level == 3) {
+					damage *= 1.25;
+				}
+			}
+			
+			// Sniper
+			// SMG
+			else if (StrEqual(class, "tf_weapon_smg")) {
+				damage *= 1.125;
+			}
+			
+			// Spy
+			// Revolver
+			else if (StrEqual(class, "tf_weapon_revolver")) {
+				damage *= 1.125;
+			}
+		}
+	}
 }
 
 
