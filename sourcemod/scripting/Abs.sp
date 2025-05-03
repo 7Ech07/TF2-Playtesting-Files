@@ -73,6 +73,9 @@ enum struct Player {
 	float fAxe_LastHitTime;
 	int iHealth;		// Stores out health so we can detect when it goes up
 	
+	// Scout
+	float fVoicelineCD;		// Puts a cooldown on the Bat alt-fire voiceline
+	
 	// Pyro
 	float fPressure;
 	float fAxe_Swing_Cooldown;
@@ -106,6 +109,9 @@ enum struct Entity {
 	// Stickies
 	float fLifetime;		// Tracks how long a sticky has been around
 	bool bTrap;		// Stores whether a sticky has existed long enough to become a trap
+	
+	// Projectiles
+	bool bMiniCrit;		// Tracks whether a projectile should be Mini-Crit-boosted when reflected
 	
 	// Buildings
 	float fConstruction_Health;		// Tracks the amount of health a building is *supposed* to have during its construction animation
@@ -259,6 +265,13 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 		TF2Items_SetAttribute(item1, 0, 1, 0.84); // damage penalty (90 to 75)
 		TF2Items_SetAttribute(item1, 1, 107, 1.075); // move speed bonus (80% to 86%)
 	}
+	if (index == 237) {	// Rocket Jumper
+		item1 = TF2Items_CreateItem(0);
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 2);
+		TF2Items_SetAttribute(item1, 0, 1, 0.0); // damage penalty (100%)
+		TF2Items_SetAttribute(item1, 1, 281, 1.0); // energy weapon no ammo
+	}
 	else if (StrEqual(class, "tf_weapon_rocketlauncher_directhit")) {		// Direct Hit
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
@@ -307,6 +320,13 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 		TF2Items_SetAttribute(item1, 2, 37, 0.75); // hidden primary max ammo bonus (reduced to 18)
 		TF2Items_SetAttribute(item1, 3, 96, 0.917431); // reload time decreased (first shot reload 1.0 seconds)
 		TF2Items_SetAttribute(item1, 4, 670, 0.5); // stickybomb charge rate (50% faster)
+	}
+	if (index == 265) {	// Sticky Jumper
+		item1 = TF2Items_CreateItem(0);
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 2);
+		TF2Items_SetAttribute(item1, 0, 1, 0.0); // damage penalty (100%)
+		TF2Items_SetAttribute(item1, 1, 281, 1.0); // energy weapon no ammo
 	}
 	else if (StrEqual(class, "tf_weapon_bottle")) {		// Bottle
 		item1 = TF2Items_CreateItem(0);
@@ -484,13 +504,15 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 
 public void OnEntityCreated(int iEnt, const char[] classname) {
 	if (IsValidEdict(iEnt)) {
+		entities[iEnt].bMiniCrit = false;
+		
 		if (StrEqual(classname,"obj_sentrygun") || StrEqual(classname,"obj_dispenser") || StrEqual(classname,"obj_teleporter")) {
 			entities[iEnt].fConstruction_Health = 0.0;
 			//SDKHook(iEnt, SDKHook_SetTransmit, BuildingThink);
 			SDKHook(iEnt, SDKHook_OnTakeDamage, BuildingDamage);
 		}
-		
-		else if(StrEqual(classname,"tf_projectile_pipe_remote")) {
+
+		else if (StrEqual(classname,"tf_projectile_pipe_remote")) {
 			entities[iEnt].bTrap = false;
 			CreateTimer(5.0, TrapSet, iEnt);		// This function swaps the sticky from rocket-style ramp-up to fixed damage
 		}
@@ -771,6 +793,10 @@ public void OnGameFrame() {
 				// Scout
 				case TFClass_Scout: {
 					
+					if (players[iClient].fVoicelineCD > 0.0) {
+						players[iClient].fVoicelineCD -= 0.015;
+					}
+					
 					// Baby Face's Blaster
 					if (primaryIndex == 772) {
 						float fHype = GetEntPropFloat(iClient, Prop_Send, "m_flHypeMeter");		// This is our Boost
@@ -920,23 +946,25 @@ public void OnGameFrame() {
 						TF2Attrib_SetByDefIndex(iSecondary, 68, 0.0);
 					}
 					
+					char class[64];
+					GetEntityClassname(iMelee, class, sizeof(class));
+					
 					if (players[iClient].bVintage == true) {
 						TF2Attrib_SetByDefIndex(iMelee, 149, 0.0);	//  bleeding duration
-						SetEntProp(iMelee, Prop_Send, "m_bBroken", false);
+						if (StrEqual(class, "tf_weapon_bottle")) {		// Don't trigger these effects on swords or we get a crash
+							SetEntProp(iMelee, Prop_Send, "m_bBroken", false);
+						}
 					}
 					else {
 						TF2Attrib_SetByDefIndex(iMelee, 149, 5.0);	//  bleeding duration
-						SetEntProp(iMelee, Prop_Send, "m_bBroken", true);
+						if (StrEqual(class, "tf_weapon_bottle")) {
+							SetEntProp(iMelee, Prop_Send, "m_bBroken", true);
+						}
 					}
 				}
 				
 				// Heavy
 				case TFClass_Heavy: {
-					
-					int weaponState = GetEntProp(iPrimary, Prop_Send, "m_iWeaponState");
-					int view = GetEntPropEnt(iClient, Prop_Send, "m_hViewModel");
-					int sequence = GetEntProp(view, Prop_Send, "m_nSequence");
-					float cycle = GetEntPropFloat(view, Prop_Data, "m_flCycle");
 					
 					SetHudTextParams(-0.1, -0.16, 0.5, 255, 255, 255, 255);
 					ShowHudText(iClient, 1, "Sprint: %.0f%%", 10.0 * players[iClient].fFists_Sprint);
@@ -962,45 +990,53 @@ public void OnGameFrame() {
 						}
 					}
 					
-					if (iActive == iMelee) {
-						SetEntPropFloat(iClient, Prop_Send, "m_flMaxspeed", 258.0 + 1.5 * players[iClient].fFists_Sprint);
-					}
+					if (iPrimary != -1) {
+						int weaponState = GetEntProp(iPrimary, Prop_Send, "m_iWeaponState");
 					
-					if (iActive == iPrimary && weaponState == 0) {		// Weaponstate 0 = idle
-						SetEntPropFloat(iClient, Prop_Send, "m_flMaxspeed", 232.2);
-					}
+						int view = GetEntPropEnt(iClient, Prop_Send, "m_hViewModel");
+						int sequence = GetEntProp(view, Prop_Send, "m_nSequence");
+						float cycle = GetEntPropFloat(view, Prop_Data, "m_flCycle");
 					
-					// Counteracts the L&W nerf by dynamically adjusting damage and accuracy
-					if (weaponState == 1) {		// Are we revving up?
-						players[iClient].fRev = 1.005;		// This is our rev meter; it's a measure of how close we are to being free of the L&W nerf
-						players[iClient].fBrace_Time = 3.0;
-					}
-					
-					else if ((weaponState == 2 || weaponState == 3) && players[iClient].fRev > 0.0) {		// If we're revved (or firing) but the rev meter isn't empty...
-						players[iClient].fRev = players[iClient].fRev - 0.015;		// It takes us 67 frames (1 second) to fully deplete the rev meter
-					}
-					
-					if (weaponState == 2 || weaponState == 3) {
-						players[iClient].fBrace_Time -= 0.015;
-					}
-					
-					// Fast holster when unrevving
-					else if (weaponState == 0 && sequence == 23) {		// Are we unrevving?
-						int bDone = GetEntProp(view, Prop_Data, "m_bSequenceFinished");
-						if (bDone == 0) SetEntProp(view, Prop_Data, "m_bSequenceFinished", true, .size = 1);
-
-						if(cycle < 0.2) {		//set idle time faster
-							SetEntPropFloat(iPrimary, Prop_Send, "m_flTimeWeaponIdle",GetGameTime() + 1.0);
+						if (iActive == iMelee) {
+							SetEntPropFloat(iClient, Prop_Send, "m_flMaxspeed", 258.0 + 1.5 * players[iClient].fFists_Sprint);
 						}
-						float fAnimSpeed = 2.0;
-						SetEntPropFloat(view, Prop_Send, "m_flPlaybackRate", fAnimSpeed);		//speed up animation
-					}
-					
-					int time = RoundFloat(players[iClient].fRev * 1000);		// Time slowly decreases
-					if (time % 100 == 0) {		// Only trigger an update every 0.1 sec
-						float factor = 1.0 + time / 1000.0;		// This value continuously decreases from ~2 to 1 over time
-						TF2Attrib_SetByDefIndex(iPrimary, 106, 1.0 / factor);		// Spread bonus
-						TF2Attrib_SetByDefIndex(iPrimary, 2, 1.0 * factor);		// Damage bonus
+						
+						if (iActive == iPrimary && weaponState == 0) {		// Weaponstate 0 = idle
+							SetEntPropFloat(iClient, Prop_Send, "m_flMaxspeed", 232.2);
+						}
+						
+						// Counteracts the L&W nerf by dynamically adjusting damage and accuracy
+						if (weaponState == 1) {		// Are we revving up?
+							players[iClient].fRev = 1.005;		// This is our rev meter; it's a measure of how close we are to being free of the L&W nerf
+							players[iClient].fBrace_Time = 3.0;
+						}
+						
+						else if ((weaponState == 2 || weaponState == 3) && players[iClient].fRev > 0.0) {		// If we're revved (or firing) but the rev meter isn't empty...
+							players[iClient].fRev = players[iClient].fRev - 0.015;		// It takes us 67 frames (1 second) to fully deplete the rev meter
+						}
+						
+						if (weaponState == 2 || weaponState == 3) {
+							players[iClient].fBrace_Time -= 0.015;
+						}
+						
+						// Fast holster when unrevving
+						else if (weaponState == 0 && sequence == 23) {		// Are we unrevving?
+							int bDone = GetEntProp(view, Prop_Data, "m_bSequenceFinished");
+							if (bDone == 0) SetEntProp(view, Prop_Data, "m_bSequenceFinished", true, .size = 1);
+
+							if(cycle < 0.2) {		//set idle time faster
+								SetEntPropFloat(iPrimary, Prop_Send, "m_flTimeWeaponIdle",GetGameTime() + 1.0);
+							}
+							float fAnimSpeed = 2.0;
+							SetEntPropFloat(view, Prop_Send, "m_flPlaybackRate", fAnimSpeed);		//speed up animation
+						}
+						
+						int time = RoundFloat(players[iClient].fRev * 1000);		// Time slowly decreases
+						if (time % 100 == 0) {		// Only trigger an update every 0.1 sec
+							float factor = 1.0 + time / 1000.0;		// This value continuously decreases from ~2 to 1 over time
+							TF2Attrib_SetByDefIndex(iPrimary, 106, 1.0 / factor);		// Spread bonus
+							TF2Attrib_SetByDefIndex(iPrimary, 2, 1.0 * factor);		// Damage bonus
+						}
 					}
 				}
 
@@ -1542,14 +1578,14 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 							}
 						}
 						
-						damage *= fDmgMod;		// This is the true amount of damage we do
+						float finalDamage *= fDmgMod;		// This is the true amount of damage we do
 						float fHype = GetEntPropFloat(attacker, Prop_Send, "m_flHypeMeter");		// This is our Boost
 						
 						if (players[attacker].fBoosting > 0.0) {
-							SetEntPropFloat(attacker, Prop_Send, "m_flHypeMeter", fHype - damage);		// Subtract all of the added Boost
+							SetEntPropFloat(attacker, Prop_Send, "m_flHypeMeter", fHype - finalDamage);		// Subtract all of the added Boost
 						}
 						else {
-							SetEntPropFloat(attacker, Prop_Send, "m_flHypeMeter", fHype - 0.6 * damage);		// Subtract 60% of the damage (this should be applied at the same time Valve's code is)
+							SetEntPropFloat(attacker, Prop_Send, "m_flHypeMeter", fHype - 0.6 * finalDamage);		// Subtract 60% of the damage (this should be applied at the same time Valve's code is)
 						}
 					}
 				}
@@ -1602,7 +1638,6 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 						return Plugin_Changed;
 					}
 
-
 					else if (StrEqual(class, "tf_weapon_fireaxe")) {		// The player is considered the inflictor for melee attacks, so this only detects the ranged attack
 						if (isKritzed(attacker)) {
 							damage = 194.0;
@@ -1619,16 +1654,24 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 						TF2_AddCondition(attacker, TFCond_SpeedBuffAlly, 2.5);
 						return Plugin_Changed;
 					}
+
+					else if (StrEqual(class, "tf_projectile_pipe") || StrEqual(class, "tf_projectile_rocket") || StrEqual(class, "tf_projectile_sentryrocket")) {
+						if (entities[inflictor].bMiniCrit == false) {
+							damage_type &= ~DMG_CRIT;
+							damage /= 1.35;
+							return Plugin_Changed;
+						}
+					}
 				}
 				
 				// Demoman
 				case TFClass_DemoMan: {
-					if (StrEqual(class, "tf_weapon_pipebomblauncher") && entities[inflictor].bTrap == false) {
+					if (StrEqual(class, "tf_weapon_pipebomblauncher")) {
 						//PrintToChatAll("Lifetime: %f", entities[inflictor].fLifetime);
-						if (fDistance < 512.0) {
+						if (fDistance < 512.0 && entities[inflictor].bTrap == false) {
 							fDmgMod = 1.0 / SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.2, 0.8);		// Disable ramp-up and fall-off
 						}
-						else {
+						else if (entities[inflictor].bTrap == false) {
 							fDmgMod = 1.0 / SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);
 						}
 						//PrintToChatAll("DmgMod: %f",fDmgMod);
@@ -1859,6 +1902,28 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 					damage_type = (damage_type & ~DMG_CRIT);
 				}
 			}*/
+		}
+	}
+	
+	// Sentry damage
+	if (attacker >= 1 && IsValidEdict(attacker) && attacker >= 1 && attacker <= MaxClients) {
+		if (IsValidEdict(inflictor) && weapon) {
+			GetEntityClassname(inflictor, class, sizeof(class));		// Retrieve the inflictor
+			/*if (StrEqual(class,"obj_sentrygun")) {		// Handle Sentry bullet damage
+				ScaleVector(damage_force, 0.1);
+			}*/
+			if (StrEqual(class,"tf_projectile_sentryrocket")) {		// Handle explosive damage from sentry rockets
+				float vecAttacker[3];
+				float vecVictim[3];
+				GetEntPropVector(victim, Prop_Send, "m_vecOrigin", vecVictim);		// Gets defender position
+				float fDmgMod = 1.0;		// Distance mod
+				GetEntPropVector(attacker, Prop_Send, "m_vecOrigin", vecAttacker);		// Gets Engineer position
+				float fDistance = GetVectorDistance(vecAttacker, vecVictim, false);		// Distance calculation
+				fDmgMod = 1 / SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);
+				damage *= fDmgMod;
+			}
+			
+			return Plugin_Changed;
 		}
 	}
 	
@@ -2503,14 +2568,17 @@ public Action OnPlayerRunCmd(int iClient, int &buttons, int &impulse, float vel[
 						
 						EmitAmbientSound("weapons/machete_swing.wav", vecPos, iClient);
 						// Play a voice line
-						int rndact = GetRandomUInt(0, 5);
-						switch(rndact) {
-							case 0: EmitAmbientSound("vo/scout_specialcompleted04.mp3", vecPos, iClient);
-							case 1: EmitAmbientSound("vo/scout_specialcompleted06.mp3", vecPos, iClient);
-							case 2: EmitAmbientSound("vo/scout_specialcompleted07.mp3", vecPos, iClient);
-							case 3: EmitAmbientSound("vo/scout_stunballhittingit01.mp3", vecPos, iClient);
-							case 4: EmitAmbientSound("vo/scout_stunballhittingit04.mp3", vecPos, iClient);
-							case 5: EmitAmbientSound("vo/scout_stunballhittingit05.mp3", vecPos, iClient);
+						if (players[iClient].fVoicelineCD <= 0.0) {
+							players[iClient].fVoicelineCD = 2.5;
+							int rndact = GetRandomUInt(0, 5);
+							switch(rndact) {
+								case 0: EmitAmbientSound("vo/scout_specialcompleted04.mp3", vecPos, iClient);
+								case 1: EmitAmbientSound("vo/scout_specialcompleted06.mp3", vecPos, iClient);
+								case 2: EmitAmbientSound("vo/scout_specialcompleted07.mp3", vecPos, iClient);
+								case 3: EmitAmbientSound("vo/scout_stunballhittingit01.mp3", vecPos, iClient);
+								case 4: EmitAmbientSound("vo/scout_stunballhittingit04.mp3", vecPos, iClient);
+								case 5: EmitAmbientSound("vo/scout_stunballhittingit05.mp3", vecPos, iClient);
+							}
 						}
 					}
 				}
@@ -2519,11 +2587,28 @@ public Action OnPlayerRunCmd(int iClient, int &buttons, int &impulse, float vel[
 			case TFClass_Pyro:
 			{
 				// Airblast
-				if (iPrimary == iActive) {
+				char class[64];
+				GetEntityClassname(iPrimary, class, sizeof(class));
+				if (iPrimary == iActive && StrEqual(class, "tf_weapon_flamethrower")) {
 					int weaponState = GetEntProp(iPrimary, Prop_Send, "m_iWeaponState");
 					if (weaponState == 3) {
+						players[iClient].fPressure = 0.0;
 						if (players[iClient].fPressure == 1.25) {
-							players[iClient].fPressure = 0.0;
+							// Iterate through all entities
+							for (int iEnt = 0; iEnt < GetMaxEntities(); iEnt++) {
+								if (!IsValidEntity(iEnt)) continue;
+
+								GetEntityClassname(iEnt, class, sizeof(class));
+								if (StrEqual(class, "tf_projectile_rocket") || StrEqual(class, "tf_projectile_pipe") || StrEqual(class, "tf_projectile_sentryrocket")) {
+									int iOwner = GetEntProp(iEnt, Prop_Data, "m_hOwnerEntity");
+									if (IsValidClient(iOwner)) {
+
+										if (iClient == iOwner) {
+											entities[iEnt].bMiniCrit = true;
+										}
+									}
+								}
+							}
 							SetEntPropFloat(iPrimary, Prop_Send, "m_flLastFireTime", GetGameTime() + 0.75);
 						}
 					}
