@@ -216,6 +216,13 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 		TF2Items_SetAttribute(item1, 8, 838, 1.0); // flame_reflect_on_collision (flames riccochet off surfaces)
 	}
 	
+	if (index == 1179)		// Thermal Thruster
+		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
+		TF2Items_SetNumAttributes(item1, 2);
+		TF2Items_SetAttribute(item1, 0, 535, 1.0); // damage force increase hidden
+		TF2Items_SetAttribute(item1, 1, 840, 0.5); // holster_anim_time
+	}
+	
 	if (index == 214) {	// Powerjack
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
@@ -1165,6 +1172,7 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 					GetAngleVectors(vecVictimFacing, vecVictimFacing, NULL_VECTOR, NULL_VECTOR);
 					
 					float dotProduct = GetVectorDotProduct(vecDirection, vecVictimFacing);
+					PrintToChatAll("Dotproduct: %f", dotProduct);
 					bool isBehind = dotProduct > 0.0;		// 180 degrees back angle
 					
 					if (isBehind && !isKritzed(attacker)) {
@@ -1231,6 +1239,10 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 				
 				else if ((damage_type & DMG_IGNITE) && !(StrEqual(class, "tf_weapon_rocketlauncher_fireball"))) {	// Flare Guns, Volcano Fragment, and other weapons that burn
 					players[victim].fTempLevel = 7.0;		// Max temperature out instantly; prevents a weird interaction where the Flamethrower can extinguish low-temp enemies
+				}
+				
+				else if (StrEqual(class, "tf_weapon_rocketpack")) {
+					damage *= 5 / 3;
 				}
 				
 				/*if(damage_type & DMG_IGNITE) {
@@ -1371,7 +1383,7 @@ Action BuildingDamage (int building, int &attacker, int &inflictor, float &damag
 			
 			// Scout
 			// Bat
-			else if (StrEqual(class, "tf_weapon_bat")) {
+			if (StrEqual(class, "tf_weapon_bat")) {
 				damage *= 1.1428571;
 			}
 
@@ -1576,7 +1588,7 @@ Action ProjectileTouch(int iProjectile, int other) {
 					int iPrimary = TF2Util_GetPlayerLoadoutEntity(owner, TFWeaponSlot_Primary, true);
 					
 					PrintToChatAll("Hit");
-					if (players[other].fTempLevel = 7.0) {
+					if (players[other].fTempLevel == 7.0) {
 						SDKHooks_TakeDamage(other, iProjectile, owner, 50.0, DMG_IGNITE|DMG_BURN, iPrimary, NULL_VECTOR, NULL_VECTOR, false);
 					}
 					else {
