@@ -82,7 +82,6 @@ enum struct Player {
 	
 	// Heavy
 	float fRev;		// Tracks how long we've been revved for the purposes of undoing the L&W nerf
-	//float fBoost;		// Natascha Boost
 	float fFlare_Cooldown;		// HLH firing interval (to prevent tapfiring)
 	
 	// Medic
@@ -105,6 +104,7 @@ public void OnMapStart() {
 	g_modelHalo = PrecacheModel("materials/sprites/halo01.vmt");
 	
 	PrecacheSound("misc/banana_slip.wav", true);
+	PrecacheSound("weapons/explode2.wav", true);
 	PrecacheSound("misc/rd_finale_beep01.wav", true);
 	PrecacheSound("weapons/widow_maker_pump_action_back.wav", true);
 	PrecacheSound("weapons/widow_maker_pump_action_forward.wav", true);
@@ -128,13 +128,14 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 	if (index == 1153) {	// Panic Attack
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-		TF2Items_SetNumAttributes(item1, 6);
-		TF2Items_SetAttribute(item1, 0, 1, 0.65); // damage penalty (35%)
+		TF2Items_SetNumAttributes(item1, 7);
+		TF2Items_SetAttribute(item1, 0, 1, 0.85); // damage penalty (15%)
 		TF2Items_SetAttribute(item1, 1, 3, 0.5); // clip size penalty (50%)
 		TF2Items_SetAttribute(item1, 2, 6, 0.4); // fire rate bonus (60%)
 		TF2Items_SetAttribute(item1, 3, 45, 1.0); // bullets per shot bonus (10)
-		TF2Items_SetAttribute(item1, 4, 808, 0.0); // mult_spread_scales_consecutive (removed)
-		TF2Items_SetAttribute(item1, 5, 809, 0.0); // fixed_shot_pattern (removed)
+		TF2Items_SetAttribute(item1, 4, 547, 1.0); // single wep deploy time decreased (nil)
+		TF2Items_SetAttribute(item1, 5, 808, 0.0); // mult_spread_scales_consecutive (removed)
+		TF2Items_SetAttribute(item1, 6, 809, 0.0); // fixed_shot_pattern (removed)
 	}
 	
 	// Scout	
@@ -223,12 +224,12 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 		TF2Items_SetAttribute(item1, 4, 828, -7.5); // weapon burn time reduced (turns off Afterburn)
 	}
 	
-	else if (StrEqual(class, "tf_weapon_flaregun")) {	// All Flare Guns
+	/*else if (StrEqual(class, "tf_weapon_flaregun")) {	// All Flare Guns
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
 		TF2Items_SetNumAttributes(item1, 1);
 		TF2Items_SetAttribute(item1, 0, 72, 0.0); // weapon burn dmg reduced (nil)
-	}
+	}*/
 	
 	if (index == 1179) {	// Thermal Thruster
 		item1 = TF2Items_CreateItem(0);
@@ -296,7 +297,7 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 		TF2Items_SetAttribute(item1, 4, 289, 1.0); // centerfire projectile
 		TF2Items_SetAttribute(item1, 5, 430, 0.0); // ring of fire while aiming (removed)
 		TF2Items_SetAttribute(item1, 6, 431, 0.0); // uses ammo while aiming (removed)
-		TF2Items_SetAttribute(item1, 7, 100, 0.7); // Blast radius decreased (30%)
+		TF2Items_SetAttribute(item1, 7, 100, 0.75); // Blast radius decreased (25%)
 		TF2Items_SetAttribute(item1, 8, 103, 1.5); // Projectile speed increased (50%)
 	}
 	
@@ -309,6 +310,7 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 		//TF2Items_SetAttribute(item1, 1, 2, 1.25); // damage bonus (25%)
 		TF2Items_SetAttribute(item1, 1, 280, 9.0); // projectile override
 	}
+	
 	else if (StrEqual(class, "tf_weapon_medigun")) {	// All Medi-Guns
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
@@ -464,8 +466,6 @@ public Action Event_PlayerDeath(Event event, const char[] cName, bool dontBroadc
 	//int attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
 	int victim = event.GetInt("victim_entindex");
 	//int customKill = event.GetInt("customkill");
-
-	//players[victim].fBoost = 0.0;			// Reset Heads to 0 on death
 	
 	// Enforcer
 	for (int i = 1; i <= MaxClients; i++) {		// Remove mark when the Spy dies
@@ -537,8 +537,8 @@ public void OnGameFrame() {
 						GetClientEyePosition(iNearby, vecNearby);
 						float fDistance = GetVectorDistance(vecGrenadePos, vecNearby);
 						
-						if (fDistance < 450.0) {
-							EmitSoundToClient(iNearby, "misc/rd_finale_beep01.wav", _, _, _, _, RemapValClamped(fDistance, 0.0, 450.0, 0.125, 0.0)); 	// This is a naval mine sort of sound; perfect
+						if (fDistance < 350.0) {
+							EmitSoundToClient(iNearby, "misc/rd_finale_beep01.wav", _, _, _, _, RemapValClamped(fDistance, 0.0, 350.0, 0.15, 0.05)); 	// This is a naval mine sort of sound; perfect
 						}
 					}
 				}
@@ -1024,11 +1024,6 @@ public void OnGameFrame() {
 					TF2Attrib_AddCustomPlayerAttribute(iClient, "switch from wep deploy time decreased", 0.25, 0.2);		// Temporary faster Minigun holster
 					//TF2Attrib_SetByDefIndex(iPrimary, 3, 0.33)
 					
-					// Natascha speed boost
-					/*if (players[iClient].fBoost > 0.0) {
-						TF2_AddCondition(iClient, TFCond_SpeedBuffAlly, RemapValClamped(players[iClient].fBoost, 0.0, 300.0, 0.0, 3.0));		// Apply speed to us depending on the amount of Boost we have
-						players[iClient].fBoost = 0.0;
-					}*/
 				}
 				
 				else if (weaponState == 2 && (iPrimaryIndex == 811 || iPrimaryIndex == 832)) {		// Are we revved up with the HLH?
@@ -1036,11 +1031,6 @@ public void OnGameFrame() {
 						SetEntProp(iPrimary, Prop_Send, "m_iWeaponState", 3);		// Set us to idle
 					}
 				}
-				
-				/*if (players[iClient].fBoost > 0.0){		// Draw Boost on the HUD
-					SetHudTextParams(-0.1, -0.16, 0.5, 255, 255, 255, 255);
-					ShowHudText(iClient, 1, "Boost: %.0f", players[iClient].fBoost);
-				}*/
 			}
 			
 			// Medic
@@ -1518,42 +1508,32 @@ public void OnTakeDamagePost(int victim, int attacker, int inflictor, float dama
 			}
 			
 			// Natascha
-			if (GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") == 41) {		// Do we have Natascha equipped?
+			if (GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") == 41) {
 
-				/*players[attacker].fBoost += damage;		// Increases Boost by the amount of damage we do
-				if (players[attacker].fBoost > 300.0) {		// Cap at 300 damage
-					players[attacker].fBoost = 300.0;
-				}*/
-				
 				float vecAttacker[3], vecVictim[3], vecVelVictim[3];
-				GetEntPropVector(attacker, Prop_Send, "m_vecOrigin", vecAttacker);		// Gets attacker position
-				GetEntPropVector(victim, Prop_Send, "m_vecOrigin", vecVictim);		// Gets defender position
+				GetEntPropVector(attacker, Prop_Send, "m_vecOrigin", vecAttacker);
+				GetEntPropVector(victim, Prop_Send, "m_vecOrigin", vecVictim);
 				GetEntPropVector(victim, Prop_Data, "m_vecVelocity", vecVelVictim);		// Gets defender initial velocity
 				float fDistance = GetVectorDistance(vecAttacker, vecVictim, false);		// Distance calculation
 				
 				if (fDistance < 750.0) {
-					float fForce = damage * 12.0 * RemapValClamped(players[victim].fVacuumRampup, 0.0, 1.0, 1.0, 3.0);
+					float fForce = damage * 12.0 * RemapValClamped(players[victim].fVacuumRampup, 0.0, 1.0, 1.0, 2.0);	// Max knockback mult of 2x
 					
 					if (TF2_GetPlayerClass(victim) == TFClass_Heavy) {
 						fForce *= 0.5;
 					}
 					
-					players[victim].fVacuumRampup += 0.2;
+					players[victim].fVacuumRampup += 0.175;	// 1.5 sec to max ramp-up
 					
 				    float vecDir[3];
 					MakeVectorFromPoints(vecVictim, vecAttacker, vecDir); // vecDir = attacker - victim
 					NormalizeVector(vecDir, vecDir);                      // Make it a unit vector
 
-					//float vecForce[3];
 					ScaleVector(vecDir, fForce);                // vecForce = vecDir * fForce
 					AddVectors(vecVelVictim, vecDir, vecVelVictim);
 
 					TeleportEntity(victim, NULL_VECTOR, NULL_VECTOR, vecVelVictim); // Apply force
 				}
-				
-				/*vecForce[0] = -Cosine(vecAngle[1] * 0.01745329) * Cosine(vecAngle[0] * 0.01745329);		// We are facing straight down the X axis when pitch and yaw are both 0; Cos(0) is 1
-				vecForce[1] = -Sine(vecAngle[1] * 0.01745329) * Cosine(vecAngle[0] * 0.01745329);		// We are facing straight down the Y axis when pitch is 0 and yaw is 90
-				vecForce[2] = Sine(vecAngle[0] * 0.01745329); 	// We are facing straight up the Z axis when pitch is 90 (yaw is irrelevant)*/
 			}
 		}
 	}
@@ -1591,7 +1571,6 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 				GetEntityClassname(weapon, class, sizeof(class));		// Retrieve the weapon
 				
 				// Explosives
-				//if (StrEqual(class, "tf_weapon_rocketlauncher") || StrEqual(class, "tf_weapon_grenadelauncher") || StrEqual(class, "tf_weapon_pipebomblauncher")) {
 				if (StrEqual(class, "tf_weapon_grenadelauncher")) {
 					//float vecExplosive[3];
 					//GetEntPropVector(inflictor, Prop_Send, "m_vecOrigin", vecExplosive);		// Gets projectile position
@@ -1687,12 +1666,6 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 				// Pyro
 				// Flamethrower rebuild
 				else if(StrEqual(class, "tf_weapon_flamethrower") && (damage_type & DMG_IGNITE) && !(damage_type & DMG_BLAST)) {
-					//recreate flamethrower damage scaling, code inpsired by NotnHeavy
-					//base damage plus any bonus
-					/*Address bonus = TF2Attrib_GetByDefIndex(weapon, 2);
-					float value = bonus == Address_Null ? 1.0 : TF2Attrib_GetValue(bonus);*/
-					//damage = 6.8181 + (2.727272 * players[victim].iTempLevel);
-					//damage = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 14.333333, 9.05);
 					damage = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 11.25, 7.5);
 					players[victim].fAfterburn += 0.6;
 					if (TF2_IsPlayerInCondition(victim, TFCond_Cloaked) || TF2_IsPlayerInCondition(victim, TFCond_CloakFlicker)) {
@@ -1792,10 +1765,10 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 						}
 					}*/
 					//damage = 60.0 * fDmgMod;
-					damage *= 30.0 * fDmgMod;
+					damage *= 35.0 * fDmgMod;
 					
 					if (isKritzed(attacker)) {
-						damage = 180.0;
+						damage = 210.0;
 					}
 					
 					//damage_type = (damage_type & ~DMG_IGNITE);
@@ -1830,7 +1803,7 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 				// Sniper Rifle
 				else if (StrEqual(class, "tf_weapon_sniperrifle")) {
 					if (fDistance > 1000.0) {
-						fDmgMod = SimpleSplineRemapValClamped(fDistance, 1024.0, 1456.0, 1.0, 0.5);		// Generates a proportion from 0.5 to 1.0 depending on distance (from 1024 to 1536 HU)
+						fDmgMod = SimpleSplineRemapValClamped(fDistance, 1024.0, 1556.0, 1.0, 0.5);		// Generates a proportion from 0.5 to 1.0 depending on distance (from 1024 to 1536 HU)
 
 						damage *= fDmgMod;
 
@@ -1846,22 +1819,21 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 				// Huntsman damage fall-off
 				else if (StrEqual(class, "tf_weapon_compound_bow")) {
 					if (damage_type & DMG_CRIT != 0) {
-						fDmgMod = SimpleSplineRemapValClamped(damage, 150.0, 360.0, 1.2, 1.0);		// Scale up low-charge arrow damage
+						fDmgMod = SimpleSplineRemapValClamped(damage, 150.0, 360.0, 1.2, 0.833333);		// Scale up low-charge arrow damage and reduce max damage to 100
 						if (!isKritzed(attacker)) {
-							damage *= 0.666667;
+							damage *= 0.833333;	// 2.5x headshot mult
 						}
 					}
 					else {
-						fDmgMod = SimpleSplineRemapValClamped(damage, 50.0, 120.0, 1.2, 1.0);
+						fDmgMod = SimpleSplineRemapValClamped(damage, 50.0, 120.0, 1.2, 0.833333);
 					}
 					
 					damage *= fDmgMod;
 					
 					if (fDistance > 1000.0) {
-						fDmgMod = SimpleSplineRemapValClamped(fDistance, 1024.0, 1456.0, 1.0, 0.5);		// Generates a proportion from 0.5 to 1.0 depending on distance (from 1024 to 1536 HU)
+						fDmgMod = SimpleSplineRemapValClamped(fDistance, 1024.0, 1556.0, 1.0, 0.5);		// Generates a proportion from 0.5 to 1.0 depending on distance (from 1024 to 1536 HU)
 
 						damage *= fDmgMod;
-						// The following code removes headshot Crits after a certain distance
 						/*if (fDistance > 1500.0 && damage_type & DMG_CRIT != 0) {		// Removes headshot Crits after 1200 HU
 							damage_type = (damage_type & ~DMG_CRIT);
 							damage /= 3;
@@ -1878,7 +1850,7 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 					damage *= 1.125;
 				}
 				// Enforcer
-				if (GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") == 460) {		// Do we have the Enforcer equipped?
+				if (GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") == 460) {
 					
 					float vecAttackerAng[3], vecVictimAng[3];		// Stores the shooter and victim's facing
 					GetClientEyeAngles(attacker, vecAttackerAng);
@@ -1934,9 +1906,6 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 			}
 		}
 	}
-	/*else {
-		PrintToChatAll("Self-damage detected, damage: %f", damage);
-	}*/
 	
 	return Plugin_Changed;
 }
@@ -1988,7 +1957,7 @@ Action BuildingDamage (int building, int &attacker, int &inflictor, float &damag
 			// Huo-Long Heater
 			if (GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") == 811 || GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") == 832) {
 				//damage = 60.0;
-				damage *= 30.0;
+				damage *= 35.0;
 			}
 			// Fists
 			else if (StrEqual(class, "tf_weapon_fists")) {
@@ -2126,10 +2095,6 @@ public void OnEntityCreated(int iEnt, const char[] classname) {
 			SetEntPropVector(iEnt, Prop_Send, "m_vecMins", mins);
 		}
 		
-		/*else if(StrEqual(classname, "tf_weapon_flamethrower")) {
-			DHookEntity(dhook_CTFWeaponBase_SecondaryAttack, false, iEnt, _, DHookCallback_CTFWeaponBase_SecondaryAttack);
-		}*/
-		
 		else if(StrEqual(classname, "tf_projectile_syringe")) {
 			SDKHook(iEnt, SDKHook_SpawnPost, needleSpawn);
 		}
@@ -2138,10 +2103,6 @@ public void OnEntityCreated(int iEnt, const char[] classname) {
 			SDKHook(iEnt, SDKHook_SpawnPost, HealBoltSpawn);
 			SDKHook(iEnt, SDKHook_StartTouch, ProjectileTouch);
 		}
-		
-		/*if(StrEqual(classname, "tf_projectile_arrow")) {
-			SDKHook(iEnt, SDKHook_Touch, ArrowHit);
-		}*/
 	}
 }
 
@@ -2630,31 +2591,6 @@ Action OnSoundNormal(int clients[MAXPLAYERS], int& clients_num, char sample[PLAT
 	return Plugin_Continue;
 }
 
-
-	// -={ Huntsman hitreg }=-
-	
-/*Action ArrowHit(int entity, int other) {
-	int weapon = GetEntPropEnt(entity, Prop_Send, "m_hLauncher");
-	int wepIndex = -1;
-	if (weapon != -1) wepIndex = GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex");
-	if (wepIndex == 56 || wepIndex == 1005 || wepIndex == 1092) {		// Is it a Huntsman arrow?
-		
-		if (other >= 1 && other <= MaxClients) {
-			int owner = GetEntPropEnt(entity, Prop_Send, "m_hOwnerEntity");
-			TFTeam team = TF2_GetClientTeam(other);
-			if (other != owner && TF2_GetClientTeam(owner) != team) {		// Did we hit an enemy?
-				float vecArrow[3], vecVictimEyePosition[3];
-				GetEntPropVector(entity, Prop_Data, "m_vecOrigin", vecArrow);
-				GetClientEyePosition(victim, vecVictimEyePosition);
-				
-				if (GetVectorDistance(vecArrow, vecVictimEyePosition) < 8) {		// Find the distance of the projectile from the victim's head
-					PrintToChatAll("Headshot");		// Todo: mark victim to recieve Crit damage from this attacker in this frame in OnTakeDamage
-				}
-			}
-		}
-	}
-	return Plugin_Continue;
-}*/
 
 
 	// ==={{ Do not touch anything below this point }}===
