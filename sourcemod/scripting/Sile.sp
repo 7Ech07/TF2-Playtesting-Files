@@ -17,7 +17,7 @@ public Plugin myinfo =
 	name = "Sile's Team Synergy 2 Mini-mod",
 	author = "Ech0",
 	description = "Contains stock weapon changes from Sile's document",
-	version = "1.6.0",
+	version = "1.6.2",
 	url = ""
 };
 
@@ -323,12 +323,13 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 			if (index == 45 || index == 1078) {	// Force-A-Nature
 				item1 = TF2Items_CreateItem(0);
 				TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-				TF2Items_SetNumAttributes(item1, 5);
+				TF2Items_SetNumAttributes(item1, 6);
 				TF2Items_SetAttribute(item1, 0, 1, 1.0); // damage penalty (removed)
 				TF2Items_SetAttribute(item1, 1, 45, 1.0); // bullets per shot bonus (removed)
 				TF2Items_SetAttribute(item1, 2, 6, 0.6); // fire rate bonus (40%)
 				TF2Items_SetAttribute(item1, 3, 44, 0.0); // scattergun has knockback
 				TF2Items_SetAttribute(item1, 4, 96, 0.988); // reload time decreased (reduced to ~1.13 sec)
+				TF2Items_SetAttribute(item1, 5, 37, 0.625); // hidden primary max ammo bonus (reduced to 20)
 			}
 			if (index == 1103) {	// Back Scatter v3
 				item1 = TF2Items_CreateItem(0);
@@ -1122,13 +1123,13 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 			if (index == 224) {	// L'Etranger
 				item1 = TF2Items_CreateItem(0);
 				TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
-				TF2Items_SetNumAttributes(item1, 5);
+				TF2Items_SetNumAttributes(item1, 6);
 				TF2Items_SetAttribute(item1, 0, 1, 1.25); // damage penalty (removed)
 				TF2Items_SetAttribute(item1, 1, 3, 0.5); // clip size penalty (50%)
 				TF2Items_SetAttribute(item1, 2, 78, 0.25); // maxammo secondary reduced (24 to 6)
-				TF2Items_SetAttribute(item1, 2, 83, 1.0); // mcloak consume rate decreased (nil)
-				TF2Items_SetAttribute(item1, 3, 96, 1.191527); // reload time increased (1.133 sec to 1.35)
-				TF2Items_SetAttribute(item1, 4, 166, 25.0); // add cloak on hit
+				TF2Items_SetAttribute(item1, 3, 83, 1.0); // mcloak consume rate decreased (nil)
+				TF2Items_SetAttribute(item1, 4, 96, 1.191527); // reload time increased (1.133 sec to 1.35)
+				TF2Items_SetAttribute(item1, 5, 166, 25.0); // add cloak on hit
 			}
 			if (index == 460) {	// Enforcer v3
 				item1 = TF2Items_CreateItem(0);
@@ -1323,6 +1324,11 @@ Action OnGameEvent(Event event, const char[] name, bool dontbroadcast) {
 			}
 			else {
 				TF2Attrib_SetByDefIndex(iMelee, 264, 1.0);
+			}
+			
+			// Fix for Bushwacka range
+			if (iMeleeIndex == 232) {
+				TF2Attrib_SetByDefIndex(iMelee, 264, 1.6);
 			}
 		}
 	}
@@ -1936,6 +1942,16 @@ public void OnGameFrame() {
 						}
 					}
 				}
+				
+				// Buff Banner passive
+				if (iSecondaryIndex == 129 || iSecondaryIndex == 1001) {
+					if (iPrimaryIndex == 1104) {	// Air Strike exception
+						TF2Attrib_AddCustomPlayerAttribute(iClient, "hidden primary max ammo bonus", 1.75);
+					}
+					else {
+						TF2Attrib_AddCustomPlayerAttribute(iClient, "hidden primary max ammo bonus", 1.5);
+					}
+				}
 			}
 			
 			// Pyro
@@ -2020,6 +2036,10 @@ public void OnGameFrame() {
 														fDamage = 10.0;
 														iDamagetype |= DMG_CRIT;
 													}
+													if (players[iEntity].bBonk == true) {
+														fDamage -= 6.0;
+													}
+													
 													SDKHooks_TakeDamage(iEntity, iPrimary, iClient, fDamage, iDamagetype, iPrimary, NULL_VECTOR, vecVictim);		// Deal damage (credited to the Phlog)
 													if (TF2_GetPlayerClass(iEntity) != TFClass_Pyro) {
 														TF2Util_SetPlayerBurnDuration(iEntity, 8.0);
@@ -2898,7 +2918,7 @@ public void OnEntityCreated(int iEnt, const char[] classname) {
 		}
 		
 		else if(StrEqual(classname, "tf_weapon_handgun_scout_primary")) {
-			DHookEntity(dhook_CTFWeaponBase_SecondaryAttack, false, iEnt, _, DHookCallback_CTFWeaponBase_SecondaryAttack);
+			//DHookEntity(dhook_CTFWeaponBase_SecondaryAttack, false, iEnt, _, DHookCallback_CTFWeaponBase_SecondaryAttack);
 		}
 		
 		else if(StrEqual(classname, "tf_projectile_rocket")) {
@@ -2911,7 +2931,7 @@ public void OnEntityCreated(int iEnt, const char[] classname) {
 		}
 
 		else if(StrEqual(classname, "tf_weapon_particle_cannon")) {
-			DHookEntity(dhook_CTFWeaponBase_SecondaryAttack, false, iEnt, _, DHookCallback_CTFWeaponBase_SecondaryAttack);
+			//DHookEntity(dhook_CTFWeaponBase_SecondaryAttack, false, iEnt, _, DHookCallback_CTFWeaponBase_SecondaryAttack);
 			SDKHook(iEnt, SDKHook_StartTouch, ProjectileTouch);
 		}
 		
@@ -3381,7 +3401,9 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 						}
 						TF2_AddCondition(victim, TFCond_Jarated, RemapValClamped(fCharge, 0.0, 150.0, 2.0, 6.0));		// 2-6 sec duration
 						players[victim].iJarated = attacker;		// Record the ID of the victim to steal their THREAT
-						fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);		// Gives us our ramp-up multiplier
+						if (fDistance < 512.0) {
+							fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);		// Gives us our ramp-up multiplier
+						}
 					}
 					
 					else if (players[attacker].iHeadshot_Frame == GetGameTickCount()) {		// Here we look at headshot status
@@ -3628,6 +3650,10 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 				fDmgMod = 1 / SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);
 				damage *= fDmgMod;
 			}
+			
+			if (players[victim].bBonk == true) {
+				damage -= 6.0;
+			}
 		}
 	}
 	
@@ -3719,8 +3745,8 @@ public void OnTakeDamagePost(int victim, int attacker, int inflictor, float dama
 					GetEntPropVector(victim, Prop_Data, "m_vecVelocity", vecVelVictim);
 					float fDistance = GetVectorDistance(vecAttacker, vecVictim, false);
 					
-					if (fDistance < 750.0) {
-						float fForce = damage * 12.0 * 1.5;	// 1.5x knockback force
+					if (fDistance < 750.0 && damage >= 30.0) {
+						float fForce = damage * 12.0 * 1.1;	// 1.0x knockback force
 						
 						if (TF2_GetPlayerClass(victim) == TFClass_Heavy) {
 							fForce *= 0.5;
@@ -3731,6 +3757,15 @@ public void OnTakeDamagePost(int victim, int attacker, int inflictor, float dama
 						NormalizeVector(vecDir, vecDir);                      // Make it a unit vector
 
 						ScaleVector(vecDir, fForce);                // vecForce = vecDir * fForce
+						if (GetEntityFlags(victim) & FL_ONGROUND) {
+							if (vecDir[2] < 0.0) {
+								vecDir[2] *= -0.25;
+							}
+						}
+						vecDir[2] += 200.0;
+						//PrintToChatAll("vecDir1: %f", vecDir[0]);
+						//PrintToChatAll("vecDir2: %f", vecDir[1]);
+						//PrintToChatAll("vecDir3: %f", vecDir[2]);
 						AddVectors(vecVelVictim, vecDir, vecVelVictim);
 
 						TeleportEntity(victim, NULL_VECTOR, NULL_VECTOR, vecVelVictim); // Apply force
@@ -3761,24 +3796,26 @@ public void OnTakeDamagePost(int victim, int attacker, int inflictor, float dama
 				// Scorch Shot
 				if (iWeaponIndex == 740) {
 
-					float vecAttacker[3], vecVictim[3], vecVelVictim[3];
-					GetEntPropVector(attacker, Prop_Send, "m_vecOrigin", vecAttacker);
+					float vecFlare[3], vecVictim[3], vecVelVictim[3];
+					GetEntPropVector(inflictor, Prop_Send, "m_vecOrigin", vecFlare);
 					GetEntPropVector(victim, Prop_Send, "m_vecOrigin", vecVictim);
+					vecVictim[2] -= 40.0;
 					GetEntPropVector(victim, Prop_Data, "m_vecVelocity", vecVelVictim);
-					//float fDistance = GetVectorDistance(vecAttacker, vecVictim, false);
+					//float fDistance = GetVectorDistance(vecFlare, vecVictim, false);
 					
 					if (damage >= 30.0) {
-						float fForce = damage * 12.0 * 2.0;	// 2x knockback force
+						float fForce = damage * 12.0 * 3.0;	// 3x knockback force
 						
 						if (TF2_GetPlayerClass(victim) == TFClass_Heavy) {
 							fForce *= 0.5;
 						}
 						
 						float vecDir[3];
-						MakeVectorFromPoints(vecAttacker, vecVictim, vecDir); // vecDir = victim - attacker
+						MakeVectorFromPoints(vecFlare, vecVictim, vecDir); // vecDir = victim - flare
 						NormalizeVector(vecDir, vecDir);                      // Make it a unit vector
 
 						ScaleVector(vecDir, fForce);                // vecForce = vecDir * fForce
+						vecDir[2] += 20.0;
 						AddVectors(vecVelVictim, vecDir, vecVelVictim);
 
 						TeleportEntity(victim, NULL_VECTOR, NULL_VECTOR, vecVelVictim); // Apply force
