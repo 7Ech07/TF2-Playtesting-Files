@@ -35,7 +35,10 @@ enum struct Player {
 	float fVacuumRampup;	// Stores knockback ramp-up from Natascha
 	float fLastDmgTrack;	// Stores how long until we last took damage for the purpose of modifying crit heals
 	float fRegenTimer;		// Tracks how long we have the regen buff from heal bolt hits
+	float fLast_Attack;
 	int iEquipped;		// Tracks the equipped weapon's index in order to determine when it changes
+	int fFlamethrower_Attacker;
+	int iLast_Buttons;
 	
 	float fTemp;		// Tracks temperature from the Flamethrower
 	
@@ -50,6 +53,11 @@ enum struct Player {
 	float fPressureCD;	// Tracks Airblast repressurisation cooldown
 	bool ParticleCD;
 	int iPhlog_Ammo;		// Tracks ammo on the Phlog so we can determine when to fire the beam
+	float fFlamethrower_Damage;
+	int iFlame_Damage_Counter;
+	float fFlame_Accuracy_Track;
+	float fFlame_Blast_Primed;
+	bool bFlame_Blast_Toggled;
 	
 	// Heavy
 	float fRev;		// Tracks how long we've been revved for the purposes of undoing the L&W nerf
@@ -66,6 +74,9 @@ enum struct Player {
 enum struct Entity {
 	// Stickies
 	float fHealth;		// Tracks the health of Demo's bombs
+	
+	// Fire
+	float fFlame_Hit;	// Interval between lingering fire damage ticks
 }
 
 	// -={ Precaches audio }=-
@@ -174,16 +185,16 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 		TF2Items_SetNumAttributes(item1, 11);
 		//TF2Items_SetAttribute(item1, 0, 72, 0.0); // weapon burn dmg reduced (nil)
 		TF2Items_SetAttribute(item1, 0, 72, 2.5); // weapon burn dmg reduced (nil)
-		TF2Items_SetAttribute(item1, 1, 839, 0.0); // flame_spread_degree (none)
+		TF2Items_SetAttribute(item1, 1, 839, 2.8); // flame_spread_degree (none)
 		TF2Items_SetAttribute(item1, 2, 841, 0.0); // flame_gravity (none)
-		TF2Items_SetAttribute(item1, 3, 843, 0.0); // flame_drag (none)
-		TF2Items_SetAttribute(item1, 4, 844, 1920.0); // flame_speed (1920 HU/s)
-		TF2Items_SetAttribute(item1, 5, 862, 0.2); // flame_lifetime (0.2 s)
-		TF2Items_SetAttribute(item1, 6, 865, 0.0); // flame_up_speed (removed)
-		TF2Items_SetAttribute(item1, 7, 843, 0.0); // flame_drag (none)
-		TF2Items_SetAttribute(item1, 8, 863, 0.0); // flame_random_lifetime_offset (none)
-		TF2Items_SetAttribute(item1, 9, 838, 1.0); // flame_reflect_on_collision (flames riccochet off surfaces)
-		TF2Items_SetAttribute(item1, 10, 174, 1.33); // flame_ammopersec_increased (33%)
+		TF2Items_SetAttribute(item1, 3, 843, 8.5); // flame_drag (none)
+		TF2Items_SetAttribute(item1, 4, 844, 2450.0); // flame_speed (1920 HU/s)
+		TF2Items_SetAttribute(item1, 5, 862, 0.6); // flame_lifetime (0.2 s)
+		TF2Items_SetAttribute(item1, 6, 865, 50.0); // flame_up_speed (removed)
+		TF2Items_SetAttribute(item1, 7, 843, 0.87); // flame_drag (none)
+		TF2Items_SetAttribute(item1, 8, 863, 0.1); // flame_random_lifetime_offset (none)
+		//TF2Items_SetAttribute(item1, 9, 838, 1.0); // flame_reflect_on_collision (flames riccochet off surfaces)
+		TF2Items_SetAttribute(item1, 9, 174, 1.33); // flame_ammopersec_increased (33%)
 	}
 	
 	if (index == 594) {	// Phlogistinator
@@ -216,7 +227,7 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
 		TF2Items_SetNumAttributes(item1, 3);
-		TF2Items_SetAttribute(item1, 0, 125, -25.0); // max health additive penalty
+		TF2Items_SetAttribute(item1, 0, 125, -35.0); // max health additive penalty
 		TF2Items_SetAttribute(item1, 1, 128, 0.0); // provide on active (removed)
 		TF2Items_SetAttribute(item1, 2, 180, 75.0); // heal on kill
 	}
@@ -399,6 +410,8 @@ public void OnPluginStart() {
 	SetConVarString(cvar_ref_tf_airblast_cray_power, "400");
 	SetConVarString(cvar_ref_tf_airblast_cray_reflect_coeff, "1");
 	
+	RegConsoleCmd("flameblast", Command_FlameBurstToggle, "Echo's mod - Swap between Airblast and Flame Blast");
+	
 	// This detects when we touch a cabinet
 	HookEvent("post_inventory_application", OnGameEvent, EventHookMode_Post);
 	
@@ -416,6 +429,9 @@ public Action Event_PlayerDeath(Event event, const char[] cName, bool dontBroadc
 	//int attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
 	int victim = event.GetInt("victim_entindex");
 	//int customKill = event.GetInt("customkill");
+	
+	players[victim].fFlame_Accuracy_Track = 0.0;
+	players[victim].iFlame_Damage_Counter = 0;
 	
 	// Enforcer
 	for (int i = 1; i <= MaxClients; i++) {		// Remove mark when the Spy dies
@@ -488,7 +504,7 @@ public Action AttributeChanges(int iClient, int iPrimary, int iSecondary, int iM
 
 		// Pyro
 		case TFClass_Pyro: {
-			TF2Attrib_SetByName(iClient, "max health additive bonus", 50.0);
+			TF2Attrib_SetByName(iClient, "max health additive bonus", 25.0);
 			TF2Attrib_SetByName(iClient, "airblast cost scale hidden", 1.25);
 			TF2Attrib_SetByName(iPrimary, "flame ammopersec increased", 1.333333);
 			TF2Attrib_SetByName(iPrimary, "flame_drag", 8.5);
@@ -507,6 +523,7 @@ public Action AttributeChanges(int iClient, int iPrimary, int iSecondary, int iM
 		
 		// Engineer
 		case TFClass_Engineer: {
+			TF2Attrib_SetByName(iClient, "max health additive bonus", 25.0);
 			TF2Attrib_SetByName(iClient, "build rate bonus", 0.4);
 			TF2Attrib_SetByName(iClient, "engineer sentry build rate multiplier", 0.4);
 		}
@@ -528,6 +545,23 @@ public Action AttributeChanges(int iClient, int iPrimary, int iSecondary, int iM
 			TF2Attrib_SetByName(iPrimary, "sniper fires tracer HIDDEN", 1.0);
 		}
 	}
+	return Plugin_Handled;
+}
+
+Action Command_FlameBurstToggle(int iClient, int args) {
+	if (iClient > 0) {
+		if (TF2_GetPlayerClass(iClient) == TFClass_Pyro) {
+			if (players[iClient].bFlame_Blast_Toggled == true) {
+				players[iClient].bFlame_Blast_Toggled = false;
+				TF2Attrib_SetByDefIndex(iClient, 356, 0.0);
+			}
+			else {
+				players[iClient].bFlame_Blast_Toggled = true;
+				TF2Attrib_SetByDefIndex(iClient, 356, 1.0);
+			}
+		}
+	}
+	
 	return Plugin_Handled;
 }
 
@@ -570,7 +604,7 @@ public void OnGameFrame() {
 		}
 	}
 	
-	for (int iClient = 1; iClient <= MaxClients; iClient++) {		// Caps Afterburn at 6 and handles Temperature
+	for (int iClient = 1; iClient <= MaxClients; iClient++) {		// Caps Afterburn at 3 and handles Temperature
 		if (!IsClientInGame(iClient) || !IsPlayerAlive(iClient)) continue;
 			
 		int iPrimary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
@@ -594,7 +628,7 @@ public void OnGameFrame() {
 		// Afterburn
 		float fBurn = TF2Util_GetPlayerBurnDuration(iClient);
 		
-		if (fBurn > 6.0) TF2Util_SetPlayerBurnDuration(iClient, 3.0);
+		if (fBurn > 3.0) TF2Util_SetPlayerBurnDuration(iClient, 3.0);
 		
 		if (fBurn > 0.0) {
 			players[iClient].fBurningHealthLoss += 0.015;
@@ -813,6 +847,13 @@ public void OnGameFrame() {
 			
 			// Pyro
 			case TFClass_Pyro: {
+				SetHudTextParams(-0.1, -0.23, 0.5, 255, 255, 255, 255);
+				ShowHudText(iClient, 2, "Accuracy: %.2f", players[iClient].fFlame_Accuracy_Track / players[iClient].iFlame_Damage_Counter);
+				
+				SetHudTextParams(-0.1, -0.43, 0.5, 255, 255, 255, 255);
+				if (players[iClient].bFlame_Blast_Toggled == true) ShowHudText(iClient, 3, "Burst Mode: Flame");
+				else ShowHudText(iClient, 3, "Burst Mode: Air");
+				
 				// Airblast jump chaining prevention
 				float vecVel[3];
 				GetEntPropVector(iClient, Prop_Data, "m_vecVelocity", vecVel);		// Retrieve existing velocity
@@ -883,19 +924,8 @@ public void OnGameFrame() {
 				// Pressure
 				char class[64];
 				GetEntityClassname(iPrimary, class, sizeof(class));
-				
-				/*if (primaryIndex == 30474 || primaryIndex == 741) {		// Cap Napalmer pressure to 1 tank
-					players[iClient].fPressure += 0.01;	// 1.5 seconds repressurisation time
-					if (players[iClient].fPressure > 1.0) {
-						players[iClient].fPressure = 1.0;
-						TF2Attrib_SetByDefIndex(iPrimary, 255, 1.33);		// Increased push force when pressurised (to live TF2 value)
-					}
-					else {
-						TF2Attrib_SetByDefIndex(iPrimary, 255, 1.125);
-					}
-				}*/
 
-				if (StrEqual(class, "tf_weapon_flamethrower")) {		// Cap other Flamethrowers' pressure to 2 tanks
+				if (StrEqual(class, "tf_weapon_flamethrower")) {		// Cap Flamethrowers' pressure to 2 tanks
 					if (players[iClient].fPressureCD > 0.0) {		// This value starts high and goes down
 						players[iClient].fPressureCD -= 0.015;
 					}
@@ -904,7 +934,7 @@ public void OnGameFrame() {
 					}
 					if (players[iClient].fPressure < 2.0) {
 						if (players[iClient].fPressureCD <= 0.0) {
-							players[iClient].fPressure += 0.03;		// Takes 0.5 sec to refil each charge
+							players[iClient].fPressure += 0.02;		// Takes 0.75 sec to refil each charge
 						}
 					}
 					else {
@@ -917,6 +947,31 @@ public void OnGameFrame() {
 					else {
 						TF2Attrib_SetByDefIndex(iPrimary, 356, 0.0);
 					}
+					
+					// Charging Flame Blast
+					SetHudTextParams(0.5, 0.55, 0.05, 255, 255, 255, 255);
+					if (players[iClient].fFlame_Blast_Primed > 0.0) {
+						float charge = players[iClient].fFlame_Blast_Primed / 1.0;
+						if (charge > 1.0) charge = 1.0;
+						
+						int filled = RoundToFloor(charge * 10);
+						char bar[64];
+						bar[0] = '\0';
+
+						StrCat(bar, sizeof(bar), "[");
+
+						for (int i = 0; i < 10; i++)
+						{
+							if (i < filled)
+								StrCat(bar, sizeof(bar), "█");   // filled
+							else
+								StrCat(bar, sizeof(bar), "░");   // empty
+						}
+
+						StrCat(bar, sizeof(bar), "]");
+						ShowHudText(iClient, -1, bar);
+					}
+					else ShowHudText(iClient, -1, "");
 				}
 				else if (StrEqual(class, "tf_weapon_rocketlauncher_fireball")) {
 					if (players[iClient].fPressureCD > 0.0) {
@@ -955,28 +1010,6 @@ public void OnGameFrame() {
 				
 				players[iClient].fFlare_Cooldown -= 0.015;
 				
-				//float fDmgMult = 1.0;		// Default values -- for stock, and in case of emergency
-				//float fAccMult = 0.8;
-				
-				/*switch(iPrimaryIndex) {		// Determine unique damage and accuracy multipliers for the unlocks
-					case 424: {		// Tomislav
-						//fDmgMult = 1.0;
-						fAccMult = 0.6;
-					}
-					case 41: {		// Natascha
-						//fDmgMult = 1.0;
-						fAccMult = 1.0;
-					}
-					case 811, 832: {		// Huo-Long Heater
-						//fDmgMult = 2.4074;
-						fAccMult = 1.0;
-					}
-					case 312: {		// Brass Beast
-						//fDmgMult = 1.02;
-						fAccMult = 1.0;
-					}
-				}*/
-				
 				int weaponState = GetEntProp(iPrimary, Prop_Send, "m_iWeaponState");
 				int view = GetEntPropEnt(iClient, Prop_Send, "m_hViewModel");
 				int sequence = GetEntProp(view, Prop_Send, "m_nSequence");		// We use viewmodel animation as an additional check for being unrevved for Natascha
@@ -1001,7 +1034,6 @@ public void OnGameFrame() {
 						if (iPrimaryIndex == 424) {		// Tomislav
 							TF2Attrib_SetByDefIndex(iPrimary, 106, 0.6 * 1.0/factor);		// Spread bonus
 						}
-						//TF2Attrib_SetByDefIndex(iPrimary, 2, fDmgMult * 1.0 * factor);		// Damage bonus
 					}
 				}
 				
@@ -1091,21 +1123,34 @@ public Action OnPlayerRunCmd(int iClient, int &buttons, int &impulse, float vel[
 			char class[64];
 			GetEntityClassname(iPrimary, class, sizeof(class));
 			
-			if (!(StrEqual(class, "tf_weapon_flamethrower") || (StrEqual(class, "tf_weapon_rocketlauncher_fireball"))) || players[iClient].fPressureCD > 0.0) return Plugin_Continue;
-			if (!(buttons & IN_ATTACK2)) return Plugin_Continue;
+			if (!(StrEqual(class, "tf_weapon_flamethrower") || (StrEqual(class, "tf_weapon_rocketlauncher_fireball"))) || players[iClient].fPressure < 1.0) return Plugin_Continue;
 			
-			if (buttons & IN_ATTACK && players[iClient].fPressure >= 2.0) {	// Flame Burst
-				players[iClient].fPressure -= 2.0;
-				players[iClient].fPressureCD = 0.75;
-				FlameBurst(iClient);
+			if (buttons & IN_ATTACK2) {			
+				if (players[iClient].bFlame_Blast_Toggled == true) {	// Flame Blast charging
+					players[iClient].iLast_Buttons = buttons;
+					players[iClient].fFlame_Blast_Primed += 0.01;
+					players[iClient].fPressureCD += 0.01;
+					buttons &= ~IN_ATTACK;
+					if (players[iClient].fFlame_Blast_Primed >= 1.0) {
+						buttons &= ~IN_ATTACK2;
+						FlameBlast(iClient);
+					}
+				}
+				
+				else if (players[iClient].fPressureCD > 0.0) {	// Regular Airblast
+					players[iClient].fPressure -= 1.0;
+					players[iClient].fPressureCD = 0.75;
+					if (primaryIndex == 1178)	AirblastJump(iClient, 1.0);	// Dragon's Fury
+				}
 			}
-			else if (players[iClient].fPressure >= 1.0) {	// Regular Airblast
-				players[iClient].fPressure -= 1.0;
-				players[iClient].fPressureCD = 0.75;
-				if (primaryIndex == 1178)	AirblastJump(iClient);	// Dragon's Fury
+			
+			else if ((players[iClient].iLast_Buttons & IN_ATTACK2) == IN_ATTACK2 && players[iClient].bFlame_Blast_Toggled == true) {	// Flame Blast release
+				players[iClient].iLast_Buttons = buttons;
+				FlameBlast(iClient);
 			}
-			else {
-				buttons &= ~IN_ATTACK2;		// Disable Airblast if we don't have a Pressure charge
+			
+			if (buttons & IN_RELOAD && !(players[iClient].iLast_Buttons & IN_RELOAD)) {
+				Command_FlameBurstToggle(iClient, 0);
 			}
 		}
 		
@@ -1173,11 +1218,84 @@ public Action OnPlayerRunCmd(int iClient, int &buttons, int &impulse, float vel[
 			}
 		}
 	}
-	
+	players[iClient].iLast_Buttons = buttons;		// Stores buttons for next frame
 	return Plugin_Continue;
 }
 
-void FlameBurst(int iClient) {
+void FlameBlast(int iClient) {
+	//PrintToChatAll("Do a Flame Blast!");
+	int iPrimary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
+	int primaryAmmo = GetEntProp(iPrimary, Prop_Send, "m_iPrimaryAmmoType");
+	int ammoCount = GetEntProp(iClient, Prop_Data, "m_iAmmo", _, primaryAmmo);
+	SetEntProp(iClient, Prop_Data, "m_iAmmo", ammoCount - 25, _, primaryAmmo);
+	
+	float vecAng[3], vecPos[3], offset[3], vecProjVel[3];
+	GetClientEyeAngles(iClient, vecAng);
+	GetClientEyePosition(iClient, vecPos);
+	
+	AirblastJump(iClient, players[iClient].fFlame_Blast_Primed);
+
+	int iFireball = CreateEntityByName("tf_projectile_rocket");
+	
+	if (iFireball != -1) {
+		int team = GetClientTeam(iClient);
+		
+		offset[0] = (15.0 * Sine(DegToRad(vecAng[1])));
+		offset[1] = (-6.0 * Cosine(DegToRad(vecAng[1])));
+		offset[2] = -10.0;
+		
+		vecPos[0] += offset[0];
+		vecPos[1] += offset[1];
+		vecPos[2] += offset[2];
+		
+		SetEntPropEnt(iFireball, Prop_Send, "m_hOwnerEntity", iClient);	// Attacker
+		SetEntPropEnt(iFireball, Prop_Send, "m_hLauncher", iPrimary);	// Weapon
+		SetEntProp(iFireball, Prop_Data, "m_iTeamNum", team);		// Team
+		SetEntProp(iFireball, Prop_Data, "m_CollisionGroup", 24);		// Collision
+		SetEntProp(iFireball, Prop_Data, "m_usSolidFlags", 0);
+		SetEntPropFloat(iFireball, Prop_Data, "m_flRadius", 1.0);
+		SetEntPropFloat(iFireball, Prop_Send, "m_flModelScale", 1.0);
+		
+		SetEntityRenderMode(iFireball, RENDER_TRANSCOLOR);
+		SetEntityRenderColor(iFireball, 255, 255, 255, 0);
+		
+		DispatchSpawn(iFireball);
+		CreateTimer(0.5, Timer_KillProjectile, EntIndexToEntRef(iFireball));
+		SDKHook(iFireball, SDKHook_StartTouch, FlameBlastTouch);
+		
+		float speed = RemapValClamped(players[iClient].fFlame_Blast_Primed, 0.0 , 1.0, 950.0, 2000.0);
+	
+		vecProjVel[0] = Cosine(DegToRad(vecAng[0])) * Cosine(DegToRad(vecAng[1])) * speed;
+		vecProjVel[1] = Cosine(DegToRad(vecAng[0])) * Sine(DegToRad(vecAng[1])) * speed;
+		vecProjVel[2] = Sine(DegToRad(vecAng[0])) * -speed;
+
+		TeleportEntity(iFireball, vecPos, vecAng, vecProjVel);
+		
+		float vecDir[3], ang[3];
+		NormalizeVector(vecProjVel, vecDir);
+		GetVectorAngles(vecDir, ang);
+		ang[0] *= -1.0;
+		ang[1] += 180.0;	// Make it face backwards
+		
+		CreateParticle(iFireball, "flamethrower", 1.0, ang[0], ang[1],_,_,_,_,_,false);
+		
+		players[iClient].fFlame_Blast_Primed = 0.0;
+		players[iClient].fPressure -= 1.0;
+		players[iClient].fPressureCD = 0.75;
+	}
+}
+
+public Action Timer_KillProjectile(Handle timer, any ref)
+{
+    int ent = EntRefToEntIndex(ref);
+    if (ent != INVALID_ENT_REFERENCE && IsValidEntity(ent))
+    {
+        AcceptEntityInput(ent, "Kill");
+    }
+    return Plugin_Stop;
+}
+
+/*void FlameBurst(int iClient) {
 	//PrintToChatAll("Flame Burst");
 	float vecAng[3], vecPos[3], offset[3], vecProjVel[3];
 	GetClientEyeAngles(iClient, vecAng);		// Identify where we're looking
@@ -1247,9 +1365,9 @@ void FlameBurst(int iClient) {
 	}
 	
 	AirblastJump(iClient);
-}
+}*/
 
-void AirblastJump(int iClient) {
+void AirblastJump(int iClient, float fForce) {
 	if (!(GetEntityFlags(iClient) & FL_ONGROUND)) {
 		float vecAngle[3], vecVel[3], fRedirect, fBuffer, vecBuffer[3];
 		GetClientEyeAngles(iClient, vecAngle);		// Identify where we're looking
@@ -1274,14 +1392,14 @@ void AirblastJump(int iClient) {
 		}
 		
 		// Convert pitch and yaw into a directional vector (and make it face behind us)
-		float fForce = 250.0 + (fRedirect / 2);		// Add half of our redirected falling speed to this
+		fForce = RemapValClamped(fForce, 0.0, 1.0, 50.0, 300.0) + (fRedirect / 2);		// Add half of our redirected falling speed to this
 		vecForce[0] *= fForce;
 		vecForce[1] *= fForce;
 		vecForce[2] *= fForce;
 		
 		vecForce[2] += 25.0;		// Some fixed upward force to make the jump feel beter
 		AddVectors(vecVel, vecForce, vecForce);		// Add the Airblast push force to our velocity
-		//AddVectors(vecProjection, vecForce, vecForce); This bit is terrible
+		//AddVectors(vecProjection, vecForce, vecForce);	// This bit is terrible
 		
 		TeleportEntity(iClient, NULL_VECTOR, NULL_VECTOR, vecForce);		// Sets the Pyro's momentum to the appropriate value
 	}
@@ -1539,29 +1657,45 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 				// Pyro
 				// Flamethrower rebuild
 				else if(StrEqual(class, "tf_weapon_flamethrower") && (damage_type & DMG_IGNITE) && !(damage_type & DMG_BLAST)) {
-					damage = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 11.25, 7.5);
-					players[victim].fBurningHealthLoss += 0.6;
+					if (damage_type & DMG_IGNITE) {
+						float fTimeToHit, vecVelVictim[3], vecVictimFuturePos[3], vecToTarget[3], vecAng[3];
+						
+						// Step 1: calculate how far into the future we should be leading
+						float distanceLeft = fDistance;
+						float speed = 2450.0;
+						float fDrag = 0.87;
+						while (distanceLeft > 0.0) {
+							float travel = speed * (1.0 / 66.6);
+							distanceLeft -= travel;
+							speed *= fDrag;
+							fTimeToHit += 1.0 / 66.6;
 
-					// Temp Ramp-up
-					damage *= (players[victim].fTemp + 0.5);
-					
-					players[victim].fTemp += 0.04166;
-				
-					//crit damage multipliers
-					if (damage_type & DMG_CRIT) {
-						if (isMiniKritzed(attacker, victim) && !isKritzed(attacker)) {
-							damage *= 1.35;
+							if (fTimeToHit > 0.7) break;
 						}
-						else {
-							damage *= 3.0;
-						}
-					}
-
-					damage_type &= ~DMG_USEDISTANCEMOD;
-
-					if(damage_type & DMG_SONIC) {
-						damage_type &= ~DMG_SONIC;
-						damage = 0.01;
+						
+						// Step 2: calculate where we should be looking to accurately lead the target
+						damage = 11.25;
+						GetEntPropVector(victim, Prop_Data, "m_vecVelocity", vecVelVictim);
+						vecVictimFuturePos[0] = vecVictim[0] + vecVelVictim[0] * fTimeToHit;
+						vecVictimFuturePos[1] = vecVictim[1] + vecVelVictim[1] * fTimeToHit;
+						vecVictimFuturePos[2] = vecVictim[2] + vecVelVictim[2] * fTimeToHit + 40.0;
+						
+						// Step 3: calculate how far off we are
+						MakeVectorFromPoints(vecAttacker, vecVictimFuturePos, vecToTarget);
+						NormalizeVector(vecToTarget, vecToTarget);
+						
+						GetClientEyeAngles(attacker, vecAng);
+						GetAngleVectors(vecAng, vecAng, NULL_VECTOR, NULL_VECTOR);
+						float dotProduct = GetVectorDotProduct(vecAng, vecToTarget);
+						
+						// Step 4: scale damage
+						float fAttenuation = RemapValClamped(dotProduct, 0.98, 0.707106, 1.0, 0.2);		// Damage scales from 10° to 45° off target
+						damage *= fAttenuation;
+						damage *= RemapValClamped(fDistance, 0.0, 340.0, 1.0, 0.67);	
+						PrintToChat(attacker, "dp: %f, scale: %f", dotProduct, fAttenuation);
+						
+						players[attacker].iFlame_Damage_Counter ++;
+						players[attacker].fFlame_Accuracy_Track += fAttenuation;
 					}
 				}
 				
@@ -1771,6 +1905,13 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 		}
 	}
 	
+	if (victim >= 1 && victim <= MaxClients) {
+		// Baseline Afterburn damage bonus
+		if (damage_type & DMG_BURN && damage >= 4.0 && damage <= 5.0) {
+			damage *= 2.5;	// 10 damage/tick
+		}
+	}
+	
 	return Plugin_Changed;
 }
 
@@ -1948,6 +2089,10 @@ public void OnEntityCreated(int iEnt, const char[] classname) {
 		if(StrEqual(classname,"tf_projectile_rocket")) {
 			SDKHook(iEnt, SDKHook_StartTouch, ProjectileTouch);
 			SDKHook(iEnt, SDKHook_SpawnPost, FlareSpawn);
+		}
+		
+		else if(StrEqual(classname,"tf_flame_manager")) {
+			//SDKHook(iEnt, SDKHook_Touch, FlameTouch);
 		}
 		
 		/*else if(StrEqual(classname, "tf_projectile_balloffire")) {
@@ -2138,6 +2283,28 @@ Action ProjectileTouch(int iProjectile, int other) {
 	return Plugin_Handled;
 }
 
+Action FlameBlastTouch(int iFireball, int other) {
+	char class[64];
+	GetEntityClassname(iFireball, class, sizeof(class));
+	
+	if (StrEqual(class, "tf_projectile_rocket")) {
+		if (other == 0) return Plugin_Handled;		// Exclude ground hits
+		
+		if (!IsValidClient(other)) return Plugin_Handled;
+		int iVictimTeam = GetEntProp(other, Prop_Data, "m_iTeamNum");
+		int iProjTeam = GetEntProp(iFireball, Prop_Data, "m_iTeamNum");
+		if (iVictimTeam == iProjTeam) return Plugin_Handled;
+
+		int weapon = GetEntPropEnt(iFireball, Prop_Send, "m_hLauncher");
+		int owner = GetEntPropEnt(weapon, Prop_Send, "m_hOwnerEntity");
+		int type = DMG_BURN;
+		
+		SDKHooks_TakeDamage(other, iFireball, owner, 20.0, type, weapon, NULL_VECTOR, _, false);
+		TF2_IgnitePlayer(other, owner, 3.0);
+	}
+	return Plugin_Handled;
+}
+
 void ProjectleSpawn(int entity) {
 	CreateTimer(0.16, KillProj, entity);		// The projectile will travel ~500 HU in this time
 }
@@ -2158,7 +2325,7 @@ Action KillProj(Handle timer, int entity) {
 }
 
 void BombSpawn(int entity) {
-	entities[entity].fHealth = 70.0;
+	if (IsValidEdict(entity)) entities[entity].fHealth = 70.0;
 }
 
 Action FlareSpawn(int entity) {
@@ -2292,6 +2459,51 @@ Action KillFlare(Handle timer, int flare) {
 	if(IsValidEdict(flare)) {
 		CreateParticle(flare, "arm_muzzleflash_flare", 0.15, _, _, _, _, _, 10.0);		// Displays particle on natural flare death (0.15 s duration, 10 HU size)
 		AcceptEntityInput(flare, "KillHierarchy");
+	}
+	return Plugin_Continue;
+}
+
+Action FlameTouch(int flame, int iOther) {
+	float time = GetGameTime();
+	int iClient = GetEntPropEnt(flame, Prop_Send, "m_hAttacker");
+	if (IsValidClient(iClient)) {
+		/*int primary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
+		int primaryIndex = -1;
+		if (primary >= 0) primaryIndex = GetEntProp(primary, Prop_Send, "m_iItemDefinitionIndex");*/
+
+		char class[64];
+		GetEntityClassname(iOther, class, sizeof(class));
+		
+		// Lingering fire
+		if (players[iClient].fLast_Attack + 0.06 < time) {
+			if (iOther == 0 || StrEqual(class, "func_brush")) {
+				float pos[3], ang[3];
+				GetEntPropVector(flame, Prop_Send, "m_vecOrigin", pos);
+				GetClientEyeAngles(iClient, ang);
+				
+				Handle trace = TR_TraceRayFilterEx(pos, ang, MASK_SHOT, RayType_Infinite, TraceFilter, flame);	// Find the piece of geometry to stick the flames to
+				if (!TR_DidHit(trace)) {
+					trace.Close();
+					return Plugin_Continue;
+				}
+				TR_GetEndPosition(pos, trace);
+
+				if (ang[0] < -70) pos[2] -= 10;	// Stops the flame being spawned inside of the terrain when aiming at the ceiling
+				else pos[2] += 2.5;
+
+				int team = GetEntProp(flame, Prop_Send, "m_iTeamNum");
+				float fireTime = 2.0;
+
+				CreateParticle(0, "burninggibs", fireTime / 1.25,_,_,pos[0],pos[1],pos[2],0.2,_,_,_,_, iClient);	// The actual flame
+				if (team==2) {
+					CreateParticle(0, "burningplayer_glow", fireTime ,_,_,pos[0],pos[1],pos[2],_, false);	// The team glow
+				}
+				else if (team==3) {
+					CreateParticle(0, "burningplayer_glow_blue", fireTime ,_,_,pos[0],pos[1],pos[2],_, false);
+				}
+				players[iClient].fLast_Attack = time;
+			}
+		}
 	}
 	return Plugin_Continue;
 }
@@ -2573,6 +2785,57 @@ public Action UpdateParticle(Handle timer, DataPack pack) {
 				}
 				timePassed[parent] += 0.015;
 			}
+			else if (parent == 0) {		// Lingering fire damage calculation
+				if (entities[particle].fFlame_Hit >= time) {
+					entities[particle].fFlame_Hit = 0.0;
+					RemoveEdict(particle);
+					return Plugin_Stop;
+				}
+				else {
+					float position[3];
+					GetEntPropVector(particle, Prop_Send, "m_vecOrigin", position);
+					int iClient = GetEntPropEnt(particle, Prop_Send, "m_hOwnerEntity");
+					if (IsValidClient(iClient)) {
+						int interval = RoundFloat(entities[particle].fFlame_Hit * 1000);
+						if (interval % 75 == 0) {
+							for (int idx = 1; idx <= MaxClients; idx++) {
+								if (IsValidClient(idx)) {
+									float targetpos[3],flamepos[3];
+									GetEntPropVector(idx, Prop_Send, "m_vecOrigin", targetpos);
+									if (GetClientTeam(iClient) != GetClientTeam(idx) && IsPlayerAlive(idx)) {
+										GetEntPropVector(particle, Prop_Send, "m_vecOrigin", flamepos);
+										float distance = GetVectorDistance(flamepos, targetpos);
+										float damage = 3.5 * ((time - entities[particle].fFlame_Hit) / time) + 3.5;
+										bool hit = false;
+
+										if (distance < 35.0) {
+											Handle hndl = TR_TraceRayFilterEx(flamepos, targetpos, MASK_SOLID, RayType_EndPoint, TraceFilter, idx);
+											if (TR_DidHit() == false)
+												hit = true;
+											else {
+												int victim = TR_GetEntityIndex(hndl);
+												char[] class = new char[64];
+												if (IsValidEdict(victim)) GetEdictClassname(victim, class, 64);
+												
+												if (StrEqual(class, "func_respawnroomvisualizer") || !IsValidEdict(victim)) hit = true;
+											}
+											if (hit && players[idx].fFlamethrower_Damage >= 0) {	// Handle the damage separately
+												if (damage > players[idx].fFlamethrower_Damage) {
+													players[idx].fFlamethrower_Attacker = iClient;
+													players[idx].fFlamethrower_Damage = damage;
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+					else
+						entities[particle].fFlame_Hit = time;
+				}
+				entities[particle].fFlame_Hit += 0.075;
+			}
 			else if(!IsValidEdict(parent))
 			{
 				CreateTimer(0.015, DeleteParticle, particle);
@@ -2626,11 +2889,22 @@ bool TraceFilter_ExcludeSingle(int entity, int contentsmask, any data) {
 	return (entity != data);
 }
 
-bool PlayerTraceFilter(int entity, int contentsMask, any data)
-{
-	if(entity == data)
+bool TraceFilter(int entity, int contentsmask, any data) {
+	char class[64];
+	if (entity == data)
+		return false;
+	if (entity <= MaxClients)
+		return false;
+	GetEntityClassname(entity, class, sizeof(class));
+	if (StrContains(class, "obj_") == 0 || StrContains(class, "tf_projectile_") == 0)
+		return false;
+	return true;
+}
+
+bool PlayerTraceFilter(int entity, int contentsMask, any data) {
+	if (entity == data)
 		return (false);
-	if(IsValidClient(entity))
+	if (IsValidClient(entity))
 		return (false);
 	return (true);
 }
