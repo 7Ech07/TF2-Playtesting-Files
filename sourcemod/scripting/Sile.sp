@@ -17,7 +17,7 @@ public Plugin myinfo =
 	name = "Czin's Team Synergy 2 Balancemod",
 	author = "Ech0",
 	description = "Contains weapon rebalances from Czin's document",
-	version = "2.0.9",
+	version = "2.0.10",
 	url = ""
 };
 
@@ -3334,7 +3334,7 @@ public Action YERExplosion(int iClient, int iWeapon, bool bBackstab) {
 					
 					int type = DMG_BLAST;
 					if (iClient == iTarget) {
-						damage == 100.0;
+						damage = 100.0;
 					}
 					SDKHooks_TakeDamage(iTarget, iClient, iClient, damage, type, iWeapon, NULL_VECTOR, vecSpyPos, false);
 				}
