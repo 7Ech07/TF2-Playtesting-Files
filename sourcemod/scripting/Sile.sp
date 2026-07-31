@@ -17,7 +17,7 @@ public Plugin myinfo =
 	name = "Czin's Team Synergy 2 Balancemod",
 	author = "Ech0",
 	description = "Contains weapon rebalances from Czin's document",
-	version = "2.0.11",
+	version = "2.0.12",
 	url = ""
 };
 
@@ -757,6 +757,8 @@ public Action AttributeChanges(int iClient, int iPrimary, int iSecondary, int iM
 	
 	int iSapperIndex = -1;
 	if(iSapper > 0) iSapperIndex = GetEntProp(iSapper, Prop_Send, "m_iItemDefinitionIndex");
+	
+	TF2Attrib_SetByName(iClient, "mod see enemy health", 1.0);
 	
 	TF2Attrib_RemoveByName(iClient, "hidden primary max ammo bonus");
 	TF2Attrib_RemoveByName(iClient, "hidden secondary max ammo penalty");
