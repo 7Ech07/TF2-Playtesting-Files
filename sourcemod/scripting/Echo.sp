@@ -37,6 +37,8 @@ enum struct Player {
 	float fRegenTimer;		// Tracks how long we have the regen buff from heal bolt hits
 	int iEquipped;		// Tracks the equipped weapon's index in order to determine when it changes
 	
+	float fTemp;		// Tracks temperature from the Flamethrower
+	
 	// Soldier	
 	float fTreadsTimer;	// Tracks how long we've been charging the Mantreads slam attack
 	float fSpeedometer;	// Tracks our falling speed during the Mantreads slam
@@ -170,7 +172,8 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 		item1 = TF2Items_CreateItem(0);
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
 		TF2Items_SetNumAttributes(item1, 11);
-		TF2Items_SetAttribute(item1, 0, 72, 0.0); // weapon burn dmg reduced (nil)
+		//TF2Items_SetAttribute(item1, 0, 72, 0.0); // weapon burn dmg reduced (nil)
+		TF2Items_SetAttribute(item1, 0, 72, 5.0); // weapon burn dmg reduced (nil)
 		TF2Items_SetAttribute(item1, 1, 839, 0.0); // flame_spread_degree (none)
 		TF2Items_SetAttribute(item1, 2, 841, 0.0); // flame_gravity (none)
 		TF2Items_SetAttribute(item1, 3, 843, 0.0); // flame_drag (none)
@@ -486,6 +489,7 @@ public Action AttributeChanges(int iClient, int iPrimary, int iSecondary, int iM
 		// Pyro
 		case TFClass_Pyro: {
 			TF2Attrib_SetByName(iClient, "max health additive bonus", 50.0);
+			TF2Attrib_SetByName(iClient, "airblast cost scale hidden", 1.25);
 			TF2Attrib_SetByName(iPrimary, "flame ammopersec increased", 1.333333);
 			TF2Attrib_SetByName(iPrimary, "flame_drag", 8.5);
 			TF2Attrib_SetByName(iPrimary, "flame_speed", 2450.0);
@@ -590,7 +594,7 @@ public void OnGameFrame() {
 		// Afterburn
 		float fBurn = TF2Util_GetPlayerBurnDuration(iClient);
 		
-		if (fBurn > 6.0) TF2Util_SetPlayerBurnDuration(iClient, 6.0);
+		if (fBurn > 6.0) TF2Util_SetPlayerBurnDuration(iClient, 3.0);
 		
 		if (fBurn > 0.0) {
 			players[iClient].fBurningHealthLoss += 0.015;
@@ -631,10 +635,14 @@ public void OnGameFrame() {
 		}
 		int fHealthProportion = iHealth / iMaxHealth;
 		
+		if (players[iClient].fTemp > 0.0) {
+			players[iClient].fTemp -= 0.00375;
+		}
+		
 		//TF2Attrib_AddCustomPlayerAttribute(iClient, "max health additive penalty", -(iMaxHealth * 0.083333) * players[iClient].fBurningHealthLoss);
 		iMaxHealth = GetEntProp(GetPlayerResourceEntity(), Prop_Send, "m_iMaxHealth", _, iClient);		// Redefine this later on after we update max health
 		if (fHealthProportion < iHealth / iMaxHealth) {
-			SetEntProp(iClient, Prop_Send, "m_iHealth", fHealthProportion * iMaxHealth);
+			//SetEntProp(iClient, Prop_Send, "m_iHealth", fHealthProportion * iMaxHealth);
 		}
 		
 		// Natascha tractor beam effect
@@ -901,10 +909,10 @@ public void OnGameFrame() {
 					}
 					
 					if (players[iClient].fPressure < 1.0) {		// Disable Airblast when not pressurised
-						TF2Attrib_SetByDefIndex(iSecondary, 356, 1.0);
+						TF2Attrib_SetByDefIndex(iPrimary, 356, 1.0);
 					}
 					else {
-						TF2Attrib_SetByDefIndex(iSecondary, 356, 0.0);
+						TF2Attrib_SetByDefIndex(iPrimary, 356, 0.0);
 					}
 				}
 				else if (StrEqual(class, "tf_weapon_rocketlauncher_fireball")) {
@@ -1531,6 +1539,11 @@ Action OnTakeDamage(int victim, int& attacker, int& inflictor, float& damage, in
 					damage = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 11.25, 7.5);
 					players[victim].fBurningHealthLoss += 0.6;
 
+					// Temp Ramp-up
+					damage *= (players[victim].fTemp + 0.5);
+					
+					players[victim].fTemp += 0.04166;
+				
 					//crit damage multipliers
 					if (damage_type & DMG_CRIT) {
 						if (isMiniKritzed(attacker, victim) && !isKritzed(attacker)) {
