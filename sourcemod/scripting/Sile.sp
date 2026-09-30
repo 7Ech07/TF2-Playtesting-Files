@@ -17,7 +17,7 @@ public Plugin myinfo =
 	name = "Czin's Team Synergy 2 Balancemod",
 	author = "Ech0",
 	description = "Contains weapon rebalances from Czin's document",
-	version = "2.0.10",
+	version = "2.0.11",
 	url = ""
 };
 
@@ -71,9 +71,7 @@ enum struct Player {
 	bool bSteak_Buff;		// Tracks the Buffalo Steak buff
 	
 	// Engineer
-	bool bMini;		// Stores whether we've swapped to the Mini-Sentry PDA
-	bool bSentryBuilt;		// Stores whether or not we already have a Sentry, built to help us interpret EventObjectBuilt
-	
+
 	// Medic
 	int iSyringe_Ammo;		// Tracks loaded syringes for the purposes of determining when we fire a shot
 	//float fAmputator_heal_tick_timer;	// Tracks how long until a heal instance during the Amputator's taunt
@@ -217,16 +215,12 @@ public void OnPluginStart() {
     // Commands + Events
     // =========================
 
-    RegConsoleCmd("pda", Command_PDA, "Sile's Team Synergy 2 Mini-mod - Swap between regular and Mini-Sentry");
-
     HookEvent("player_spawn", OnGameEvent, EventHookMode_Post);
     HookEvent("player_death", Event_PlayerDeath);
     HookEvent("player_healed", OnPlayerHealed);
     HookEvent("post_inventory_application", OnGameEvent, EventHookMode_Post);
     HookEvent("item_pickup", OnGameEvent, EventHookMode_Post);
     HookEvent("player_jarated", OnGameEvent, EventHookMode_Post);
-    HookEvent("player_builtobject", EventObjectBuilt);
-    HookEvent("object_destroyed", EventObjectDestroy);
     HookEvent("object_detonated", EventObjectDetonate);
 
     // =========================
@@ -316,33 +310,6 @@ public void OnPluginStart() {
 }
 
 
-
-Action Command_PDA(int iClient, int args) {
-	if (iClient > 0) {
-		if (TF2_GetPlayerClass(iClient) == TFClass_Engineer) {
-			if (players[iClient].bMini == true) {
-				// Disable
-				//int iMelee = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Melee, true);
-				//int meleeIndex = -1;
-				//if(iMelee != -1) meleeIndex = GetEntProp(iMelee, Prop_Send, "m_iItemDefinitionIndex");
-				TF2Attrib_AddCustomPlayerAttribute(iClient, "engineer sentry build rate multiplier", 0.5);
-				players[iClient].bMini = false;
-			}
-			else {
-				// Enable
-				//int iMelee = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Melee, true);
-				//int meleeIndex = -1;
-				//if(iMelee != -1) meleeIndex = GetEntProp(iMelee, Prop_Send, "m_iItemDefinitionIndex");
-				TF2Attrib_AddCustomPlayerAttribute(iClient, "engineer sentry build rate multiplier", 2.5);
-				players[iClient].bMini = true;
-			}
-		}
-	}
-	
-	return Plugin_Handled;
-}
-
-
 public MRESReturn Detour_CalculateMaxSpeed(int self, Handle ret, Handle params) {
 	int iSecondary = TF2Util_GetPlayerLoadoutEntity(self, TFWeaponSlot_Secondary, true);
 	int iSecondaryIndex = -1;
@@ -380,6 +347,9 @@ public void OnMapStart() {
 	PrecacheSound("weapons/dispenser_heal.wav", true);
 	PrecacheSound("weapons/jar_explode.wav", true);
 	PrecacheSound("weapons/pipe_bomb1.wav", true);
+	PrecacheSound("sound/player/crit_received1.wav", true);
+	PrecacheSound("sound/player/crit_received2.wav", true);
+	PrecacheSound("sound/player/crit_received3.wav", true);
 	PrecacheSound("weapons/syringegun_shoot.wav", true);
 	PrecacheSound("weapons/syringegun_shoot_crit.wav", true);
 	PrecacheSound("weapons/drg_pomson_drain_01.wav", true);
@@ -794,6 +764,7 @@ public Action AttributeChanges(int iClient, int iPrimary, int iSecondary, int iM
 	TF2Attrib_RemoveByName(iClient, "fire rate bonus");
 	TF2Attrib_RemoveByName(iClient, "fire rate penalty");
 	TF2Attrib_RemoveByName(iClient, "clip size bonus");
+	TF2Attrib_RemoveByName(iClient, "increase player capture value");
 	if(iPrimary > 0) {
 		TF2Attrib_RemoveByName(iPrimary, "weapon spread bonus");
 		TF2Attrib_RemoveByName(iClient, "hidden primary max ammo bonus");
@@ -1196,8 +1167,9 @@ public Action AttributeChanges(int iClient, int iPrimary, int iSecondary, int iM
 			TF2Attrib_SetByName(iPrimary, "weapon spread bonus", 0.7);
 		
 			switch (iPrimaryIndex) {
-				case 41: {	// Natascha
+				case 41: {	// Natascha v2.2
 					TF2Attrib_SetByName(iPrimary, "projectile penetration", 1.25);
+					TF2Attrib_SetByName(iPrimary, "maxammo primary increased", 1.333333);		// 200 rounds
 					TF2Attrib_SetByName(iPrimary, "override projectile type", 8.0);	// Huntsman arrow
 					TF2Attrib_SetByName(iPrimary, "centerfire projectile", 1.0);
 				}
@@ -1371,33 +1343,35 @@ public Action AttributeChanges(int iClient, int iPrimary, int iSecondary, int iM
 			TF2Attrib_SetByName(iClient, "aiming movespeed increased", 1.851851);
 			int primaryAmmo = GetEntProp(iPrimary, Prop_Send, "m_iPrimaryAmmoType");
 			SetEntProp(iClient, Prop_Data, "m_iAmmo", 15, _, primaryAmmo);
+			TF2Attrib_SetByName(iClient, "sniper charge per sec", 1.25);
 			
 			switch (iPrimaryIndex) {
-				case 526, 30665: {	// Machina
+				case 526, 30665: {	// Machina v1.1
 					TF2Attrib_SetByName(iPrimary, "damage bonus", 1.15);
 					TF2Attrib_SetByName(iPrimary, "sniper only fire zoomed", 1.0);
 					TF2Attrib_SetByName(iPrimary, "sniper fires tracer", 1.0);
 					TF2Attrib_SetByName(iPrimary, "lunchbox adds minicrits", 2.0);
 					TF2Attrib_SetByName(iPrimary, "projectile penetration", 1.0);
 				}
-				case 230: {	// Sydney Sleeper v3
+				case 230: {	// Sydney Sleeper v3.1
 					TF2Attrib_SetByName(iPrimary, "faster reload rate", 0.67);
 					TF2Attrib_SetByName(iPrimary, "SRifle Charge rate decreased", 0.0);
 				}
 				case 752: {	// Hitman's Heatmaker v2
 					TF2Attrib_SetByName(iPrimary, "damage penalty on bodyshot", 0.75);
 				}
-				case 1098: {	// Classic
+				case 1098: {	// Classic v1.1
 					TF2Attrib_SetByName(iPrimary, "crit on hard hit", 1.0);
 					TF2Attrib_SetByName(iPrimary, "sniper no headshot without full charge", 1.0);
 					TF2Attrib_SetByName(iPrimary, "sniper crit no scope", 1.0);
 					TF2Attrib_SetByName(iPrimary, "sniper fires tracer HIDDEN", 1.0);
 					TF2Attrib_SetByName(iPrimary, "lunchbox adds minicrits", 3.0);
-					TF2Attrib_SetByName(iPrimary, "SRifle Charge rate decreased", 0.75);
+					TF2Attrib_SetByName(iPrimary, "SRifle Charge rate decreased", 0.44);
 				}
-				case 402: {	// Bazaar Bargain
+				case 402: {	// Bazaar Bargain v2
+					TF2Attrib_SetByName(iPrimary, "damage penalty", 0.8);
+					TF2Attrib_SetByName(iPrimary, "faster reload rate", 0.25);
 					TF2Attrib_SetByName(iPrimary, "sniper charge per sec", 1.5);	// The Bargain's downside is hardcoded so I have to do this instead
-					TF2Attrib_SetByName(iPrimary, "maxammo primary reduced", 0.5);
 				}
 				case 56, 1005, 1092: {	// Huntsman
 					TF2Attrib_SetByName(iPrimary, "faster reload rate", 0.75);
@@ -1464,11 +1438,6 @@ public Action AttributeChanges(int iClient, int iPrimary, int iSecondary, int iM
 					TF2Attrib_SetByName(iMelee, "speed_boost_on_kill", 3.0);
 					TF2Attrib_SetByName(iMelee, "health from healers reduced", 0.5);
 					TF2Attrib_SetByName(iMelee, "health from packs increased", 0.5);
-				}
-				case 225, 574: {	// Your Eternal Reward
-					TF2Attrib_SetByName(iMelee, "disguise on backstab", 1.0);
-					TF2Attrib_SetByName(iMelee, "silent killer", 1.0);
-					TF2Attrib_SetByName(iMelee, "lunchbox adds minicrits", 1.0);
 				}
 				case 356: {	// Conniver's Kunai
 					TF2Attrib_SetByName(iMelee, "max health additive penalty", -55.0);
@@ -2430,15 +2399,6 @@ public void OnGameFrame() {
 			
 			// Engineer
 			else if (TF2_GetPlayerClass(iClient) == TFClass_Engineer) {
-				// Display PDA
-				SetHudTextParams(-0.1, -0.23, 0.5, 255, 255, 255, 255);
-				if (players[iClient].bMini == true) {
-					ShowHudText(iClient, 2, "PDA: Mini-Sentry");
-				}
-				else {
-					ShowHudText(iClient, 2, "PDA: Standard");
-				}
-				
 				// Pistol autoreload
 				if (players[iClient].iEquipped != iActive && players[iClient].iEquipped == iSecondary) {			// Weapon swap off Pistol
 					CreateTimer(1.005, AutoreloadPistol, iClient);
@@ -2715,28 +2675,8 @@ public void OnGameFrame() {
 						players[iClient].fDamage_Recieved_Enforcer = 0.0;
 					}
 				}
-				
-				// Your Eternal Reward
-				/*if (iMeleeIndex == 225 || iMeleeIndex == 574) {
-					if (iActive != iSecondary) {
-						if (players[iClient].fYER_Disguise_Remove_Timer > 1.5) {
-							if (TF2_IsPlayerInCondition(iClient, TFCond_Disguised) && !TF2_IsPlayerInCondition(iClient, TFCond_Cloaked)) {
-								TF2_RemoveCondition(iClient, TFCond_Disguised);
-								players[iClient].fYER_Disguise_Remove_Timer = 0.0;
-								EmitSoundToClient(iClient, "weapons/drg_pomson_drain_01.wav");
-							}
-						}
-						else {
-							players[iClient].fYER_Disguise_Remove_Timer += 0.015;
-							SetHudTextParams(-0.1, -0.23, 0.5, 255, 255, 255, 255);
-							ShowHudText(iClient, 2, "Disguise drops in: %.0f%%", 1.5 - players[iClient].fYER_Disguise_Remove_Timer);
-						}
-					}
-					else {
-						players[iClient].fYER_Disguise_Remove_Timer = 0.0;
-					}
-				}*/
 		
+				// Your Eternal Reward
 				if (iMeleeIndex == 225 || iMeleeIndex == 574) {
 					SetHudTextParams(-0.1, -0.23, 0.5, 255, 255, 255, 255);
 					ShowHudText(iClient, 2, "Knife: %.0f%%", 5.0 * players[iClient].fYER_Cooldown);
@@ -3303,16 +3243,30 @@ Action TraceAttack(int victim, int& attacker, int& inflictor, float& damage, int
 			int iMeleeIndex = -1;
 			if (iMelee != -1) iMeleeIndex = GetEntProp(iMelee, Prop_Send, "m_iItemDefinitionIndex");
 			if (iMeleeIndex == 225 || iMeleeIndex == 574) {
-				YERExplosion(attacker, iMelee, isBehind);
+				DataPack hDataPack = new DataPack();
+				hDataPack.WriteCell(attacker);
+				hDataPack.WriteCell(iMelee);
+				hDataPack.WriteCell(isBehind);
+				
+				CreateTimer(0.0, YERExplosion, hDataPack);
 				players[attacker].fYER_Cooldown = 0.0;
-				ForceSwitchFromMeleeWeapon(attacker);
 			}
 		}
 	}
 	return Plugin_Continue;
 }
 
-public Action YERExplosion(int iClient, int iWeapon, bool bBackstab) {
+public Action YERExplosion(Handle timer, DataPack data) {
+	
+	// Extract the variables from the DataPack
+	data.Reset();
+	int iClient = data.ReadCell();
+	int iWeapon = data.ReadCell();
+	bool bBackstab = data.ReadCell();
+	
+	SetEntPropEnt(iClient, Prop_Send, "m_hActiveWeapon", TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Building, true));
+	
+	
 	for (int iTarget = 1 ; iTarget <= MaxClients ; iTarget++) {		// The player being damaged
 		if (IsValidClient(iTarget)) {
 			float vecTargetPos[3], vecSpyPos[3];
@@ -3321,7 +3275,15 @@ public Action YERExplosion(int iClient, int iWeapon, bool bBackstab) {
 			vecTargetPos[2] += 5.0;
 			vecSpyPos[2] += 5.0;
 			CreateParticle(iClient, "ExplosionCore_MidAir", 2.0);
-			EmitAmbientSound("weapons/pipe_bomb1.wav", vecSpyPos, iClient);
+			EmitAmbientSound("weapons/pipe_bomb1.wav", vecSpyPos, iClient, _, _, 0.8);
+			if (bBackstab) {	// Play Crit noise
+				int rndact = GetRandomUInt(0, 2);
+				switch(rndact) {
+					case 0: EmitAmbientSound("sound/player/crit_received1.wav", vecSpyPos, iClient);
+					case 1: EmitAmbientSound("sound/player/crit_received2.wav", vecSpyPos, iClient);
+					case 2: EmitAmbientSound("sound/player/crit_received3.wav", vecSpyPos, iClient);
+				}
+			}
 			
 			float fRadius = (bBackstab ? 288.0 : 144.0);	// Backstabs deal Crit damage in double the radius
 			
@@ -3329,7 +3291,7 @@ public Action YERExplosion(int iClient, int iWeapon, bool bBackstab) {
 			if (fDist <= fRadius && (TF2_GetClientTeam(iClient) != TF2_GetClientTeam(iTarget) || iClient == iTarget)) {
 				Handle hndl = TR_TraceRayFilterEx(vecSpyPos, vecTargetPos, MASK_SOLID, RayType_EndPoint, PlayerTraceFilter, iClient);
 				if (TR_DidHit(hndl) == false || IsValidClient(TR_GetEntityIndex(hndl))) {
-					float damage = RemapValClamped(fDist, 0.0, fRadius, 60.0, 30.0);
+					float damage = RemapValClamped(fDist, 46.0, fRadius, 60.0, 30.0);
 					if (bBackstab) damage *= 3.0;
 					
 					int type = DMG_BLAST;
@@ -3845,48 +3807,46 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 				// Rifle custom ramp-up/fall-off and Mini-Crit headshot damage
 				if (StrEqual(class, "tf_weapon_sniperrifle") || StrEqual(class, "tf_weapon_sniperrifle_decap") || StrEqual(class, "tf_weapon_sniperrifle_classic")) {
 					
-					//PrintToChatAll("headshot frame: %i", players[attacker].iHeadshot_Frame);
-					//PrintToChatAll("game frame: %i", GetGameTickCount());
-					
 					damage = 45.0;		// We're overwriting the Rifle charge behaviour so we manually set the baseline damage here
 					if (iWeaponIndex == 526) {		// Machina damage bonus
 						damage *= 1.15;
 					}
 					float fCharge = GetEntPropFloat(weapon, Prop_Send, "m_flChargedDamage");
-					fDmgMod = RemapValClamped(fCharge, 0.0, 150.0, 1.0, 1.75);		// Apply up to 75% bonus damage depending on charge
-					damage *= fDmgMod;
+					damage *= RemapValClamped(fCharge, 0.0, 150.0, 1.0, 1.6);		// Apply up to 60% bonus damage depending on charge
+					//damage *= fDmgMod;
 					
 					if (isKritzed(attacker)) {
 						damage *= 3;
 					}
 					
-					/*if (iWeaponIndex == 230) {		// Sydney Sleeper
-						if (TF2_IsPlayerInCondition(victim, TFCond_Jarated)) {
-							damage *= 1.35;
-						}
-						TF2_AddCondition(victim, TFCond_Jarated, RemapValClamped(fCharge, 0.0, 150.0, 2.0, 6.0));		// 2-6 sec duration
-						players[victim].iJarated = attacker;		// Record the ID of the victim to steal their THREAT
-						if (fDistance < 512.0) {
-							fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);		// Gives us our ramp-up multiplier
-						}
-					}*/
-					
 					else if (players[attacker].iHeadshot_Frame == GetGameTickCount()) {		// Here we look at headshot status
 						if (StrEqual(class, "tf_weapon_sniperrifle_classic")) {
 							if (fCharge >= 150.0) {
 								damage_type |= DMG_CRIT;		// Apply a Crit
-								fDmgMod *= 2.0;
-								damagecustom = TF_CUSTOM_HEADSHOT;		// No idea if this does anything, honestly
+								fDmgMod *= 2.25;
+								damagecustom = TF_CUSTOM_HEADSHOT;
 							}
 							else {
 								fDmgMod *= 1.35;
 								TF2_AddCondition(victim, TFCond_MarkedForDeathSilent, 0.015, 0);
 							}
 						}
+						// Bazaar Bargain v2
+						else if (StrEqual(class, "tf_weapon_sniperrifle_decap")) {
+							TF2_AddCondition(victim, TFCond_MarkedForDeathSilent, 0.015, 0);
+							fDmgMod *= 1.35;
+							damagecustom = TF_CUSTOM_HEADSHOT;
+						}
+						// Sydney Sleeper
+						else if (iWeaponIndex == 230) {
+							damage_type |= DMG_CRIT;
+							fDmgMod *= 2.0;
+							damagecustom = TF_CUSTOM_HEADSHOT;
+						}
 						else {
 							damage_type |= DMG_CRIT;		// Apply a Crit
-							fDmgMod *= 2.0;
-							damagecustom = TF_CUSTOM_HEADSHOT;		// No idea if this does anything, honestly
+							fDmgMod *= 2.25;
+							damagecustom = TF_CUSTOM_HEADSHOT;
 						}
 						
 						if (GetEntProp(victim, Prop_Send, "m_iHealth")) {	// Heatmaker headshot
@@ -3898,13 +3858,12 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 						}
 					}
 					
-					else if (fDistance < 512.0) {
+					else if (StrEqual(class, "tf_weapon_sniperrifle_decap") && !isMiniKritzed(attacker, victim)) {	// Bazaar Bargain v2 has fall-off
 						fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);		// Gives us our ramp-up multiplier
 					}
 					
-					if (iWeaponIndex == 402) {	// Bazaar Bargain Head damage boost
-						int iHeads = GetEntProp(attacker, Prop_Send, "m_iDecapitations");
-						damage *= SimpleSplineRemapValClamped(iHeads * 1.0, 0.0, 5.0, 1.0, 1.5);	
+					else if (fDistance < 512.0) {
+						fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);		// Gives us our ramp-up multiplier
 					}
 				}
 				
@@ -3948,7 +3907,8 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 			if (StrEqual(class, "tf_weapon_knife")) {
 				if (damagecustom == TF_CUSTOM_BACKSTAB) {	// If we get a backstab...
 					damage = GetEntProp(GetPlayerResourceEntity(), Prop_Send, "m_iMaxHealth", _, victim) * 1.25;		// Override damage to 125% of victim's max health
-					if (iWeaponIndex == 356) {	// Conniver's Kunai lifesteal
+					// Conniver's Kunai lifesteal
+					if (iWeaponIndex == 356) {
 					
 						int iVictimHealth = GetEntProp(victim, Prop_Send, "m_iHealth");
 						int iHealing = iVictimHealth < 75 ? 75 : iVictimHealth;
@@ -3963,6 +3923,10 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 							delete event;
 						}
 					}
+					// Your Eternal Reward v2
+					else if (iWeaponIndex == 225 || iWeaponIndex == 574) {
+						damage = 40.0;
+					}
 				}
 			}
 			
@@ -3970,6 +3934,7 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 			
 			// THREAT modifier
 			if (players[attacker].fTHREAT > 0.0 && !isKritzed(attacker) && !bIsAttackFullCrit) {
+				
 				// Apply THREAT modifiers
 				if (		// List of all weapon archetypes with standard ramp-up/fall-off
 				// Multi-class
@@ -4016,7 +3981,7 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 				// Pyro
 				(StrEqual(class, "tf_weapon_flaregun") || StrEqual(class, "tf_weapon_flaregun_revenge") && damage_type & DMG_BULLET) ||
 				// Sniper (bodyshots)
-				StrEqual(class, "tf_weapon_sniperrifle")) {		// No fall-off
+				StrEqual(class, "tf_weapon_sniperrifle") || StrEqual(class, "tf_weapon_sniperrifle_classic")) {		// No fall-off
 					if (fDistance < 512.0) {
 						fDmgModTHREAT = (1.5/SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.2, 0.8) -  1) * players[attacker].fTHREAT/1000 + 1;
 					}
@@ -4177,8 +4142,13 @@ public void OnTakeDamagePost(int victim, int attacker, int inflictor, float dama
 			int iWeaponIndex = GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex");
 			
 			// Add THREAT
-			if (players[attacker].fBaseball_Debuff_Timer <= 0.0) {
-				players[attacker].fTHREAT += damage;
+			if (players[attacker].fBaseball_Debuff_Timer <= 0.0) {	// i.e. Not debuffed
+				// Bazaar Bargain v2 doubled THREAT
+				if (StrEqual(class, "tf_weapon_sniperrifle_decap")) {
+					players[attacker].fTHREAT += damage * 2.0;
+				}
+				else players[attacker].fTHREAT += damage;
+				
 				if (players[attacker].fTHREAT > 1000.0) {
 					players[attacker].fTHREAT = 1000.0;
 				}
@@ -4186,7 +4156,10 @@ public void OnTakeDamagePost(int victim, int attacker, int inflictor, float dama
 					players[attacker].fTHREAT_Timer += damage * 1.429;		// Adds damage to the DPS counter we have to exceed to block THREAT drain
 				}
 				else if (players[attacker].bIsDemoknight || TF2_GetPlayerClass(attacker) == TFClass_Medic || TF2_GetPlayerClass(attacker) == TFClass_Sniper || TF2_GetPlayerClass(attacker) == TFClass_Spy) {
-					players[attacker].fTHREAT_Timer += damage * 2.0;
+					if (StrEqual(class, "tf_weapon_sniperrifle_decap")) {
+						players[attacker].fTHREAT_Timer += damage * 4.0;
+					}
+					else players[attacker].fTHREAT_Timer += damage * 2.0;
 				}
 				else {
 					players[attacker].fTHREAT_Timer += damage;
@@ -4205,9 +4178,9 @@ public void OnTakeDamagePost(int victim, int attacker, int inflictor, float dama
 			int iVictimSecondaryIndex = -1;
 			if(iVictimSecondary > 0) iVictimSecondaryIndex = GetEntProp(iVictimSecondary, Prop_Send, "m_iItemDefinitionIndex");
 
-			int iVictimMelee = TF2Util_GetPlayerLoadoutEntity(victim, TFWeaponSlot_Melee, true);
-			int iVictimMeleeIndex = -1;
-			if(iVictimMelee > 0) iVictimMeleeIndex = GetEntProp(iVictimMelee, Prop_Send, "m_iItemDefinitionIndex");
+			//int iVictimMelee = TF2Util_GetPlayerLoadoutEntity(victim, TFWeaponSlot_Melee, true);
+			//int iVictimMeleeIndex = -1;
+			//if(iVictimMelee > 0) iVictimMeleeIndex = GetEntProp(iVictimMelee, Prop_Send, "m_iItemDefinitionIndex");
 			
 			// -== Victims ==-
 			// Scout
@@ -4703,14 +4676,6 @@ public Action OnPlayerRunCmd(int iClient, int &buttons, int &impulse, float vel[
 				}
 			}
 		}
-		
-		// Engineer
-		else if (TF2_GetPlayerClass(iClient) == TFClass_Engineer) {
-			if (buttons & IN_RELOAD && !(players[iClient].iLastButtons & IN_RELOAD) && ((iActive == iMelee && iActiveIndex != 589) || iActiveIndex == 25 || iActiveIndex == 737 || iActiveIndex == 26)) {		// Swaps PDA
-				Command_PDA(iClient, 0);
-			}
-		}
-		
 		players[iClient].iLastButtons = buttons;		// Stores buttons for next frame
 	}
 	return Plugin_Continue;
@@ -4749,8 +4714,8 @@ public Action TeammateWhip(int iClient, int iClass) {
 public Action AutoreloadPistol(Handle timer, int iClient) {
 	
 	int iSecondary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Secondary, true);		// Retrieve the secondary weapon
-	int iSecondaryIndex = -1;
-	if(iSecondary > 0) iSecondaryIndex = GetEntProp(iSecondary, Prop_Send, "m_iItemDefinitionIndex");
+	//int iSecondaryIndex = -1;
+	//if(iSecondary > 0) iSecondaryIndex = GetEntProp(iSecondary, Prop_Send, "m_iItemDefinitionIndex");
 	
 	char class[64];
 	GetEntityClassname(iSecondary, class, sizeof(class));		// Retrieve the weapon
@@ -5255,6 +5220,18 @@ Action needleTouch(int Syringe, int other) {
 
 
 void arrowSpawn(int iEntity) {
+	int iClient = GetEntPropEnt(iEntity, Prop_Send, "m_hOwnerEntity");
+	if (TF2_GetPlayerClass(iClient) == TFClass_Heavy) {
+		
+		float vecVel[3];
+		GetEntPropVector(iEntity, Prop_Data, "m_vecVelocity", vecVel);
+		vecVel[0] *= 1.2;
+		vecVel[1] *= 1.2;
+		vecVel[2] *= 1.2;
+		
+		TeleportEntity(iEntity, _, _, vecVel);			// Apply velocity buff
+	}
+	
 	/*int iClient = GetEntPropEnt(iEntity, Prop_Send, "m_hOwnerEntity");
 	if (TF2_GetPlayerClass(iClient) == TFClass_Heavy) {
 	
@@ -5306,6 +5283,7 @@ Action SDKHookCB_Spawn(int entity) {
 			break;
 		}
 	}
+	return Plugin_Continue;
 }
 
 Action SDKHookCB_Touch(int entity, int other) {
@@ -5512,7 +5490,7 @@ Action BuildingDamage (int building, int &attacker, int &inflictor, float &damag
 					
 					damage = 45.0;		// We're overwriting the Rifle charge behaviour so we manually set the baseline damage here
 					float fCharge = GetEntPropFloat(weapon, Prop_Send, "m_flChargedDamage");
-					fDmgMod = RemapValClamped(fCharge, 0.0, 150.0, 1.0, 1.75);		// Apply up to 75% bonus damage depending on charge
+					fDmgMod = RemapValClamped(fCharge, 0.0, 150.0, 1.0, 1.6);		// Apply up to 60% bonus damage depending on charge
 					damage *= fDmgMod;
 					
 					if (fDistance < 512.0) {
@@ -5558,6 +5536,7 @@ Action BuildingDamage (int building, int &attacker, int &inflictor, float &damag
 				StrEqual(class, "tf_weapon_shotgun_building_rescue") ||
 				StrEqual(class, "tf_weapon_drg_pomson") ||
 				// Sniper
+				StrEqual(class, "tf_weapon_sniperrifle_decap") ||
 				StrEqual(class, "tf_weapon_smg")) {
 					
 					if (fDistance < 512.0) {
@@ -5760,58 +5739,6 @@ Action BuildingThink(int building, int client) {
 }
 
 
-	// -={ Deploy Mini-Sentry }=-
-
-public Action EventObjectBuilt(Event bEvent, const char[] name, bool bBroad) {
-	int building = GetEventInt(bEvent, "index");
-	int owner = GetClientOfUserId(GetEventInt(bEvent, "userid"));
-	
-	char class[64];
-	GetEntityClassname(building, class, sizeof(class));
-	if (StrEqual(class, "obj_sentrygun")) {
-		if (players[owner].bSentryBuilt == false) {
-			players[owner].bSentryBuilt = true;
-			if (players[owner].bMini == true) {
-				SetEntProp(building, Prop_Send, "m_bMiniBuilding", 1);
-				SetEntProp(building, Prop_Send, "m_iMaxHealth", 100);
-				SetEntProp(building, Prop_Send, "m_iHealth", 50);
-				SetEntPropFloat(building, Prop_Send, "m_flModelScale", 0.75);
-				int iMetal = GetEntData(owner, FindDataMapInfo(owner, "m_iAmmo") + (3 * 4), 4);
-				SetEntData(owner, FindDataMapInfo(owner, "m_iAmmo") + (3 * 4), iMetal + 55, 4);
-			}
-			else {
-				int iMetal = GetEntData(owner, FindDataMapInfo(owner, "m_iAmmo") + (3 * 4), 4);
-				SetEntData(owner, FindDataMapInfo(owner, "m_iAmmo") + (3 * 4), iMetal + 5, 4);
-			}
-			//PrintToChatAll("Sentry health: %i", GetEntProp(building, Prop_Send, "m_iHealth"));
-		}
-	}
-	
-	return Plugin_Continue;
-}
-
-
-	// -={ Detects Sentry death }=-
-
-public Action EventObjectDestroy(Event bEvent, const char[] name, bool bBroad) {
-	bool was_building = GetEventBool(bEvent, "was_building");
-	int buildType = GetEventInt(bEvent, "objecttype");
-	int owner = GetClientOfUserId(GetEventInt(bEvent, "userid"));
-	
-	// Dispenser = 0
-	// Tele = 1
-	// Sentry = 2
-	
-	if (was_building == true) {
-		if (buildType == 2) {
-			players[owner].bSentryBuilt = false;
-		}
-	}
-	
-	return Plugin_Continue;
-}
-
-
 	// -={ Allows for Dispenser self-destruct }=-
 
 public Action EventObjectDetonate(Event bEvent, const char[] name, bool dBroad) {
@@ -5867,9 +5794,6 @@ public Action EventObjectDetonate(Event bEvent, const char[] name, bool dBroad) 
 			}
 		}
 	}
-	else if (buildType == 2) {
-		players[owner].bSentryBuilt = false;
-	}
 
 	return Plugin_Continue;
 }
@@ -5881,8 +5805,8 @@ public void TrapSet(Handle timer, int iSticky) {
 }
 
 Action OnClientWeaponCanSwitchTo(int iClient, int weapon) {
-	int iActive = GetEntPropEnt(iClient, Prop_Send, "m_hActiveWeapon");
-	int iPrimary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
+	//int iActive = GetEntPropEnt(iClient, Prop_Send, "m_hActiveWeapon");
+	//int iPrimary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
 	int iMelee = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Melee, true);
     
 	// Axtinguisher
@@ -5922,7 +5846,7 @@ Action OnClientWeaponCanSwitchTo(int iClient, int weapon) {
 
 void ForceSwitchFromMeleeWeapon(int iClient) {
 	int weapon = INVALID_ENT_REFERENCE;
-	if (IsValidEntity((weapon = GetPlayerWeaponSlot(iClient, TFWeaponSlot_Primary))) || IsValidEntity((weapon = GetPlayerWeaponSlot(iClient, TFWeaponSlot_Secondary))) || IsValidEntity((weapon = GetPlayerWeaponSlot(iClient, TFWeaponSlot_Building)))) {
+	if (IsValidEntity((weapon = GetPlayerWeaponSlot(iClient, TFWeaponSlot_Primary))) || IsValidEntity((weapon = GetPlayerWeaponSlot(iClient, TFWeaponSlot_Secondary)))) {
 		SetActiveWeapon(iClient, weapon);
 	}
 }
@@ -6201,4 +6125,10 @@ stock void TE_SetupTFParticleEffect(const char[] name, const float vecOrigin[3],
 	}
 	
 	TE_WriteNum("m_bResetParticles", bResetParticles ? 1 : 0);
+}
+
+	// -={ Generates random integers within a specified range (apparently SourceMod doesn't have this natively) }=-
+
+int GetRandomUInt(int min, int max) {
+	return RoundToFloor(GetURandomFloat() * (max - min + 1)) + min;
 }
