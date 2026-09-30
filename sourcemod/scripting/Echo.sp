@@ -173,7 +173,7 @@ public Action TF2Items_OnGiveNamedItem(int iClient, char[] class, int index, Han
 		TF2Items_SetFlags(item1, (OVERRIDE_ATTRIBUTES|PRESERVE_ATTRIBUTES));
 		TF2Items_SetNumAttributes(item1, 11);
 		//TF2Items_SetAttribute(item1, 0, 72, 0.0); // weapon burn dmg reduced (nil)
-		TF2Items_SetAttribute(item1, 0, 72, 5.0); // weapon burn dmg reduced (nil)
+		TF2Items_SetAttribute(item1, 0, 72, 2.5); // weapon burn dmg reduced (nil)
 		TF2Items_SetAttribute(item1, 1, 839, 0.0); // flame_spread_degree (none)
 		TF2Items_SetAttribute(item1, 2, 841, 0.0); // flame_gravity (none)
 		TF2Items_SetAttribute(item1, 3, 843, 0.0); // flame_drag (none)
@@ -637,6 +637,9 @@ public void OnGameFrame() {
 		
 		if (players[iClient].fTemp > 0.0) {
 			players[iClient].fTemp -= 0.00375;
+		} 
+		if (players[iClient].fTemp > 0.5) {
+			players[iClient].fTemp = 0.5;
 		}
 		
 		//TF2Attrib_AddCustomPlayerAttribute(iClient, "max health additive penalty", -(iMaxHealth * 0.083333) * players[iClient].fBurningHealthLoss);

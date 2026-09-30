@@ -2374,7 +2374,7 @@ void Rifle_Autoreload(int iClient) {
 	char class[64];
 	GetEntityClassname(iPrimary, class, sizeof(class));		// Retrieve the weapon
 	
-	if (StrEqual(class, "tf_weapon_syringegun_medic")) {		// If we have a Syringe Gun equipped
+	if (StrEqual(class, "tf_weapon_sniperrifle")) {		// If we have a Syringe Gun equipped
 		int iAmmoTable = FindSendPropInfo("CTFWeaponBase", "m_iClip1");
 		int clip = GetEntData(iPrimary, iAmmoTable, 4);		// Retrieve the loaded ammo of our SMG
 		int ammoSubtract = 3 - clip;		// Don't take away more ammo than is nessesary
