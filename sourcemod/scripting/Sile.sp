@@ -17,7 +17,7 @@ public Plugin myinfo =
 	name = "Czin's Team Synergy 2 Balancemod",
 	author = "Ech0",
 	description = "Contains weapon rebalances from Czin's document",
-	version = "2.0.8",
+	version = "2.0.9",
 	url = ""
 };
 
@@ -31,7 +31,6 @@ enum struct Player {
 	float fHeal_Penalty;		// Tracks how long after taking damage we restore our incoming healing to normal
 	float fHeal_Penalty_Timer;		// Tracks how much damage we take so the heal penalty can be applied
 	float fAfterburn;		// Tracks Afterburn max health debuff
-	float fAfterburn_DMG_tick;	// Imposes a 1.0 sec cooldown on taking damage from Afterburn
 	float fPA_Accuracy;		// Tracks the Panic Attack's accuracy
 	float fTempLevel;		// Tracks damage taken from the Huo-Long Heater
 	float fBaseball_Debuff_Timer;	// Tracks Sandman debuff
@@ -101,6 +100,10 @@ enum struct Entity {
 	// Stickies
 	bool bTrap;		// Stores whether a sticky has existed long enough to become a trap
 	float fHealth;		// Tracks the health of Demo's bombs
+	
+	// Arrows
+	int entity;
+	float position[3];
 	
 	// Buildings
 	float fConstruction_Health;		// Tracks the amount of health a building is *supposed* to have during its construction animation
@@ -1195,7 +1198,7 @@ public Action AttributeChanges(int iClient, int iPrimary, int iSecondary, int iM
 			switch (iPrimaryIndex) {
 				case 41: {	// Natascha
 					TF2Attrib_SetByName(iPrimary, "projectile penetration", 1.25);
-					TF2Attrib_SetByName(iPrimary, "override projectile type", 8.0);
+					TF2Attrib_SetByName(iPrimary, "override projectile type", 8.0);	// Huntsman arrow
 					TF2Attrib_SetByName(iPrimary, "centerfire projectile", 1.0);
 				}
 				case 424: {	// Tomislav
@@ -1229,6 +1232,13 @@ public Action AttributeChanges(int iClient, int iPrimary, int iSecondary, int iM
 					TF2Attrib_SetByName(iSecondary, "lunchbox healing decreased", 0.84);
 					TF2Attrib_SetByName(iSecondary, "item_meter_charge_rate", 20.0);
 					TF2Attrib_SetByName(iSecondary, "item_meter_charge_type", 1.0);
+					SetEntProp(iClient, Prop_Data, "m_iAmmo", 1, _, secondaryAmmo);
+				}
+				case 159, 433: {	// Dalokohs Bar
+					TF2Attrib_SetByName(iSecondary, "lunchbox healing decreased", 0.33);
+					TF2Attrib_SetByName(iSecondary, "item_meter_charge_rate", 10.0);
+					TF2Attrib_SetByName(iSecondary, "item_meter_charge_type", 1.0);
+					TF2Attrib_SetByName(iPrimary, "max health additive bonus", 50.0);
 					SetEntProp(iClient, Prop_Data, "m_iAmmo", 1, _, secondaryAmmo);
 				}
 				case 311: {	// Buffalo Steak Sandvich
@@ -1533,6 +1543,16 @@ public void OnGameFrame() {
 	
 	frame++;
 	
+	// Non-player objects
+	int idx;
+	for (idx = 0; idx < sizeof(entities); idx++) {
+		if (entities[idx].entity != 0) {
+			// save the projectile's position for this frame
+			GetEntPropVector(entities[idx].entity, Prop_Send, "m_vecOrigin", entities[idx].position);
+		}
+	}
+	
+	// Players
 	for (int iClient = 1; iClient <= MaxClients; iClient++) {
 		if (IsClientInGame(iClient) && IsPlayerAlive(iClient)) {
 			
@@ -3130,12 +3150,22 @@ public void OnEntityCreated(int iEnt, const char[] classname) {
 
 		else if(StrEqual(classname, "tf_projectile_arrow")) {
 			SDKHook(iEnt, SDKHook_SpawnPost, arrowSpawn);
+			// Thank you Bakugo
+			SDKHook(iEnt, SDKHook_Spawn, SDKHookCB_Spawn);
+			SDKHook(iEnt, SDKHook_Touch, SDKHookCB_Touch);
 		}
 	}
 }
 
 public void OnEntityDestroyed(int entity) {
 	if (!IsValidEntity(entity) || !IsValidEdict(entity)) return;
+	
+	int idx;
+	for (idx = 0; idx < sizeof(entities); idx++) {
+		if (entities[idx].entity == entity) {
+			entities[idx].entity = 0;
+		}
+	}
 	
 	char class[64];
 	GetEntityClassname(entity, class, sizeof(class));
@@ -3741,6 +3771,14 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 
 			// Heavy
 			if (TF2_GetPlayerClass(attacker) == TFClass_Heavy) {
+				if (StrEqual(class, "tf_weapon_minigun")) {
+					damage *= SimpleSplineRemapValClamped(players[attacker].fSpeed, 0.0, 1.005, 1.0, 0.666);		// Scale damage up from -33% to base as we fire
+				}
+				
+				else if (StrEqual(class, "tf_weapon_shotgun_hwg") || StrEqual(class, "tf_weapon_shotgun")) {
+					damage *= 1.1;
+				}
+				
 				// Natascha
 				if (iWeaponIndex == 41) {
 					damage = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 21.0, 7.0);
@@ -3753,14 +3791,6 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 						}
 						else damage *= 2.0;
 					}
-				}
-				
-				if (StrEqual(class, "tf_weapon_minigun")) {
-					damage *= SimpleSplineRemapValClamped(players[attacker].fSpeed, 0.0, 1.005, 1.0, 0.666);		// Scale damage up from -33% to base as we fire
-				}
-				
-				else if (StrEqual(class, "tf_weapon_shotgun_hwg") || StrEqual(class, "tf_weapon_shotgun")) {
-					damage *= 1.1;
 				}
 				
 				// Family Business
@@ -4816,7 +4846,6 @@ public void Syringe_PrimaryAttack(int iClient, int iPrimary, float vecAng[3]) {
 		SetEntProp(iSyringe, Prop_Data, "m_CollisionGroup", 24);		// Collision
 		SetEntProp(iSyringe, Prop_Data, "m_usSolidFlags", 0);
 		SetEntProp(iSyringe, Prop_Data, "m_nSkin", team - 2);		// Skin
-		SetEntProp(iSyringe, Prop_Send, "m_nSkin", team - 2);
 		SetEntPropVector(iSyringe, Prop_Data, "m_angRotation", vecAng);		// Orientation of model
 		SetEntityModel(iSyringe, "models/weapons/w_models/w_syringe_proj.mdl"); // Model
 		SetEntPropFloat(iSyringe, Prop_Data, "m_flGravity", 0.3);
@@ -5226,30 +5255,99 @@ Action needleTouch(int Syringe, int other) {
 
 
 void arrowSpawn(int iEntity) {
-	int iClient = GetEntPropEnt(iEntity, Prop_Send, "m_hOwnerEntity");
+	/*int iClient = GetEntPropEnt(iEntity, Prop_Send, "m_hOwnerEntity");
 	if (TF2_GetPlayerClass(iClient) == TFClass_Heavy) {
 	
+		int iPrimary = TF2Util_GetPlayerLoadoutEntity(iClient, TFWeaponSlot_Primary, true);
+		int team = GetClientTeam(iClient);
+		AcceptEntityInput(iEntity, "KillHierarchy");
+		
 		float vecPos[3], vecAng[3], vecVel[3],  offset[3];
-		float ang[3];
+		/*float ang[3];
 		GetEntPropVector(iEntity, Prop_Data, "m_angRotation", ang);
-		ang[0] = DegToRad(ang[0]); ang[1] = DegToRad(ang[1]); ang[2] = DegToRad(ang[2]);
+		ang[0] = DegToRad(ang[0]); ang[1] = DegToRad(ang[1]); ang[2] = DegToRad(ang[2]);//
 		
 		GetClientEyeAngles(iClient, vecAng);
 		GetClientEyePosition(iClient, vecPos);
 		
-		SetEntPropVector(iEntity, Prop_Data, "m_angRotation", vecAng);		// Orientation of model
-		SetEntityModel(iEntity, "models/weapons/w_models/w_syringe_proj.mdl"); // Model
-		SetEntPropFloat(iEntity, Prop_Data, "m_flGravity", 0.1);
-		SetEntPropFloat(iEntity, Prop_Data, "m_flRadius", 0.3);
-		SetEntPropFloat(iEntity, Prop_Send, "m_flModelScale", 0.3);
+		int iSyringe = CreateEntityByName("tf_projectile_healing_bolt");
+		
+		SetEntPropEnt(iSyringe, Prop_Send, "m_hOwnerEntity", iClient);	// Attacker
+		SetEntPropEnt(iSyringe, Prop_Send, "m_hLauncher", iPrimary);	// Weapon
+		SetEntProp(iSyringe, Prop_Data, "m_iTeamNum", team);		// Team
+		SetEntProp(iSyringe, Prop_Send, "m_iTeamNum", team);
+		SetEntProp(iSyringe, Prop_Data, "m_CollisionGroup", 24);		// Collision
+		SetEntProp(iSyringe, Prop_Data, "m_usSolidFlags", 0);
+		SetEntProp(iSyringe, Prop_Data, "m_nSkin", team - 2);		// Skin
+		SetEntPropVector(iSyringe, Prop_Data, "m_angRotation", vecAng);		// Orientation of model
+		SetEntityModel(iSyringe, "models/weapons/w_models/w_syringe_proj.mdl"); // Model
+		SetEntPropFloat(iSyringe, Prop_Data, "m_flGravity", 0.0);
+		SetEntPropFloat(iSyringe, Prop_Data, "m_flRadius", 0.3);
+		SetEntPropFloat(iSyringe, Prop_Send, "m_flModelScale", 2.0);
+		
+		DispatchSpawn(iSyringe);
 		
 		// Calculates forward velocity
-		vecVel[0] = Cosine(DegToRad(vecAng[0])) * Cosine(DegToRad(vecAng[1])) * 2000.0;
-		vecVel[1] = Cosine(DegToRad(vecAng[0])) * Sine(DegToRad(vecAng[1])) * 2000.0;
-		vecVel[2] = Sine(DegToRad(vecAng[0])) * -2000.0;
+		vecVel[0] = Cosine(DegToRad(vecAng[0])) * Cosine(DegToRad(vecAng[1])) * 2400.0;
+		vecVel[1] = Cosine(DegToRad(vecAng[0])) * Sine(DegToRad(vecAng[1])) * 2400.0;
+		vecVel[2] = Sine(DegToRad(vecAng[0])) * -2400.0;
 
-		TeleportEntity(iEntity, _, _, vecVel);			// Apply position and velocity to syringe
+		TeleportEntity(iSyringe, vecPos, _, vecVel);			// Apply position and velocity to syringe
+	}*/
+}
+
+Action SDKHookCB_Spawn(int entity) {
+	int idx;
+	
+	for (idx = 0; idx < sizeof(entities); idx++) {
+		if (entities[idx].entity == entity) {
+			// in case the projectile collides immediately after spawning
+			GetEntPropVector(entity, Prop_Send, "m_vecOrigin", entities[idx].position);
+			break;
+		}
 	}
+}
+
+Action SDKHookCB_Touch(int entity, int other) {
+	int idx;
+	float pos1[3];
+	float pos2[3];
+	float maxs[3];
+	float mins[3];
+	
+	if (other > MaxClients) {
+		for (idx = 0; idx < sizeof(entities); idx++) {
+			if (entities[idx].entity == entity) {
+				GetEntPropVector(entity, Prop_Send, "m_vecOrigin", pos1);
+				
+				// roughly predict the projectile's next position
+				SubtractVectors(pos1, entities[idx].position, pos2);
+				ScaleVector(pos2, 1.3);
+				AddVectors(pos1, pos2, pos2);
+				
+				maxs[0] = 5.0;
+				mins[0] = (0.0 - maxs[0]);
+				maxs[1] = maxs[0]; maxs[2] = maxs[0];
+				mins[1] = mins[0]; mins[2] = mins[0];
+				
+				// check if the projectile will collide with this entity in its next position
+				TR_TraceHullFilter(pos1, pos2, mins, maxs, MASK_SOLID, TraceFilter_IncludeSingle, other);
+				
+				if (TR_DidHit() == false) {
+					// trace did not hit, cancel touch
+					return Plugin_Handled;
+				}
+				
+				break;
+			}
+		}
+	}
+	
+	return Plugin_Continue;
+}
+
+bool TraceFilter_IncludeSingle(int entity, int contentsmask, any data) {
+	return (entity == data);
 }
 
 Action BuildingDamage (int building, int &attacker, int &inflictor, float &damage, int &damage_type, int &weapon, float damageForce[3], float damagePosition[3]) {
