@@ -2579,7 +2579,7 @@ public void OnGameFrame() {
 				// Quick-Fix
 				if (iSecondaryIndex == 411) {
 					int iHealingTarget = GetEntPropEnt(iSecondary, Prop_Send, "m_hHealingTarget");
-					float fCurrentTime = GetGameTime()
+					float fCurrentTime = GetGameTime();
 					if (iHealingTarget > 0) {
 						players[iClient].fQuick_Fix_Last_Detatch_Time = fCurrentTime;
 						players[iClient].fQuick_Fix_Battery -= 0.015;
@@ -2679,7 +2679,7 @@ public void OnGameFrame() {
 					}
 				}
 				
-				GetEntityClassname(iSecondary, class,64);
+				GetEntityClassname(iSecondary, class, 64);
 				// Cleaner's Carbine v2
 				if (StrEqual(class, "tf_weapon_charged_smg")) {
 					int iAmmoTable = FindSendPropInfo("CTFWeaponBase", "m_iClip1");
@@ -3344,7 +3344,7 @@ public void MilkExplosion(int entity) {
 		GetEntPropVector(iTarget, Prop_Send, "m_vecOrigin", vecTargetPos);
 
 		if (GetVectorDistance(vecRocketPos, vecTargetPos) <= 200.0) {
-			SetEntPropFloat(iTarget, Prop_Send, "m_flWaterExitTime", GetGameTime());
+			//SetEntPropFloat(iTarget, Prop_Send, "m_flWaterExitTime", GetGameTime());
 			
 			TF2Util_TakeHealth(iTarget, 75.0);
 			players[iTarget].bMilk_Wetness = true;
@@ -3975,7 +3975,7 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 					damage *= SimpleSplineRemapValClamped(players[attacker].fSpeed, 0.0, 1.005, 1.0, 0.666);		// Scale damage up from -33% to base as we fire
 				}*/
 				
-				else if (StrEqual(class, "tf_weapon_shotgun_hwg") || StrEqual(class, "tf_weapon_shotgun")) {
+				if (StrEqual(class, "tf_weapon_shotgun_hwg") || StrEqual(class, "tf_weapon_shotgun")) {
 					damage *= 1.1;
 				}
 				
