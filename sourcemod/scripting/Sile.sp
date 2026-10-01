@@ -80,6 +80,8 @@ enum struct Player {
 	// Engineer
 
 	// Medic
+	float fQuick_Fix_Battery;	// Stores the amount of healing energy (in seconds) the Quick-Fix has
+	float fQuick_Fix_Last_Detatch_Time;	// Stores when we detach the heal beam from somebody so we can tell when to start regenerating energy
 	int iSyringe_Ammo;		// Tracks loaded syringes for the purposes of determining when we fire a shot
 	//float fAmputator_heal_tick_timer;	// Tracks how long until a heal instance during the Amputator's taunt
 	
@@ -1002,6 +1004,7 @@ public Action AttributeChanges(int iClient, int iPrimary, int iSecondary, int iM
 				}
 				case 775: {	// Escape Plan
 					TF2Attrib_SetByName(iMelee, "damage penalty", 0.5);
+					TF2Attrib_SetByName(iMelee, "self mark for death", 1.0);
 				}
 				case 357: {		// Half-Zatoichi
 					TF2Attrib_SetByName(iMelee, "heal on kill", 85.0);
@@ -2154,8 +2157,7 @@ public void OnGameFrame() {
 				}
 				
 				// Escape Plan speed
-				if (iActiveIndex == 775)
-				{
+				if (iActiveIndex == 775) {
 					int iHealth = GetEntProp(iClient, Prop_Send, "m_iHealth");
 					float fSpeed;
 
@@ -2570,6 +2572,20 @@ public void OnGameFrame() {
 						fUber += 0.00009328 * 0.5;		// This is being added every *tick*
 					}
 					SetEntPropFloat(iSecondary, Prop_Send, "m_flChargeLevel", fUber);
+				}
+				
+				// Quick-Fix
+				if (iSecondaryIndex == 411) {
+					int iHealingTarget = GetEntPropEnt(iSecondary, Prop_Send, "m_hHealingTarget");
+					float fCurrentTime = GetGameTime()
+					if (iHealingTarget > 0) {
+						players[iClient].fQuick_Fix_Last_Detatch_Time = fCurrentTime;
+						players[iClient].fQuick_Fix_Battery -= 0.015;
+					}
+					
+					if (fCurrentTime > players[iClient].fQuick_Fix_Last_Detatch_Time + 0.5) {
+						players[iClient].fQuick_Fix_Battery += 0.0522;	// 1 sec regen time for 3.5 sec worth of energy
+					}
 				}
 				
 				// Amputator taunt heal
@@ -4030,6 +4046,9 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 					damage = 45.0;		// We're overwriting the Rifle charge behaviour so we manually set the baseline damage here
 					if (iWeaponIndex == 526) {		// Machina damage bonus
 						damage *= 1.15;
+					}
+					else if (iWeaponIndex == 402) {	// Bazaar Bargain damage penalty
+						damage *= 0.8;
 					}
 					float fCharge = GetEntPropFloat(weapon, Prop_Send, "m_flChargedDamage");
 					damage *= RemapValClamped(fCharge, 0.0, 150.0, 1.0, 1.6);		// Apply up to 60% bonus damage depending on charge
@@ -5829,7 +5848,7 @@ Action BuildingDamage (int building, int &attacker, int &inflictor, float &damag
 			// Sniper
 			if (TF2_GetPlayerClass(attacker) == TFClass_Sniper) {
 				// Rifle custom ramp-up/fall-off and Mini-Crit headshot damage
-				if (StrEqual(class, "tf_weapon_sniperrifle") || StrEqual(class, "tf_weapon_sniperrifle_decap") || StrEqual(class, "tf_weapon_sniperrifle_classic")) {
+				if (StrEqual(class, "tf_weapon_sniperrifle") || StrEqual(class, "tf_weapon_sniperrifle_classic")) {
 					
 					damage = 45.0;		// We're overwriting the Rifle charge behaviour so we manually set the baseline damage here
 					float fCharge = GetEntPropFloat(weapon, Prop_Send, "m_flChargedDamage");
@@ -5839,6 +5858,14 @@ Action BuildingDamage (int building, int &attacker, int &inflictor, float &damag
 					if (fDistance < 512.0) {
 						fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);		// Gives us our ramp-up multiplier
 					}
+				}
+				else if (StrEqual(class, "tf_weapon_sniperrifle_decap")) {
+					damage = 36.0;
+					float fCharge = GetEntPropFloat(weapon, Prop_Send, "m_flChargedDamage");
+					fDmgMod = RemapValClamped(fCharge, 0.0, 150.0, 1.0, 1.6);
+					damage *= fDmgMod;
+					
+					fDmgMod = SimpleSplineRemapValClamped(fDistance, 0.0, 1024.0, 1.5, 0.5);
 				}
 			}
 			
