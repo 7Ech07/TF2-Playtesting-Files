@@ -806,6 +806,7 @@ public Action AttributeChanges(int iClient, int iPrimary, int iSecondary, int iM
 	TF2Attrib_RemoveByName(iClient, "fire rate penalty");
 	TF2Attrib_RemoveByName(iClient, "clip size bonus");
 	TF2Attrib_RemoveByName(iClient, "increase player capture value");
+	TF2Attrib_RemoveByName(iClient, "aiming movespeed increased");
 	if(iPrimary > 0) {
 		TF2Attrib_RemoveByName(iPrimary, "weapon spread bonus");
 		TF2Attrib_RemoveByName(iClient, "hidden primary max ammo bonus");
@@ -1445,6 +1446,7 @@ public Action AttributeChanges(int iClient, int iPrimary, int iSecondary, int iM
 				case 56, 1005, 1092: {	// Huntsman
 					TF2Attrib_SetByName(iPrimary, "faster reload rate", 0.75);
 					TF2Attrib_SetByName(iPrimary, "hidden primary max ammo bonus", 0.533333);
+					TF2Attrib_SetByName(iClient, "aiming movespeed increased", 1.0);
 					SetEntProp(iClient, Prop_Data, "m_iAmmo", 8, _, primaryAmmo);
 				}
 			}
