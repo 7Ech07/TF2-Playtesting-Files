@@ -2563,31 +2563,42 @@ public void OnGameFrame() {
 				// Passive Uber build (0.625%/sec base)
 				float fUber = GetEntPropFloat(iSecondary, Prop_Send, "m_flChargeLevel");
 				if (fUber < 1.0 && !(TF2_IsPlayerInCondition(iClient, TFCond_Ubercharged) || TF2_IsPlayerInCondition(iClient, TFCond_Kritzkrieged) || TF2_IsPlayerInCondition(iClient, TFCond_MegaHeal))) {	// Disble this when Ubered
-					if (iMeleeIndex == 413) continue;	// Solemn Vow
-					if (iSecondaryIndex == 35) {		// Kritzkreig
-						fUber += 0.00009328 * 1.25 * 0.5;
+					if (iMeleeIndex != 413) {	// Solemn Vow
+						if (iSecondaryIndex == 35) {		// Kritzkreig
+							fUber += 0.00009328 * 1.25 * 0.5;
+						}
+						else if (iSecondaryIndex == 998) {		// Vaccinator
+							fUber += 0.00009328 * 3.0 * 0.5;
+						}
+						else {
+							fUber += 0.00009328 * 0.5;		// This is being added every *tick*
+						}
+						SetEntPropFloat(iSecondary, Prop_Send, "m_flChargeLevel", fUber);
 					}
-					else if (iSecondaryIndex == 998) {		// Vaccinator
-						fUber += 0.00009328 * 3.0 * 0.5;
-					}
-					else {
-						fUber += 0.00009328 * 0.5;		// This is being added every *tick*
-					}
-					SetEntPropFloat(iSecondary, Prop_Send, "m_flChargeLevel", fUber);
 				}
 				
 				// Quick-Fix
 				if (iSecondaryIndex == 411) {
 					int iHealingTarget = GetEntPropEnt(iSecondary, Prop_Send, "m_hHealingTarget");
 					float fCurrentTime = GetGameTime();
-					if (iHealingTarget > 0) {
+					if (iHealingTarget >= 1 && iHealingTarget <= MaxClients && !TF2_IsPlayerInCondition(iClient, TFCond_MegaHeal)) {
 						players[iClient].fQuick_Fix_Last_Detatch_Time = fCurrentTime;
 						players[iClient].fQuick_Fix_Battery -= 0.015;
 					}
 					
-					if (fCurrentTime > players[iClient].fQuick_Fix_Last_Detatch_Time + 0.5) {
+					else if (fCurrentTime > players[iClient].fQuick_Fix_Last_Detatch_Time + 0.5) {
 						players[iClient].fQuick_Fix_Battery += 0.0522;	// 1 sec regen time for 3.5 sec worth of energy
 					}
+					
+					if (players[iClient].fQuick_Fix_Battery > 3.5) {
+						players[iClient].fQuick_Fix_Battery = 3.5;
+					}
+					else if (players[iClient].fQuick_Fix_Battery < 0) {
+						FakeClientCommand(iClient, "slot3");
+					}
+					
+					SetHudTextParams(-0.1, -0.23, 0.5, 255, 255, 255, 255);
+					ShowHudText(iClient, 2, "Medi-Gun Battery: %.0f%%", 28.572 * players[iClient].fQuick_Fix_Battery);
 				}
 				
 				// Amputator taunt heal
@@ -4793,6 +4804,12 @@ public Action OnPlayerHealed(Event event, const char[] name, bool dontBroadcast)
 				else {
 					fUber += iHealing * 0.00125;
 				}
+				// Quick-Fix ignore heal penalty from damage
+				if (iSecondaryIndex == 411) {
+					if (players[iPatient].fHeal_Penalty > 0) {
+						TF2Util_TakeHealth(iPatient, iHealing);
+					}
+				}
 				if (fUber > 1.0) {
 					SetEntPropFloat(iSecondary, Prop_Send, "m_flChargeLevel", 1.0);
 				}
@@ -5797,7 +5814,7 @@ Action BuildingDamage (int building, int &attacker, int &inflictor, float &damag
 				// Homewrecker building stun
 				else if (iWeaponIndex == 153 || iWeaponIndex == 466) {
 					SetEntProp(building, Prop_Send, "m_bDisabled", 1);
-
+					damage *= 2.0;
 					CreateTimer(3.0, Timer_EnableBuilding, EntIndexToEntRef(building), TIMER_FLAG_NO_MAPCHANGE);
 				}
 			}
